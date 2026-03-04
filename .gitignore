@@ -30,3 +30,7 @@ phpstan.neon
 testbench.yaml
 /docs
 /coverage
+
+# Claude
+.claude/settings.local.json
+
