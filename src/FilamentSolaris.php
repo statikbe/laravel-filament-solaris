@@ -22,8 +22,6 @@ class FilamentSolaris
 
     /**
      * Runtime-registered logger.
-     *
-     * @var ?LoggerInterface
      */
     protected static ?LoggerInterface $logger = null;
 
