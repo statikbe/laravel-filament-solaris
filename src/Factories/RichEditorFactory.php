@@ -4,7 +4,7 @@ namespace Statikbe\FilamentSolaris\Factories;
 
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\RichEditor\RichContentRenderer;
-use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
 
 class RichEditorFactory extends ComponentFactory
@@ -12,7 +12,7 @@ class RichEditorFactory extends ComponentFactory
     /**
      * {@inheritDoc}
      */
-    public function responseSchema(JsonSchema $schema): Type
+    public function responseSchema(JsonSchemaTypeFactory $schema): Type
     {
         $structural = 'HTML content. Use standard HTML tags: <p>, <h2>, <h3>, <strong>, <em>, <ul>, <ol>, <li>, <blockquote>, <code>, <a href="...">.';
 

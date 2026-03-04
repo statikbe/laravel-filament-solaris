@@ -2,7 +2,7 @@
 
 namespace Statikbe\FilamentSolaris\Factories;
 
-use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
 use Illuminate\Support\Facades\Log;
 
@@ -11,7 +11,7 @@ class BooleanFactory extends ComponentFactory
     /**
      * {@inheritDoc}
      */
-    public function responseSchema(JsonSchema $schema): Type
+    public function responseSchema(JsonSchemaTypeFactory $schema): Type
     {
         return $schema->boolean()
             ->description($this->buildDescription('true or false'))

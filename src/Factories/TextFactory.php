@@ -2,7 +2,7 @@
 
 namespace Statikbe\FilamentSolaris\Factories;
 
-use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
 
 class TextFactory extends ComponentFactory
@@ -10,7 +10,7 @@ class TextFactory extends ComponentFactory
     /**
      * {@inheritDoc}
      */
-    public function responseSchema(JsonSchema $schema): Type
+    public function responseSchema(JsonSchemaTypeFactory $schema): Type
     {
         $component = $this->component;
         $structural = '';

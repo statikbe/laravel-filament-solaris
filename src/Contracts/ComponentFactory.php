@@ -2,7 +2,7 @@
 
 namespace Statikbe\FilamentSolaris\Contracts;
 
-use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
 
 interface ComponentFactory
@@ -10,7 +10,7 @@ interface ComponentFactory
     /**
      * JSON schema fragment describing valid AI output for this field.
      */
-    public function responseSchema(JsonSchema $schema): Type;
+    public function responseSchema(JsonSchemaTypeFactory $schema): Type;
 
     /**
      * Transform AI response value into Filament form state.

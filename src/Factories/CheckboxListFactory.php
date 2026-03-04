@@ -2,7 +2,7 @@
 
 namespace Statikbe\FilamentSolaris\Factories;
 
-use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
 use Illuminate\Support\Facades\Log;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
@@ -14,7 +14,7 @@ class CheckboxListFactory extends ComponentFactory
     /**
      * {@inheritDoc}
      */
-    public function responseSchema(JsonSchema $schema): Type
+    public function responseSchema(JsonSchemaTypeFactory $schema): Type
     {
         $options = $this->resolveOptions();
         $maxOptions = FilamentSolaris::config()->getMaxOptions();

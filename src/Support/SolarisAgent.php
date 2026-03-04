@@ -3,6 +3,7 @@
 namespace Statikbe\FilamentSolaris\Support;
 
 use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\HasStructuredOutput;
 use Laravel\Ai\Promptable;
@@ -48,6 +49,8 @@ class SolarisAgent implements Agent, HasStructuredOutput
      */
     public function schema(JsonSchema $schema): array
     {
+        assert($schema instanceof JsonSchemaTypeFactory);
+
         return collect($this->factories)
             ->map(fn (ComponentFactory $factory) => $factory->responseSchema($schema))
             ->all();
