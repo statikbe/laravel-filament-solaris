@@ -60,7 +60,7 @@ flowchart LR
 ## Requirements
 
 - PHP ^8.3
-- Filament ^4.0 || ^5.0
+- Filament ^4.2 || ^5.0
 - laravel/ai ^0.1
 - ext-intl
 
@@ -397,13 +397,13 @@ Or add it to the `factories` array in `config/filament-solaris.php`:
 Implement the factory by extending the abstract base class:
 
 ```php
-use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
 use Statikbe\FilamentSolaris\Factories\ComponentFactory;
 
 class ColorFactory extends ComponentFactory
 {
-    public function responseSchema(JsonSchema $schema): Type
+    public function responseSchema(JsonSchemaTypeFactory $schema): Type
     {
         return $schema->string()
             ->description('A hex color code, e.g. #ff5733')
