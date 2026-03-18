@@ -3,7 +3,7 @@
 namespace Statikbe\FilamentSolaris\Prompts\Presets;
 
 use Closure;
-use Statikbe\FilamentSolaris\FilamentSolarisConfig;
+use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\Support\UserInput;
 
 class GenerationPreset extends Preset
@@ -28,7 +28,7 @@ class GenerationPreset extends Preset
 
     public function getTone(): string
     {
-        return value($this->tone) ?? app(FilamentSolarisConfig::class)->getDefaultTone();
+        return value($this->tone) ?? FilamentSolaris::config()->getDefaultTone();
     }
 
     /**

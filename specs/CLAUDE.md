@@ -32,8 +32,10 @@ Like the ocean of Solaris, it observes your data and creates from it.
 ```
 src/
 ├── Actions/
-│   └── AiAction.php
+│   ├── AiAction.php
+│   └── DictationAction.php
 ├── Concerns/
+│   ├── HasPromptPipeline.php
 │   ├── HasSourceFields.php
 │   ├── HasTargetFields.php
 │   └── HasUserInput.php
@@ -42,10 +44,13 @@ src/
 │   └── ComponentFactory.php
 ├── Factories/
 │   ├── SelectFactory.php
+│   ├── RadioFactory.php
 │   ├── TextFactory.php
+│   ├── MarkdownFactory.php
+│   ├── TagsFactory.php
 │   ├── CheckboxListFactory.php
 │   ├── BooleanFactory.php
-│   └── RadioFactory.php
+│   └── RichEditorFactory.php
 ├── Presets/
 │   ├── Preset.php                 (abstract)
 │   ├── SummarizePreset.php
@@ -58,10 +63,14 @@ src/
 │   ├── ViewPromptBuilder.php
 │   └── UserInput.php
 ├── Testing/
-│   └── AiActionFake.php
+│   ├── AiActionFake.php
+│   └── DictationActionFake.php
 └── FilamentSolarisServiceProvider.php
 
 resources/
+├── js/
+│   └── components/
+│       └── dictation.js
 ├── views/
 │   └── prompts/
 │       ├── base-wrapper.blade.php
@@ -69,6 +78,10 @@ resources/
 │       ├── classify.blade.php
 │       ├── translate.blade.php
 │       └── generate.blade.php
+
+dist/
+└── components/
+    └── dictation.js
 
 config/
 └── filament-solaris.php
@@ -87,6 +100,9 @@ Implement specs in numerical order. Dependencies:
 7. `10-user-input.md` — depends on 08
 8. `11-ai-action.md` — depends on all above, this is the integration point
 9. `12-testing.md` — the fake/mock helper, implement alongside or after 11
+10. `13-rich-editor-factory.md` — additional factory
+11. `14-prompt-pipeline-trait.md` — extract shared pipeline from AiAction (refactor, depends on 11)
+12. `15-dictation-action.md` — depends on 14, introduces JS build tooling
 
 ## Conventions
 
@@ -104,4 +120,5 @@ Implement specs in numerical order. Dependencies:
 - Unit tests for PromptBuilder implementations
 - Unit tests for ComponentFactoryResolver
 - Feature tests for AiAction using the fake helper
-- No external API calls in any test — use AiAction::fake() exclusively
+- Feature tests for DictationAction using DictationAction::fake()
+- No external API calls in any test — use AiAction::fake() / DictationAction::fake() / Transcription::fake() exclusively

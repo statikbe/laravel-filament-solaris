@@ -11,6 +11,11 @@ return [
         'partial_failure' => 'Kon :fields niet invullen.|Kon :fields niet invullen.',
         'empty_source_fields' => 'Vul eerst :fields in.|Vul eerst :fields in.',
         'overwrite_warning' => ':fields bevat al een waarde en zal worden overschreven.|:fields bevatten al waarden en zullen worden overschreven.',
+        'transcription_success' => 'Transcriptie toegevoegd aan :fields.',
+        'transcription_empty' => 'Geen spraak gedetecteerd in de opname.',
+        'transcription_error' => 'Kon de audio niet transcriberen. Probeer het opnieuw.',
+        'transcription_rate_limited' => 'Te veel transcriptieverzoeken. Wacht even.',
+        'microphone_denied' => 'Microfoontoegang is vereist voor dictatie.',
     ],
 
     'user_input' => [

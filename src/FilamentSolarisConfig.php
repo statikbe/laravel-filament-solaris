@@ -3,6 +3,7 @@
 namespace Statikbe\FilamentSolaris;
 
 use Filament\Support\Icons\Heroicon;
+use Laravel\Ai\Enums\Lab;
 use Locale;
 
 class FilamentSolarisConfig
@@ -157,6 +158,81 @@ class FilamentSolarisConfig
     public function getPromptLoggingChannel(): ?string
     {
         return $this->packageConfig('prompt_logging_channel');
+    }
+
+    /**
+     * Get the default AI provider.
+     *
+     * @return Lab|array<string, string>|array<int, string>|string|null
+     */
+    public function getDefaultProvider(): Lab|array|string|null
+    {
+        return $this->packageConfig('default_provider');
+    }
+
+    /**
+     * Get the default AI model.
+     */
+    public function getDefaultModel(): ?string
+    {
+        return $this->packageConfig('default_model');
+    }
+
+    /**
+     * Get the default timeout in seconds.
+     */
+    public function getDefaultTimeout(): ?int
+    {
+        $value = $this->packageConfig('default_timeout');
+
+        return $value !== null ? (int) $value : null;
+    }
+
+    /**
+     * Get the default transcription provider.
+     *
+     * @return Lab|array<string, string>|array<int, string>|string|null
+     */
+    public function getDefaultTranscriptionProvider(): Lab|array|string|null
+    {
+        return $this->packageConfig('default_transcription_provider');
+    }
+
+    /**
+     * Get the default transcription model.
+     */
+    public function getDefaultTranscriptionModel(): ?string
+    {
+        return $this->packageConfig('default_transcription_model');
+    }
+
+    /**
+     * Get the default transcription timeout in seconds.
+     */
+    public function getDefaultTranscriptionTimeout(): ?int
+    {
+        $value = $this->packageConfig('default_transcription_timeout');
+
+        return $value !== null ? (int) $value : null;
+    }
+
+    /**
+     * Get the provider/model/timeout override for a specific preset class.
+     *
+     * @return array{provider: Lab|array|string|null, model: ?string, timeout: ?int}
+     */
+    public function getPresetProvider(string $presetClass): array
+    {
+        $presets = $this->packageConfig('preset_providers', []);
+        $config = $presets[$presetClass] ?? [];
+
+        $timeout = $config['timeout'] ?? null;
+
+        return [
+            'provider' => $config['provider'] ?? null,
+            'model' => $config['model'] ?? null,
+            'timeout' => $timeout !== null ? (int) $timeout : null,
+        ];
     }
 
     /**

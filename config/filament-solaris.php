@@ -4,19 +4,24 @@
 
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\CodeEditor;
 use Filament\Forms\Components\MarkdownEditor;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TagsInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\ToggleButtons;
 use Filament\Support\Icons\Heroicon;
 use Statikbe\FilamentSolaris\Factories\BooleanFactory;
 use Statikbe\FilamentSolaris\Factories\CheckboxListFactory;
+use Statikbe\FilamentSolaris\Factories\MarkdownFactory;
 use Statikbe\FilamentSolaris\Factories\RadioFactory;
 use Statikbe\FilamentSolaris\Factories\RichEditorFactory;
 use Statikbe\FilamentSolaris\Factories\SelectFactory;
+use Statikbe\FilamentSolaris\Factories\TagsFactory;
 use Statikbe\FilamentSolaris\Factories\TextFactory;
 
 return [
@@ -40,7 +45,10 @@ return [
         TextInput::class => TextFactory::class,
         Textarea::class => TextFactory::class,
         RichEditor::class => RichEditorFactory::class,
-        MarkdownEditor::class => TextFactory::class,
+        MarkdownEditor::class => MarkdownFactory::class,
+        ToggleButtons::class => SelectFactory::class,
+        TagsInput::class => TagsFactory::class,
+        CodeEditor::class => TextFactory::class,
     ],
 
     /*
@@ -134,5 +142,56 @@ return [
 
     'prompt_logging_enabled' => (bool) env('FILAMENT_SOLARIS_PROMPT_LOGGING', false),
     'prompt_logging_channel' => null,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Default AI Provider & Model
+    |--------------------------------------------------------------------------
+    |
+    | Default provider for all AI actions. When null, the laravel/ai default
+    | (config('ai.default')) is used. Supports failover arrays.
+    |
+    | Examples:
+    |   'openai'
+    |   ['openai' => 'gpt-4o', 'anthropic' => 'claude-sonnet-4-5-20250514']
+    |
+    */
+
+    'default_provider' => null,
+    'default_model' => null,
+    'default_timeout' => null,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Default Transcription Provider & Model
+    |--------------------------------------------------------------------------
+    |
+    | Default provider for transcription (DictationAction). When null, the
+    | laravel/ai default is used.
+    |
+    */
+
+    'default_transcription_provider' => null,
+    'default_transcription_model' => null,
+    'default_transcription_timeout' => null,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Per-Preset Provider Overrides
+    |--------------------------------------------------------------------------
+    |
+    | Override the provider/model for specific preset classes. Key is the
+    | preset FQCN. Useful for routing cheap tasks to cheaper models.
+    |
+    | Example:
+    |   \Statikbe\FilamentSolaris\Prompts\Presets\ClassificationPreset::class => [
+    |       'provider' => 'openai',
+    |       'model' => 'gpt-4o-mini',
+    |       'timeout' => 30,
+    |   ],
+    |
+    */
+
+    'preset_providers' => [],
 
 ];

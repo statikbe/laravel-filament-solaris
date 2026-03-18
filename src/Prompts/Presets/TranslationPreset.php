@@ -5,7 +5,7 @@ namespace Statikbe\FilamentSolaris\Prompts\Presets;
 use Closure;
 use Filament\Forms\Components\Select;
 use RuntimeException;
-use Statikbe\FilamentSolaris\FilamentSolarisConfig;
+use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\Support\UserInput;
 
 class TranslationPreset extends Preset
@@ -105,7 +105,7 @@ class TranslationPreset extends Preset
      */
     protected function availableLanguages(): array
     {
-        return collect(app(FilamentSolarisConfig::class)->getSupportedLocaleOptions())
+        return collect(FilamentSolaris::config()->getSupportedLocaleOptions())
             ->sort()
             ->all();
     }

@@ -3,6 +3,7 @@
 namespace Statikbe\FilamentSolaris\Concerns;
 
 use Closure;
+use Filament\Schemas\Components\Component;
 use Statikbe\FilamentSolaris\Support\UserInput;
 
 trait HasUserInput
@@ -55,7 +56,7 @@ trait HasUserInput
     /**
      * Get the Filament form schema for the user input modal.
      *
-     * @return array<\Filament\Schemas\Components\Component>
+     * @return array<Component>
      */
     public function getUserInputFormSchema(): array
     {

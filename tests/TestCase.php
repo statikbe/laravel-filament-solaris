@@ -12,6 +12,7 @@ use Filament\Schemas\SchemasServiceProvider;
 use Filament\Support\SupportServiceProvider;
 use Filament\Widgets\WidgetsServiceProvider;
 use Livewire\LivewireServiceProvider;
+use Livewire\Mechanisms\DataStore;
 use Orchestra\Testbench\TestCase as Orchestra;
 use Statikbe\FilamentSolaris\FilamentSolarisServiceProvider;
 use Statikbe\FilamentSolaris\Tests\Providers\TestPanelProvider;
@@ -32,8 +33,8 @@ class TestCase extends Orchestra
         // Livewire's singleton registration. Re-register as a singleton so
         // store() always returns the same instance with the same WeakMap.
         $this->app->instance(
-            \Livewire\Mechanisms\DataStore::class,
-            $this->app->make(\Livewire\Mechanisms\DataStore::class),
+            DataStore::class,
+            $this->app->make(DataStore::class),
         );
     }
 

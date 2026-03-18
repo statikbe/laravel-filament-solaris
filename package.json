@@ -1,0 +1,14 @@
+{
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "node bin/build.js --dev",
+        "build": "node bin/build.js",
+        "test": "vitest run",
+        "test:watch": "vitest"
+    },
+    "devDependencies": {
+        "esbuild": "^0.25.0",
+        "vitest": "^3.2.4"
+    }
+}

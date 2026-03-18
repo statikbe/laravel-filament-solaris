@@ -18,3 +18,15 @@
 /UPGRADING.md       export-ignore
 /phpstan.neon.dist  export-ignore
 /phpstan-baseline.neon  export-ignore
+/specs              export-ignore
+/bin                export-ignore
+/build              export-ignore
+/.claude            export-ignore
+/.idea              export-ignore
+/.phpunit.cache     export-ignore
+/PLAN.md            export-ignore
+/refactor.md        export-ignore
+/review.md          export-ignore
+/CONTRIBUTING.md    export-ignore
+/package.json       export-ignore
+/package-lock.json  export-ignore

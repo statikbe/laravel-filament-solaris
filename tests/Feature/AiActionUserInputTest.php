@@ -1,8 +1,10 @@
 <?php
 
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Statikbe\FilamentSolaris\Factories\TextFactory;
 use Statikbe\FilamentSolaris\Prompts\InlinePromptBuilder;
+use Statikbe\FilamentSolaris\Prompts\Presets\GenerationPreset;
 use Statikbe\FilamentSolaris\Support\UserInput;
 
 it('includes user input data in the built prompt', function () {
@@ -69,7 +71,7 @@ it('builds user input form schema with custom fields', function () {
     $userInput = UserInput::make()
         ->fields([
             Textarea::make('notes')->label('Notes'),
-            \Filament\Forms\Components\TextInput::make('context')->label('Context'),
+            TextInput::make('context')->label('Context'),
         ]);
 
     $schema = $userInput->toFormSchema();
@@ -80,7 +82,7 @@ it('builds user input form schema with custom fields', function () {
 });
 
 it('withDefaultUserInput sets user input from preset', function () {
-    $preset = \Statikbe\FilamentSolaris\Prompts\Presets\GenerationPreset::make();
+    $preset = GenerationPreset::make();
     $defaultInput = $preset->defaultUserInput();
 
     expect($defaultInput)->not->toBeNull();

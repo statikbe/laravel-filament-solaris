@@ -11,6 +11,11 @@ return [
         'partial_failure' => 'Impossible de remplir :fields.|Impossible de remplir :fields.',
         'empty_source_fields' => "Veuillez d'abord remplir :fields.|Veuillez d'abord remplir :fields.",
         'overwrite_warning' => ':fields contient déjà une valeur et sera écrasé.|:fields contiennent déjà des valeurs et seront écrasés.',
+        'transcription_success' => 'Transcription ajoutée à :fields.',
+        'transcription_empty' => "Aucune parole détectée dans l'enregistrement.",
+        'transcription_error' => "Impossible de transcrire l'audio. Veuillez réessayer.",
+        'transcription_rate_limited' => 'Trop de demandes de transcription. Veuillez patienter un instant.',
+        'microphone_denied' => 'L\'accès au microphone est requis pour la dictée.',
     ],
 
     'user_input' => [

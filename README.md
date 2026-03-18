@@ -23,6 +23,8 @@ AI actions for Filament v4 & v5 — auto-detect form fields, compose prompts, an
   - [Presets](#presets)
   - [User Input](#user-input)
   - [Locale](#locale)
+  - [Provider & Model](#provider--model)
+  - [Timeout](#timeout)
   - [Preview](#preview)
 - [Component Factories](#component-factories)
   - [Supported Components](#supported-components)
@@ -51,8 +53,9 @@ AI actions for Filament v4 & v5 — auto-detect form fields, compose prompts, an
 flowchart LR
     A[Source Fields] -->|read values| B[AiAction]
     G[UserInput] -->|modal form data| B
+    P[Prompt] -->|extra prompt| B
     B -->|compose prompt| C[PromptBuilder]
-    C -->|structured request| D[laravel/ai]
+    C -->|structured request| D[SolarisAgent]
     D -->|JSON response| E[ComponentFactory]
     E -->|transform & write| F[Target Fields]
 ```
@@ -325,6 +328,41 @@ By default the application locale (`app()->getLocale()`) is used as a hint in th
 ->locale('nl')
 ```
 
+### Provider & Model
+
+Override which AI provider and model are used per-action. When not set, the package falls through a resolution chain: action → preset → config `preset_providers` → config `default_provider` → `laravel/ai` default. See [Configuration](documentation/configuration.md) for details.
+
+```php
+// Single provider + model
+AiAction::make('summarize')
+    ->provider('anthropic', 'claude-sonnet-4-5-20250514')
+
+// Failover array — tries providers in order on failure
+AiAction::make('summarize')
+    ->provider(['openai' => 'gpt-4o', 'anthropic'])
+
+// Closure (Filament convention)
+AiAction::make('classify')
+    ->provider(fn () => config('my-app.ai_provider'))
+
+// On a preset
+->preset(SummaryPreset::make()->provider('openai', 'gpt-4o-mini'))
+```
+
+### Timeout
+
+Set the HTTP timeout in seconds for the AI call. Defaults to the `laravel/ai` default (60s) when not configured.
+
+```php
+AiAction::make('summarize')
+    ->timeout(120)  // 2 minutes for long content
+
+AiAction::make('classify')
+    ->timeout(30)   // quick classification
+```
+
+A package-wide default can be set in the config (`default_timeout`). See [Configuration](documentation/configuration.md).
+
 ### Closure Support
 
 Most setters accept a `Closure` alongside their static type, following Filament's own pattern. The closure is resolved at execution time via Laravel's `value()` helper, enabling dynamic configuration based on the current record or application state:
@@ -340,7 +378,7 @@ AiAction::make('translate')
     )
 ```
 
-Closures are supported on: `sourceFields()`, `targetFields()`, `locale()`, `userInput()`, and all preset setters (e.g., `maxWords()`, `tone()`, `language()`, `style()`, etc.). Static values continue to work unchanged.
+Closures are supported on: `sourceFields()`, `targetFields()`, `locale()`, `provider()`, `timeout()`, `userInput()`, and all preset setters (e.g., `maxWords()`, `tone()`, `language()`, `style()`, etc.). Static values continue to work unchanged.
 
 ### Preview
 
@@ -603,7 +641,16 @@ If you want to write tests, please check [the testing documentation](documentati
 
 ## Configuration
 
-The configuration is published to `config/filament-solaris.php`. See the [Configuration Reference](documentation/configuration.md) for all available options.
+The configuration is published to `config/filament-solaris.php`. Key options include:
+
+- **AI provider & model** — package-wide defaults, per-preset overrides, failover arrays
+- **Transcription provider** — separate provider for `DictationAction`
+- **Timeout** — default timeout for AI calls
+- **Factory map** — custom component-to-factory mappings
+- **Prompt logging** — log composed prompts during development
+- **Locales** — supported locales for the translation preset
+
+See the [Configuration Reference](documentation/configuration.md) for all available options.
 
 ## Full Example
 
@@ -641,12 +688,13 @@ public function form(Form $form): Form
                 ->targetField('summary')
                 ->preset(SummaryPreset::make()->maxWords(100)->tone('professional')),
 
-            // Classify into a category
+            // Classify into a category (using a cheaper model)
             AiAction::make('classify')
                 ->sourceFields(['title', 'body'])
                 ->targetField('category_id')
                 ->targetScope('category_id', fn ($q) => $q->where('active', true))
-                ->preset(ClassificationPreset::make()),
+                ->preset(ClassificationPreset::make())
+                ->provider('openai', 'gpt-4o-mini'),
 
             // Fill multiple fields at once
             AiAction::make('auto-fill')

@@ -11,6 +11,11 @@ return [
         'partial_failure' => 'Could not fill :fields.|Could not fill :fields.',
         'empty_source_fields' => 'Please fill in :fields first.|Please fill in :fields first.',
         'overwrite_warning' => ':fields already has a value and will be overwritten.|:fields already have values and will be overwritten.',
+        'transcription_success' => 'Transcription added to :fields.',
+        'transcription_empty' => 'No speech detected in the recording.',
+        'transcription_error' => 'Could not transcribe the audio. Please try again.',
+        'transcription_rate_limited' => 'Too many transcription requests. Please wait a moment.',
+        'microphone_denied' => 'Microphone access is required for dictation.',
     ],
 
     'user_input' => [

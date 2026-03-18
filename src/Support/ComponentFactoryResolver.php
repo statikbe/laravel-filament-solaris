@@ -67,10 +67,6 @@ class ComponentFactoryResolver
     {
         // First try matching on getStatePath()
         foreach ($components as $component) {
-            if (! method_exists($component, 'getStatePath')) {
-                continue;
-            }
-
             try {
                 if ($component->getStatePath() === $fieldName) {
                     return $component;

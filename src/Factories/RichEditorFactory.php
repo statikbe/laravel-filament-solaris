@@ -6,6 +6,7 @@ use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\RichEditor\RichContentRenderer;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
+use Tiptap\Editor;
 
 class RichEditorFactory extends ComponentFactory
 {
@@ -69,7 +70,7 @@ class RichEditorFactory extends ComponentFactory
      * Note: Filament throws \Error (not \Exception) when getStatePath() is
      * called on a component without a container, so we must catch \Error here.
      */
-    private function resolveEditor(): \Tiptap\Editor
+    private function resolveEditor(): Editor
     {
         try {
             /** @var RichEditor $component */

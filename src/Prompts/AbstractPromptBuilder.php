@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Statikbe\FilamentSolaris\Contracts\ComponentFactory;
 use Statikbe\FilamentSolaris\Contracts\PromptBuilder;
-use Statikbe\FilamentSolaris\FilamentSolarisConfig;
+use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\Support\UserInput;
 
 abstract class AbstractPromptBuilder implements PromptBuilder
@@ -32,7 +32,7 @@ abstract class AbstractPromptBuilder implements PromptBuilder
             return null;
         }
 
-        $name = app(FilamentSolarisConfig::class)->resolveLocaleName($locale, 'en');
+        $name = FilamentSolaris::config()->resolveLocaleName($locale, 'en');
 
         return $name !== $locale ? $name : null;
     }

@@ -49,6 +49,13 @@ AiAction::assertCalledWith(function (array $sourceData, string $prompt) {
     expect($sourceData['title'])->toBe('My Article');
     expect($prompt)->toContain('summary');
 });
+
+// Inspect provider, model, and timeout
+AiAction::assertCalledWith(function (array $sourceData, string $prompt, $provider, $model, $timeout) {
+    expect($provider)->toBe('openai');
+    expect($model)->toBe('gpt-4o');
+    expect($timeout)->toBe(120);
+});
 ```
 
 ## Per-Action Fakes

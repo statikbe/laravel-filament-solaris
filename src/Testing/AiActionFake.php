@@ -2,6 +2,7 @@
 
 namespace Statikbe\FilamentSolaris\Testing;
 
+use Laravel\Ai\Enums\Lab;
 use PHPUnit\Framework\Assert;
 
 class AiActionFake
@@ -19,7 +20,7 @@ class AiActionFake
     protected array $actionResponses = [];
 
     /**
-     * @var array<int, array{name: string, sourceData: array, prompt: string}>
+     * @var array<int, array{name: string, sourceData: array, prompt: string, provider: Lab|array|string|null, model: ?string, timeout: ?int}>
      */
     protected array $calls = [];
 
@@ -136,13 +137,17 @@ class AiActionFake
      * Record a call to an AI action.
      *
      * @param  array<string, mixed>  $sourceData
+     * @param  Lab|array<string, string>|array<int, string>|string|null  $provider
      */
-    public function recordCall(string $actionName, array $sourceData, string $prompt): void
+    public function recordCall(string $actionName, array $sourceData, string $prompt, Lab|array|string|null $provider = null, ?string $model = null, ?int $timeout = null): void
     {
         $this->calls[] = [
             'name' => $actionName,
             'sourceData' => $sourceData,
             'prompt' => $prompt,
+            'provider' => $provider,
+            'model' => $model,
+            'timeout' => $timeout,
         ];
     }
 
@@ -189,7 +194,7 @@ class AiActionFake
         $this->assertCalled();
 
         $lastCall = end($this->calls);
-        $callback($lastCall['sourceData'], $lastCall['prompt']);
+        $callback($lastCall['sourceData'], $lastCall['prompt'], $lastCall['provider'] ?? null, $lastCall['model'] ?? null, $lastCall['timeout'] ?? null);
     }
 
     /**

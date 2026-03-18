@@ -20,9 +20,9 @@ class InlinePromptBuilder extends AbstractPromptBuilder
     ): string {
         $data = $this->buildViewData($instruction, $sourceData, $factories, $record, $locale, $userInput);
 
-        /** @var \Illuminate\Contracts\View\View $view */
-        $view = view('filament-solaris::prompts.base-wrapper', $data);
+        /** @var view-string $viewName */
+        $viewName = 'filament-solaris::prompts.base-wrapper';
 
-        return $view->render();
+        return view($viewName, $data)->render();
     }
 }

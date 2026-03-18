@@ -7,7 +7,6 @@ use Illuminate\JsonSchema\Types\Type;
 use Illuminate\Support\Facades\Log;
 use Statikbe\FilamentSolaris\Contracts\ComponentFactory;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
-use Statikbe\FilamentSolaris\FilamentSolarisConfig;
 
 class SolarisPromptLogger
 {
@@ -18,7 +17,7 @@ class SolarisPromptLogger
      */
     public static function log(string $prompt, array $factories): void
     {
-        if (! app(FilamentSolarisConfig::class)->isPromptLoggingEnabled()) {
+        if (! FilamentSolaris::config()->isPromptLoggingEnabled()) {
             return;
         }
 
@@ -29,7 +28,7 @@ class SolarisPromptLogger
             ->all();
 
         $logger = FilamentSolaris::getLogger()
-            ?? Log::channel(app(FilamentSolarisConfig::class)->getPromptLoggingChannel());
+            ?? Log::channel(FilamentSolaris::config()->getPromptLoggingChannel());
 
         $logger->debug('Filament Solaris — Prompt', [
             'prompt' => $prompt,

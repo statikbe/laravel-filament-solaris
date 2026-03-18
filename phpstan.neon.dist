@@ -10,3 +10,6 @@ parameters:
     ignoreErrors:
         - '#Unsafe usage of new static#'
         - '#Trait .* is used zero times and is not analysed#'
+        -
+            identifier: larastan.noEnvCallsOutsideOfConfig
+            path: config/filament-solaris.php

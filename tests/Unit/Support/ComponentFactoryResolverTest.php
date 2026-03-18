@@ -4,6 +4,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Schemas\Components\Component;
 use Statikbe\FilamentSolaris\Factories\BooleanFactory;
 use Statikbe\FilamentSolaris\Factories\SelectFactory;
 use Statikbe\FilamentSolaris\Factories\TextFactory;
@@ -64,7 +65,7 @@ it('throws RuntimeException for missing component', function () {
 
 it('throws RuntimeException for unmapped component type', function () {
     // Create a custom component that is not mapped
-    $customComponent = new class extends \Filament\Schemas\Components\Component
+    $customComponent = new class extends Component
     {
         protected string $view = 'test';
 
