@@ -2,7 +2,7 @@
 
 ## Summary
 
-`DictationAction` is a Filament action that captures audio via the browser's MediaRecorder API, transcribes it using `laravel/ai`'s Transcription API, and optionally processes the transcript through the same AI prompt pipeline used by `AiAction`. It supports two modes: pure transcription (audio to text) and transcription with AI processing (audio to structured output across multiple target fields).
+`DictationAction` is a Filament action that opens a modal with a recording UI, captures audio via the browser's MediaRecorder API, transcribes it using `laravel/ai`'s Transcription API, and optionally processes the transcript through the same AI prompt pipeline used by `AiAction`. It supports two modes: pure transcription (audio to text) and transcription with AI processing (audio to structured output across multiple target fields).
 
 ## Class: DictationAction extends Filament\Actions\Action
 
@@ -15,6 +15,7 @@
 - `$transcriptionLang` (?string): BCP 47 language tag for the transcription (e.g., `'en-US'`, `'nl-BE'`). Falls back to the action's locale.
 - `$transcriptionProvider` (Lab|array|string|Closure|null): Override the transcription API provider. Separate from the AI pipeline provider inherited from `HasPromptPipeline`.
 - `$transcriptionModel` (string|Closure|null): Override the transcription model.
+- `$transcriptionTimeout` (int|Closure|null): Override the transcription timeout in seconds.
 
 ## Configuration API
 
@@ -29,6 +30,21 @@ When in pure transcription mode, appends the transcript to existing field conten
 #### `transcriptionProvider(Lab|array|string|Closure $provider, string|Closure|null $model = null): static`
 Sets the provider (and optionally model) for the transcription API call. Separate from the `->provider()` inherited from `HasPromptPipeline` which controls the AI processing step. Falls back to config `default_transcription_provider` / `default_transcription_model`, then `null` (laravel/ai default).
 
+#### `transcriptionTimeout(int|Closure $timeout): static`
+Sets the timeout in seconds for the transcription API call. Falls back to config `default_transcription_timeout`.
+
+### Supported Transcription Providers
+
+Only providers that implement the `TranscriptionProvider` interface in `laravel/ai` can be used:
+
+| Provider | Default Model | Notes |
+|----------|--------------|-------|
+| OpenAI | `gpt-4o-transcribe-diarize` | Default provider. Supports language, diarization |
+| Mistral | `voxtral-mini-2602` | Supports language, prompt, temperature |
+| ElevenLabs | `scribe_v2` | Supports language, speaker diarization |
+
+Other providers (Anthropic, Groq, Gemini, etc.) do not support transcription.
+
 ### Full Configuration Examples
 
 #### Pure Transcription
@@ -42,7 +58,8 @@ DictationAction::make('dictate')
 // With explicit transcription provider
 DictationAction::make('dictate')
     ->targetField('notes')
-    ->transcriptionProvider('openai', 'whisper-1')
+    ->transcriptionProvider('openai', 'gpt-4o-transcribe-diarize')
+    ->transcriptionTimeout(30)
 ```
 
 Records audio, transcribes it, and puts the text into the `notes` field. No AI processing.
@@ -55,12 +72,11 @@ DictationAction::make('voice-summary')
     ->targetField('category_id')
     ->preset(SummaryPreset::make()->maxWords(200))
     ->userInput(UserInput::make()->placeholder('Any extra instructions?'))
-    ->withPreview()
     ->locale('nl')
     ->lang('nl-BE')
 ```
 
-Records audio, transcribes it, feeds the transcript into the prompt pipeline, and writes structured AI output to multiple target fields. Optionally shows preview before applying.
+Records audio, transcribes it, feeds the transcript into the prompt pipeline, and writes structured AI output to multiple target fields.
 
 #### Transcription + AI with Separate Providers
 
@@ -68,8 +84,8 @@ Records audio, transcribes it, feeds the transcript into the prompt pipeline, an
 DictationAction::make('voice-summary')
     ->targetField('summary')
     ->preset(SummaryPreset::make())
-    ->transcriptionProvider('openai', 'whisper-1')  // transcription step
-    ->provider('anthropic', 'claude-sonnet-4-5-20250514')  // AI processing step
+    ->transcriptionProvider('mistral', 'voxtral-mini-2602')  // transcription step
+    ->provider('anthropic', 'claude-sonnet-4-5-20250514')     // AI processing step
 ```
 
 The `->transcriptionProvider()` controls the `Transcription::generate()` call. The `->provider()` (inherited from `HasPromptPipeline`) controls the AI processing pipeline.
@@ -95,63 +111,56 @@ TextInput::make('notes')
 
 ## Execution Flow
 
-### Step 1: User Clicks the Microphone Button
+### Step 1: User Clicks the Dictation Button
 
-- The action button shows a microphone icon
-- On click, the Alpine.js component starts the MediaRecorder
-- The button changes to a "recording" state (pulsing indicator)
-- Browser requests microphone permission if not already granted
+- Filament opens a modal (standard `mountAction` flow — schema component context is preserved)
+- The modal shows the recording UI (Alpine component) and optional user input fields
+- The action icon is configurable via `FilamentSolarisConfig::getDictationIcon()` / config `dictation_icon`
 
-### Step 2: User Clicks Again to Stop Recording
+### Step 2: User Clicks Record in the Modal
 
-- MediaRecorder stops, produces an audio Blob
-- The audio blob is uploaded to the server via Livewire's file upload mechanism (`$wire.upload()`)
-- The button shows a loading state
+- The Alpine component requests microphone permission via `getUserMedia()`
+- On success: MediaRecorder starts, the record button turns red with a pulse animation, a timer shows elapsed duration
+- On permission denied: an inline error message is shown in the modal
 
-### Step 3: Transcription
+### Step 3: User Clicks Stop
 
-- Server receives the uploaded audio file
-- Resolves transcription provider/model via `resolveTranscriptionProviderAndModel()` (action override → config `default_transcription_provider` → null)
+- MediaRecorder stops, produces an audio Blob from collected chunks
+- The blob is uploaded to the server via Livewire's `$wire.upload()` to `componentFileAttachments.dictation_audio`
+- The record button changes to a green checkmark, status shows "Recording complete — ready to submit"
+
+### Step 4: User Clicks "Transcribe" (Submit)
+
+- Filament's `callMountedAction()` fires (shows loading spinner on the submit button)
+- Server receives the uploaded audio file from `$livewire->componentFileAttachments['dictation_audio']`
+- Resolves transcription provider/model via `resolveTranscriptionProviderAndModel()` (action override → config → null)
 - Calls `Transcription::fromUpload($file)->generate($provider, $model)`
-- Returns the transcript text
+- Cleans up the temporary audio file
 
 #### Given transcription succeeds
-- When the transcript text is available
-- Then proceed to Step 4
+- Proceed to Step 5
 
-#### Given transcription fails (API error, unsupported format)
-- When the error is caught
-- Then show an error notification: "Could not transcribe the audio. Please try again."
-- And the uploaded audio file is cleaned up
+#### Given transcription fails (API error)
+- Report the exception via `report()`
+- Show error notification: "Could not transcribe the audio. Please try again."
 
-### Step 4: Mode Decision
+#### Given transcription returns empty text
+- Show warning notification: "No speech detected in the recording."
+
+### Step 5: Mode Decision
 
 #### Given no PromptBuilder is configured (pure transcription mode)
-- Then write the transcript directly to the target field
+- Write the transcript directly to the target field
 - If `$append` is true, prepend existing content with a newline separator
-- Show a success notification
+- Show success notification
 
 #### Given a PromptBuilder is configured (AI processing mode)
-- Then call `runPipeline(['transcription' => $transcript], $userInput)`
+- Call `runPipeline(['transcription' => $transcript], $userInput)`
 - The transcript becomes the source data for the prompt
-- The pipeline handles AI call, result transformation, and application
+- User input from the modal form (if configured via `schema()`) is passed through
 - Notifications follow the same pattern as AiAction (success, partial failure, error)
 
-### Step 5: User Input (conditional)
-
-#### Given hasUserInput() is true and a PromptBuilder is configured
-- Then open a Filament modal with the UserInput form schema BEFORE recording starts
-- User fills in instructions, clicks "Record"
-- Recording begins after modal submission
-- User input is passed to the pipeline as `$userInput`
-
-#### Given hasUserInput() is true and no PromptBuilder (pure transcription)
-- Then skip user input — it has no effect without AI processing
-
-#### Given hasUserInput() is false
-- Then recording starts immediately on button click
-
-## Alpine.js Component
+## Alpine.js Component: `dictationModal`
 
 ### Registration
 
@@ -159,100 +168,86 @@ The Alpine component is registered as a Filament asset in the service provider:
 
 ```php
 // FilamentSolarisServiceProvider
-use Filament\Support\Assets\AlpineComponent;
-use Filament\Support\Facades\FilamentAsset;
-
-public function packageBooted(): void
-{
-    FilamentAsset::register([
-        AlpineComponent::make('dictation', __DIR__ . '/../dist/components/dictation.js'),
-    ], 'statikbe/filament-solaris');
-}
+FilamentAsset::register([
+    AlpineComponent::make('dictation-modal', __DIR__ . '/../dist/components/dictation.js'),
+], 'statikbe/filament-solaris');
 ```
 
-### Component Behavior
+The component is rendered inside the modal via `modalContent()` using the `dictation-modal.blade.php` view. It uses `x-load` / `x-load-src` for lazy loading.
 
-```javascript
-Alpine.data('dictation', ({ statePath, wire }) => ({
-    recording: false,
-    processing: false,
-    mediaRecorder: null,
-    chunks: [],
-    supported: false,
+### Build Configuration
 
-    init() {
-        this.supported = !!navigator.mediaDevices?.getUserMedia;
-    },
+The JS is built with esbuild. `keepNames: true` is required so the function name `dictationModal` is preserved after minification (Filament's `x-load` uses the function's `.name` property to register it as an Alpine component).
 
-    async toggle() {
-        if (this.recording) {
-            this.stop();
-        } else {
-            await this.start();
-        }
-    },
-
-    async start() {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        this.mediaRecorder = new MediaRecorder(stream);
-        this.chunks = [];
-
-        this.mediaRecorder.ondataavailable = (e) => {
-            if (e.data.size > 0) this.chunks.push(e.data);
-        };
-
-        this.mediaRecorder.onstop = () => {
-            const blob = new Blob(this.chunks, { type: 'audio/webm' });
-            stream.getTracks().forEach(t => t.stop());
-            this.upload(blob);
-        };
-
-        this.mediaRecorder.start();
-        this.recording = true;
-    },
-
-    stop() {
-        this.mediaRecorder?.stop();
-        this.recording = false;
-        this.processing = true;
-    },
-
-    upload(blob) {
-        const file = new File([blob], 'recording.webm', { type: 'audio/webm' });
-        wire.upload('__dictationAudio', file, () => {
-            wire.call('processDictation', statePath);
-            this.processing = false;
-        });
-    },
-}));
+```js
+// bin/build.js
+esbuild.build({
+    entryPoints: ['resources/js/components/dictation.js'],
+    outdir: 'dist/components',
+    bundle: true,
+    platform: 'neutral',
+    mainFields: ['module', 'main'],
+    target: ['es2020'],
+    minify: !isDev,
+    keepNames: true,
+    sourcemap: isDev ? 'inline' : false,
+    format: 'esm',
+})
 ```
+
+### Component State
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `recording` | boolean | Whether audio is being captured |
+| `uploading` | boolean | Whether the blob is being uploaded to Livewire |
+| `uploaded` | boolean | Whether the upload completed successfully |
+| `supported` | boolean | Whether the browser supports MediaRecorder |
+| `microphoneDenied` | boolean | Whether microphone permission was denied |
+| `uploadFailed` | boolean | Whether the Livewire upload failed |
+| `duration` | number | Elapsed recording time in seconds |
+| `durationInterval` | number\|null | The `setInterval` ID for the timer |
+
+### Visual States
+
+| State | Record Button | Status Text | Timer |
+|-------|--------------|-------------|-------|
+| Idle | Primary color, mic icon | "Click to start recording." | Hidden |
+| Recording | Red, pulsing, scaled up | "Recording... Click to stop." | Visible (M:SS) |
+| Uploading | Disabled, 50% opacity | "Uploading..." | Hidden |
+| Uploaded | Green, check icon | "Recording complete — ready to submit." | Hidden |
+| Upload Failed | Primary color, mic icon | "Upload failed. Click to try again." | Hidden |
+| Mic Denied | Hidden | Error message shown instead | Hidden |
+| Not Supported | Hidden | Error message shown instead | Hidden |
 
 ### Feature Detection
 
 #### Given the browser does not support MediaRecorder or getUserMedia
-- Then the dictation button is hidden (`x-show="supported"`)
-- No error is shown — the feature silently degrades
+- The recording controls are hidden
+- An error message is shown: "Your browser does not support audio recording."
 
 #### Given the user denies microphone permission
-- Then an error notification is shown: "Microphone access is required for dictation."
-- And the button returns to its default state
+- An error message is shown inline in the modal: "Microphone access was denied. Please allow microphone access in your browser settings and try again."
 
 ### Audio Format
 
 - MediaRecorder produces `audio/webm` (Chrome/Edge/Firefox) or `audio/mp4` (Safari)
-- Both formats are supported by OpenAI and ElevenLabs transcription APIs
-- The `mimeType` is detected automatically by MediaRecorder
+- Chrome may report the mime type as `video/webm` — this is normal
+- The file extension is set based on the mime type: `.webm` or `.mp4`
+
+### Tailwind CSS Note
+
+The modal Blade view uses Tailwind CSS classes. Projects using this package must add a `@source` directive in their Filament theme CSS to scan the package's views:
+
+```css
+@source "../../vendor/statikbe/laravel-filament-solaris/resources/views";
+```
 
 ## Server-Side Processing
 
 ### Livewire Integration
 
-The DictationAction needs a server-side handler to receive the uploaded audio and call the Transcription API. This is handled via a temporary Livewire property and method injected into the parent component.
-
-```php
-// Approach: DictationAction registers a listener on the Livewire component
-// The Alpine component calls $wire.upload() then $wire.call('processDictation')
-```
+Audio is uploaded via Livewire's `$wire.upload()` mechanism to `componentFileAttachments.dictation_audio`. The action retrieves it via `data_get($livewire, 'componentFileAttachments.dictation_audio')` and cleans it up after processing.
 
 ### Transcription Call
 
@@ -260,28 +255,34 @@ The DictationAction needs a server-side handler to receive the uploaded audio an
 use Laravel\Ai\Transcription;
 
 ['provider' => $provider, 'model' => $model] = $this->resolveTranscriptionProviderAndModel();
-$transcript = Transcription::fromUpload($audioFile)->generate($provider, $model);
-$text = (string) $transcript;
+$timeout = $this->resolveTranscriptionTimeout();
+
+$pending = Transcription::fromUpload($audioFile)
+    ->language($this->getTranscriptionLang());
+
+if ($timeout !== null) {
+    $pending->timeout($timeout);
+}
+
+$response = $pending->generate($provider, $model);
+$text = (string) $response;
 ```
-
-#### Given the audio is short (< 30 seconds)
-- Then process synchronously
-- The user sees a loading indicator while transcription runs
-
-#### Given the transcription returns empty text
-- When the result is an empty string
-- Then show a warning notification: "No speech detected in the recording."
-- And do not modify any form fields
 
 ## Error Handling
 
-Report all errors.
+All errors are reported via `report()`.
 
 ### Transcription Errors
 
 - API error: "Could not transcribe the audio. Please try again."
 - Rate limit: "Too many transcription requests. Please wait a moment."
-- Unsupported audio format: "Audio format not supported. Please try again."
+- Empty transcript: "No speech detected in the recording." (warning)
+
+### Client-Side Errors
+
+- Microphone denied: inline error in modal
+- Upload failed: inline status in modal
+- Browser not supported: inline message in modal
 
 ### Pipeline Errors (when PromptBuilder is configured)
 
@@ -307,7 +308,12 @@ Same notifications as AiAction (via `HasPromptPipeline`):
 ## Translation Keys
 
 ```php
-// Added to filament-solaris lang files
+'dictation' => [
+    'modal_heading' => 'Record Audio',
+    'submit_label' => 'Transcribe',
+    'not_supported' => 'Your browser does not support audio recording.',
+    'microphone_denied' => 'Microphone access was denied. Please allow microphone access in your browser settings and try again.',
+],
 'notifications' => [
     // ... existing keys ...
     'transcription_success' => 'Transcription added to :fields.',
@@ -318,57 +324,62 @@ Same notifications as AiAction (via `HasPromptPipeline`):
 ],
 ```
 
+## Configuration
+
+### Config Keys
+
+```php
+// config/filament-solaris.php
+
+'dictation_icon' => Heroicon::OutlinedMicrophone,
+
+'default_transcription_provider' => null,
+'default_transcription_model' => null,
+'default_transcription_timeout' => null,
+```
+
+### Icon
+
+The dictation icon is configurable via `FilamentSolarisConfig::getDictationIcon()` and the `dictation_icon` config key. Defaults to `Heroicon::OutlinedMicrophone`.
+
 ## Validation Before Execution
 
 #### Given no targetField configured
-- When the action is initialized
 - Then it throws a `RuntimeException`: "DictationAction requires at least one target field."
-
-#### Given a PromptBuilder is configured but no targetField
-- Then the same validation applies — target fields are always required
 
 #### Given multiple target fields but no PromptBuilder
 - When in pure transcription mode
 - Then only the first target field receives the transcript (transcription produces a single string)
 
-## Loading State
-
-- While recording: microphone icon pulses / animates, button color changes
-- While uploading: loading spinner on button
-- While transcribing: loading spinner on button with "Transcribing..." text
-- While AI processes (if PromptBuilder configured): loading spinner continues
-
 ## Filament Registration
 
 ```php
-// As a header action
-public static function form(Form $form): Form
+// As a header action on a page
+public function getActions(): array
 {
-    return $form
-        ->schema([
-            Textarea::make('notes'),
-            Textarea::make('summary'),
-            Select::make('category_id')->options([...]),
-        ])
-        ->headerActions([
-            DictationAction::make('voice-to-notes')
-                ->targetField('notes'),
-
-            DictationAction::make('voice-to-structured')
-                ->targetField('summary')
-                ->targetField('category_id')
-                ->preset(SummaryPreset::make()),
-        ]);
+    return [
+        DictationAction::make('voice-summary')
+            ->targetFields(['description'])
+            ->preset(SummaryPreset::make()->maxWords(200))
+            ->lang('nl-BE'),
+    ];
 }
 
 // As a suffix action on a field
-Textarea::make('notes')
+TextInput::make('notes')
     ->suffixAction(
         DictationAction::make('dictate')
             ->targetField('notes')
             ->lang('en-US')
             ->append()
     )
+
+// In a Forms\Components\Actions group
+Forms\Components\Actions::make([
+    DictationAction::make('dictate-notes')
+        ->targetField('notes')
+        ->lang('en-US'),
+]),
 ```
 
 ## Browser Support
@@ -380,7 +391,7 @@ Textarea::make('notes')
 | Firefox 25+ | Yes | Yes | Full support |
 | Safari 14.1+ | Yes | Yes | Full support |
 
-MediaRecorder has significantly broader browser support than the Web Speech API. By using server-side transcription via `laravel/ai`, dictation works in all modern browsers including Firefox.
+The button is automatically hidden in unsupported browsers via feature detection.
 
 ## Testing
 
@@ -417,31 +428,41 @@ DictationAction::assertTranscribedWith(function (string $transcript) {
 - And the provided string is used as the transcript
 - And if a PromptBuilder is configured, it passes through the pipeline with `AiActionFake`
 
+### JavaScript Tests
+
+The Alpine component has a full Vitest test suite (`resources/js/components/dictation.test.js`) covering:
+- Feature detection (supported/unsupported browsers)
+- Recording lifecycle (start, stop, state transitions)
+- Duration timer
+- Upload success/failure
+- Microphone permission denial
+- Status text for all states
+
+JS tests run in CI via the `run-tests.yml` GitHub Action alongside PHP tests.
+
 ## Package Dependencies
 
 ### Build Tooling
-
-The Alpine.js component requires a JavaScript build step:
 
 ```
 resources/
 ├── js/
 │   └── components/
-│       └── dictation.js
+│       └── dictation.js          # source (exports dictationModal function)
 dist/
 ├── components/
-│   └── dictation.js
+│   └── dictation.js              # built (esbuild, keepNames: true)
 ```
 
-Build via Vite with the Filament plugin or a standalone build script.
+Build via `npm run build` (uses `bin/build.js` with esbuild).
 
-### Service Provider Changes
+### Service Provider
 
 ```php
 public function packageBooted(): void
 {
     FilamentAsset::register([
-        AlpineComponent::make('dictation', __DIR__ . '/../dist/components/dictation.js'),
+        AlpineComponent::make('dictation-modal', __DIR__ . '/../dist/components/dictation.js'),
     ], 'statikbe/filament-solaris');
 }
 ```

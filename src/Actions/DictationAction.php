@@ -5,7 +5,6 @@ namespace Statikbe\FilamentSolaris\Actions;
 use Closure;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
-use Filament\Support\Facades\FilamentAsset;
 use Illuminate\Http\UploadedFile;
 use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Exceptions\AiException;
@@ -174,41 +173,36 @@ class DictationAction extends Action
     {
         parent::setUp();
 
-        $this->icon('heroicon-o-microphone');
+        $this->icon(FilamentSolaris::config()->getDictationIcon());
 
-        $this->alpineClickHandler('toggle()');
+        $this->modalContent(function (DictationAction $action) {
+            /** @var view-string $viewName */
+            $viewName = 'filament-solaris::dictation-modal';
 
-        $this->extraAttributes(fn (DictationAction $action): array => [
-            'x-load' => '',
-            'x-load-src' => FilamentAsset::getAlpineComponentSrc('dictation', 'statikbe/filament-solaris'),
-            'x-data' => "dictation({ actionName: '".$action->getName()."' })",
-            'x-show' => 'supported',
-            'x-bind:class' => "{ 'animate-pulse': recording }",
-        ]);
+            return view($viewName, [
+                'statePath' => 'componentFileAttachments.dictation_audio',
+            ]);
+        });
+
+        $this->modalHeading(fn () => filament_solaris_trans('dictation.modal_heading'));
+
+        $this->modalSubmitActionLabel(fn () => filament_solaris_trans('dictation.submit_label'));
 
         $this->schema(fn (DictationAction $action): array => $action->hasPromptBuilder() ? $action->getUserInputFormSchema() : []);
 
-        $this->action(function (DictationAction $action, array $arguments = [], array $data = []) {
-            $action->processDictation($arguments, $data);
+        $this->action(function (DictationAction $action, array $data = []) {
+            $action->processDictation($data);
         });
     }
 
     /**
      * Process the dictation after audio upload.
      *
-     * @param  array<string, mixed>  $arguments  Arguments from mountAction (e.g. error codes from Alpine)
      * @param  array<string, mixed>  $data  Modal form data (user input)
      */
-    public function processDictation(array $arguments = [], array $data = []): void
+    public function processDictation(array $data = []): void
     {
         $this->validateDictationConfiguration();
-
-        // Handle errors dispatched from the Alpine component
-        if (isset($arguments['__dictationError'])) {
-            $this->handleClientError($arguments['__dictationError']);
-
-            return;
-        }
 
         // Check if faked
         if (DictationActionFake::isActive()) {
@@ -219,7 +213,7 @@ class DictationAction extends Action
 
         // Get the uploaded audio file
         $livewire = $this->getLivewire();
-        $audioFile = $livewire->componentFileAttachments['dictation_audio'] ?? null;
+        $audioFile = data_get($livewire, 'componentFileAttachments.dictation_audio');
 
         if (! $audioFile instanceof UploadedFile) {
             Notification::make()
@@ -242,22 +236,6 @@ class DictationAction extends Action
         }
 
         $this->processTranscript($transcript, $data);
-    }
-
-    /**
-     * Handle an error dispatched from the client-side Alpine component.
-     */
-    protected function handleClientError(string $errorCode): void
-    {
-        $key = match ($errorCode) {
-            'microphone_denied' => 'notifications.microphone_denied',
-            default => 'notifications.transcription_error',
-        };
-
-        Notification::make()
-            ->title(filament_solaris_trans($key))
-            ->danger()
-            ->send();
     }
 
     /**

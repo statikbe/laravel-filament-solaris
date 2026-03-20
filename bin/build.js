@@ -10,6 +10,7 @@ esbuild.build({
     mainFields: ['module', 'main'],
     target: ['es2020'],
     minify: !isDev,
+    keepNames: true,
     sourcemap: isDev ? 'inline' : false,
     format: 'esm',
 }).catch(() => process.exit(1))

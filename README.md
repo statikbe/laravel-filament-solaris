@@ -40,6 +40,10 @@ AI actions for Filament v4 & v5 — auto-detect form fields, compose prompts, an
   - [Inline Prompts](#inline-prompts)
   - [View Prompts](#view-prompts)
   - [Custom Prompt Builders](#custom-prompt-builders)
+- [DictationAction](#dictationaction)
+  - [Pure Transcription](#pure-transcription)
+  - [Transcription + AI Processing](#transcription--ai-processing)
+  - [Transcription Provider](#transcription-provider)
 - [Testing](#testing)
 - [Configuration](#configuration)
 - [Changelog](#changelog)
@@ -64,7 +68,7 @@ flowchart LR
 
 - PHP ^8.3
 - Filament ^4.2 || ^5.0
-- laravel/ai ^0.1
+- laravel/ai ^0.3
 - ext-intl
 
 ## Installation
@@ -404,13 +408,16 @@ Factories are the bridge between Filament components and AI. Each factory implem
 |---|---|---|---|
 | `Select` | `SelectFactory` | `string` enum or free-text | Enum mode for ≤100 options, free-text with fuzzy matching for >100 |
 | `Radio` | `RadioFactory` | `string` enum or free-text | Extends `SelectFactory` |
+| `ToggleButtons` | `SelectFactory` | `string` enum or free-text | Same as Select, supports `multiple()` |
 | `CheckboxList` | `CheckboxListFactory` | `array` of `string` | Multi-select, same matching as Select |
 | `TextInput` | `TextFactory` | `string` | Respects `maxLength` if set on the component |
 | `Textarea` | `TextFactory` | `string` | Same as TextInput |
-| `MarkdownEditor` | `TextFactory` | `string` | Treated as plain text |
+| `MarkdownEditor` | `MarkdownFactory` | `string` (Markdown) | AI prompted to output Markdown syntax |
 | `RichEditor` | `RichEditorFactory` | `string` (HTML) | AI returns HTML, factory converts to TipTap JSON for form state |
+| `CodeEditor` | `TextFactory` | `string` | Plain text |
 | `Toggle` | `BooleanFactory` | `boolean` | Handles string/int coercion ("true", "yes", 1 → true) |
 | `Checkbox` | `BooleanFactory` | `boolean` | Same as Toggle |
+| `TagsInput` | `TagsFactory` | `array` of `string` | Includes suggestions in schema, handles comma-separated strings |
 
 ### Custom Factories
 
@@ -635,6 +642,106 @@ AiAction::make('custom')
     ->promptBuilder(new MyPromptBuilder())
 ```
 
+## DictationAction
+
+`DictationAction` captures audio via the browser's MediaRecorder API, transcribes it using `laravel/ai`'s Transcription API, and optionally processes the transcript through the AI pipeline. It works in two modes: pure transcription and transcription with AI processing.
+
+### Pure Transcription
+
+Records audio and writes the transcript directly to a text field. Use `suffixAction` on components that support it (TextInput, Select, TagsInput), or place the action in a `Forms\Components\Actions` group for Textarea/RichEditor:
+
+```php
+use Statikbe\FilamentSolaris\Actions\DictationAction;
+
+// As a suffix action on TextInput
+TextInput::make('title')
+    ->suffixAction(
+        DictationAction::make('dictate')
+            ->targetField('title')
+            ->lang('en-US')
+    )
+
+// For Textarea/RichEditor, use an Actions group
+Forms\Components\Actions::make([
+    DictationAction::make('dictate-notes')
+        ->targetField('notes')
+        ->lang('en-US')
+        ->append(),     // append to existing content instead of replacing
+]),
+Textarea::make('notes'),
+```
+
+### Transcription + AI Processing
+
+Records audio, transcribes it, then feeds the transcript into the AI pipeline as source data. The AI output is written to one or more target fields:
+
+```php
+DictationAction::make('voice-summary')
+    ->targetFields(['summary', 'category_id'])
+    ->preset(SummaryPreset::make()->maxWords(200))
+    ->locale('nl')
+    ->lang('nl-BE')
+```
+
+Works with any prompt or preset — the transcript becomes the source data (`['transcription' => $transcript]`).
+
+### Transcription Provider
+
+The transcription step and AI processing step can use different providers:
+
+```php
+DictationAction::make('voice')
+    ->targetField('notes')
+    ->preset(SummaryPreset::make())
+    ->transcriptionProvider('openai', 'whisper-1')   // transcription
+    ->transcriptionTimeout(30)                        // transcription timeout
+    ->provider('anthropic', 'claude-sonnet-4-5-20250514')  // AI processing
+    ->timeout(120)                                    // AI processing timeout
+```
+
+Package-wide defaults can be set in the config (`default_transcription_provider`, `default_transcription_model`, `default_transcription_timeout`). See [Configuration](documentation/configuration.md).
+
+### How It Works
+
+When the user clicks the dictation button, a modal opens with a recording UI. The user clicks to start recording, speaks, then clicks to stop. The audio is uploaded and transcribed server-side. In AI processing mode, the transcript is then fed into the prompt pipeline.
+
+The recording UI shows clear visual states: a pulsing red button with elapsed timer while recording, a green checkmark when the upload completes, and inline error messages for microphone permission issues.
+
+### Tailwind CSS
+
+The modal view uses Tailwind classes. Add a `@source` directive to your Filament theme CSS so the classes are compiled:
+
+```css
+/* resources/css/filament/admin/theme.css */
+@source "../../vendor/statikbe/laravel-filament-solaris/resources/views";
+```
+
+### Browser Support
+
+DictationAction uses the MediaRecorder API and works in all modern browsers (Chrome 49+, Edge 79+, Firefox 25+, Safari 14.1+). The button is automatically hidden in unsupported browsers.
+
+### Testing DictationAction
+
+```php
+use Statikbe\FilamentSolaris\Actions\DictationAction;
+
+// Fake pure transcription
+DictationAction::fake('This is the transcribed text.');
+
+// Fake transcription + AI processing
+DictationAction::fake('Meeting notes about deadlines.', aiResponse: [
+    'summary' => 'Discussion about project deadlines.',
+    'category_id' => 'meetings',
+]);
+
+// Assertions
+DictationAction::assertCalled();
+DictationAction::assertTranscribed();
+DictationAction::assertTranscribedWith(function (string $transcript) {
+    expect($transcript)->toContain('meeting');
+});
+```
+
 ## Testing
 
 If you want to write tests, please check [the testing documentation](documentation/testing.md).
@@ -644,8 +751,9 @@ If you want to write tests, please check [the testing documentation](documentati
 The configuration is published to `config/filament-solaris.php`. Key options include:
 
 - **AI provider & model** — package-wide defaults, per-preset overrides, failover arrays
-- **Transcription provider** — separate provider for `DictationAction`
+- **Transcription provider** — separate provider/model/timeout for `DictationAction`
 - **Timeout** — default timeout for AI calls
+- **Icons** — `action_icon` for AiAction, `dictation_icon` for DictationAction
 - **Factory map** — custom component-to-factory mappings
 - **Prompt logging** — log composed prompts during development
 - **Locales** — supported locales for the translation preset
@@ -659,6 +767,7 @@ A complete resource form with multiple AI actions:
 ```php
 use Filament\Forms;
 use Statikbe\FilamentSolaris\Actions\AiAction;
+use Statikbe\FilamentSolaris\Actions\DictationAction;
 use Statikbe\FilamentSolaris\Prompts\Presets\ClassificationPreset;
 use Statikbe\FilamentSolaris\Prompts\Presets\GenerationPreset;
 use Statikbe\FilamentSolaris\Prompts\Presets\SummaryPreset;
@@ -714,6 +823,12 @@ public function form(Form $form): Form
                 ->sourceFields(['body'])
                 ->targetField('body_nl')
                 ->preset(TranslationPreset::make()->language('nl')->preserveFormatting()),
+
+            // Voice-to-summary: transcribe audio and run through AI
+            DictationAction::make('voice-summary')
+                ->targetField('summary')
+                ->preset(SummaryPreset::make()->maxWords(100))
+                ->lang('en-US'),
         ]),
     ]);
 }

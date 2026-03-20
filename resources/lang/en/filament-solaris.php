@@ -18,6 +18,13 @@ return [
         'microphone_denied' => 'Microphone access is required for dictation.',
     ],
 
+    'dictation' => [
+        'modal_heading' => 'Record Audio',
+        'submit_label' => 'Transcribe',
+        'not_supported' => 'Your browser does not support audio recording.',
+        'microphone_denied' => 'Microphone access was denied. Please allow microphone access in your browser settings and try again.',
+    ],
+
     'user_input' => [
         'additional_instructions' => 'Additional instructions',
     ],

@@ -28,7 +28,7 @@ class FilamentSolarisServiceProvider extends PackageServiceProvider
     public function packageBooted(): void
     {
         FilamentAsset::register([
-            AlpineComponent::make('dictation', __DIR__.'/../dist/components/dictation.js'),
+            AlpineComponent::make('dictation-modal', __DIR__.'/../dist/components/dictation.js'),
         ], 'statikbe/filament-solaris');
     }
 }

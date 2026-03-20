@@ -18,6 +18,13 @@ return [
         'microphone_denied' => 'L\'accès au microphone est requis pour la dictée.',
     ],
 
+    'dictation' => [
+        'modal_heading' => 'Enregistrer l\'audio',
+        'submit_label' => 'Transcrire',
+        'not_supported' => 'Votre navigateur ne prend pas en charge l\'enregistrement audio.',
+        'microphone_denied' => 'L\'accès au microphone a été refusé. Veuillez autoriser l\'accès au microphone dans les paramètres de votre navigateur et réessayer.',
+    ],
+
     'user_input' => [
         'additional_instructions' => 'Instructions supplémentaires',
     ],

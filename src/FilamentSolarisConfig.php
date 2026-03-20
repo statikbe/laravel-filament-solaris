@@ -51,6 +51,14 @@ class FilamentSolarisConfig
     }
 
     /**
+     * Get the dictation action icon.
+     */
+    public function getDictationIcon(): string|\BackedEnum
+    {
+        return $this->packageConfig('dictation_icon', Heroicon::OutlinedMicrophone);
+    }
+
+    /**
      * Get the default tone.
      */
     public function getDefaultTone(): string

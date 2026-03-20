@@ -66,6 +66,28 @@ AiAction::fake(['summary' => 'Default summary'])
     ->forAction('translate');
 ```
 
+## Testing DictationAction
+
+```php
+use Statikbe\FilamentSolaris\Actions\DictationAction;
+
+// Fake pure transcription
+DictationAction::fake('This is the transcribed text.');
+
+// Fake transcription + AI processing
+DictationAction::fake('Meeting notes about deadlines.', aiResponse: [
+    'summary' => 'Discussion about project deadlines.',
+    'category_id' => 'meetings',
+]);
+
+// Assertions
+DictationAction::assertCalled();
+DictationAction::assertTranscribed();
+DictationAction::assertTranscribedWith(function (string $transcript) {
+    expect($transcript)->toContain('meeting');
+});
+```
+
 ## Auto-Reset Trait
 
 Use `WithAiActionFake` to automatically reset the fake after each test:

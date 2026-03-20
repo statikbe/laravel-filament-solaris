@@ -71,9 +71,10 @@ class ComponentFactoryResolver
                 if ($component->getStatePath() === $fieldName) {
                     return $component;
                 }
-            } catch (\Error) {
-                // Filament throws \Error (not \Exception) when getStatePath()
-                // is called on a component without a container.
+            } catch (\Error|\Exception) {
+                // Filament throws \Error when getStatePath() is called on a
+                // component without a container, and BadMethodCallException
+                // (via Macroable) on components that don't have getStatePath.
             }
         }
 

@@ -18,6 +18,13 @@ return [
         'microphone_denied' => 'Microfoontoegang is vereist voor dictatie.',
     ],
 
+    'dictation' => [
+        'modal_heading' => 'Audio opnemen',
+        'submit_label' => 'Transcriberen',
+        'not_supported' => 'Uw browser ondersteunt geen audio-opname.',
+        'microphone_denied' => 'Microfoontoegang is geweigerd. Sta microfoontoegang toe in uw browserinstellingen en probeer het opnieuw.',
+    ],
+
     'user_input' => [
         'additional_instructions' => 'Bijkomende instructies',
     ],

@@ -89,6 +89,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Dictation Icon
+    |--------------------------------------------------------------------------
+    |
+    | The default icon for dictation actions. Accepts a Heroicon name string
+    | or a BackedEnum that resolves to an icon name.
+    |
+    */
+
+    'dictation_icon' => Heroicon::OutlinedMicrophone,
+
+    /*
+    |--------------------------------------------------------------------------
     | Default Tone
     |--------------------------------------------------------------------------
     |
