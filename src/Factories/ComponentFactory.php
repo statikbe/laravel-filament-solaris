@@ -60,4 +60,15 @@ abstract class ComponentFactory implements ComponentFactoryContract
     {
         return $this->scope;
     }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function toPreviewDisplay(mixed $formValue): array
+    {
+        return [
+            'display' => (string) $this->toPromptContext($formValue),
+            'type' => 'text',
+        ];
+    }
 }

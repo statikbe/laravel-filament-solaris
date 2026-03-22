@@ -27,4 +27,12 @@ interface ComponentFactory
      * @return mixed Human-readable representation for the prompt
      */
     public function toPromptContext(mixed $formValue): mixed;
+
+    /**
+     * Transform form state into a human-readable display for the preview modal.
+     *
+     * @param  mixed  $formValue  The value after toFormValue() transformation
+     * @return array{display: string, type: string} The display string and its type ('text' or 'html')
+     */
+    public function toPreviewDisplay(mixed $formValue): array;
 }

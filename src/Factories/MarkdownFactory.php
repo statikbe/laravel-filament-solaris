@@ -4,6 +4,7 @@ namespace Statikbe\FilamentSolaris\Factories;
 
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
+use Illuminate\Support\Str;
 
 class MarkdownFactory extends ComponentFactory
 {
@@ -39,6 +40,21 @@ class MarkdownFactory extends ComponentFactory
         }
 
         return (string) $aiValue;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function toPreviewDisplay(mixed $formValue): array
+    {
+        if ($formValue === null || $formValue === '') {
+            return ['display' => '', 'type' => 'text'];
+        }
+
+        return [
+            'display' => Str::markdown((string) $formValue),
+            'type' => 'html',
+        ];
     }
 
     /**

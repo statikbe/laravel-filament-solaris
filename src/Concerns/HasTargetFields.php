@@ -84,7 +84,19 @@ trait HasTargetFields
     {
         $this->preview = $preview;
 
+        if ($preview) {
+            $this->modal(true);
+        }
+
         return $this;
+    }
+
+    /**
+     * Check if the action should show a preview modal.
+     */
+    public function shouldPreview(): bool
+    {
+        return $this->preview;
     }
 
     /**

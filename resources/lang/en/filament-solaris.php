@@ -18,6 +18,12 @@ return [
         'microphone_denied' => 'Microphone access is required for dictation.',
     ],
 
+    'preview' => [
+        'modal_heading' => 'Review AI Results',
+        'accept' => 'Accept',
+        'discard' => 'Discard',
+    ],
+
     'dictation' => [
         'modal_heading' => 'Record Audio',
         'submit_label' => 'Transcribe',

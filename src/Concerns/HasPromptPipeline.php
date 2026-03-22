@@ -7,7 +7,6 @@ use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Component;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Arr;
 use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Exceptions\AiException;
 use Laravel\Ai\Exceptions\ProviderOverloadedException;
@@ -20,6 +19,7 @@ use Statikbe\FilamentSolaris\Prompts\InlinePromptBuilder;
 use Statikbe\FilamentSolaris\Prompts\Presets\Preset;
 use Statikbe\FilamentSolaris\Prompts\ViewPromptBuilder;
 use Statikbe\FilamentSolaris\Support\SolarisAgent;
+use Statikbe\FilamentSolaris\Support\SolarisNotification;
 use Statikbe\FilamentSolaris\Support\SolarisPromptLogger;
 use Statikbe\FilamentSolaris\Testing\AiActionFake;
 
@@ -30,7 +30,7 @@ trait HasPromptPipeline
 
     protected ?PromptBuilder $promptBuilder = null;
 
-    protected ?string $promptInstruction = null;
+    protected string|View|null $promptInstruction = null;
 
     protected string|Closure|null $localeOverride = null;
 
@@ -50,7 +50,7 @@ trait HasPromptPipeline
     {
         if ($instruction instanceof View) {
             $this->promptBuilder = new ViewPromptBuilder;
-            $this->promptInstruction = null;
+            $this->promptInstruction = $instruction;
         } else {
             $this->promptBuilder = new InlinePromptBuilder;
             $this->promptInstruction = $instruction;
@@ -224,18 +224,19 @@ trait HasPromptPipeline
     }
 
     /**
-     * Run the AI pipeline with the given source data and user input.
+     * Build the prompt and resolve target factories.
      *
      * @param  array<string, mixed>  $sourceData
      * @param  array<string, mixed>  $userInput
+     * @return array{string, array<string, ComponentFactory>}
      */
-    protected function runPipeline(array $sourceData, array $userInput): void
+    protected function buildPrompt(array $sourceData, array $userInput): array
     {
         $factories = $this->resolveTargetFactories();
         $record = $this->resolveRecord();
-
         $locale = $this->getLocale();
         $instruction = $this->promptInstruction ?? '';
+
         $prompt = $this->promptBuilder->build(
             $instruction,
             $sourceData,
@@ -244,6 +245,19 @@ trait HasPromptPipeline
             $locale,
             $userInput,
         );
+
+        return [$prompt, $factories];
+    }
+
+    /**
+     * Run the AI pipeline with the given source data and user input.
+     *
+     * @param  array<string, mixed>  $sourceData
+     * @param  array<string, mixed>  $userInput
+     */
+    protected function runPipeline(array $sourceData, array $userInput): void
+    {
+        [$prompt, $factories] = $this->buildPrompt($sourceData, $userInput);
 
         SolarisPromptLogger::log($prompt, $factories);
 
@@ -294,19 +308,7 @@ trait HasPromptPipeline
      */
     protected function runFakePipeline(array $sourceData, array $userInput): void
     {
-        $factories = $this->resolveTargetFactories();
-        $record = $this->resolveRecord();
-
-        $locale = $this->getLocale();
-        $instruction = $this->promptInstruction ?? '';
-        $prompt = $this->promptBuilder->build(
-            $instruction,
-            $sourceData,
-            $factories,
-            $record,
-            $locale,
-            $userInput,
-        );
+        [$prompt, $factories] = $this->buildPrompt($sourceData, $userInput);
 
         $fake = AiActionFake::getInstance();
 
@@ -342,12 +344,73 @@ trait HasPromptPipeline
     }
 
     /**
-     * Apply AI results to the form.
+     * Apply AI results to the form, or store for preview.
      *
      * @param  array<string, mixed>  $aiResponse
      * @param  array<string, ComponentFactory>  $factories
      */
     protected function applyResults(array $aiResponse, array $factories): void
+    {
+        $result = $this->transformResults($aiResponse, $factories);
+
+        if ($this->shouldPreview() && ! empty($result['values'])) {
+            $this->storePreviewData($result, $factories);
+            $this->halt();
+
+            return; // halt() throws, but return for clarity
+        }
+
+        $this->writeResults($result['values'], $result['filledLabels'], $result['failedLabels']);
+    }
+
+    /**
+     * Transform AI response values into form-ready values.
+     *
+     * @param  array<string, mixed>  $aiResponse
+     * @param  array<string, ComponentFactory>  $factories
+     * @return array{values: array<string, mixed>, filledLabels: array<string>, failedLabels: array<string>}
+     */
+    protected function transformResults(array $aiResponse, array $factories): array
+    {
+        $values = [];
+        $filledLabels = [];
+        $failedLabels = [];
+
+        foreach ($factories as $fieldName => $factory) {
+            if (! array_key_exists($fieldName, $aiResponse)) {
+                $failedLabels[] = $this->resolveFieldLabel($fieldName);
+
+                continue;
+            }
+
+            $aiValue = $aiResponse[$fieldName];
+
+            if ($aiValue === null) {
+                $failedLabels[] = $this->resolveFieldLabel($fieldName);
+
+                continue;
+            }
+
+            try {
+                $values[$fieldName] = $factory->toFormValue($aiValue);
+                $filledLabels[] = $this->resolveFieldLabel($fieldName);
+            } catch (\Throwable $e) {
+                info($e);
+                $failedLabels[] = $this->resolveFieldLabel($fieldName);
+            }
+        }
+
+        return compact('values', 'filledLabels', 'failedLabels');
+    }
+
+    /**
+     * Write transformed values to form fields and send notifications.
+     *
+     * @param  array<string, mixed>  $values
+     * @param  array<string>  $filledLabels
+     * @param  array<string>  $failedLabels
+     */
+    protected function writeResults(array $values, array $filledLabels, array $failedLabels): void
     {
         $schemaComponent = $this->resolveFormSchemaComponent();
 
@@ -358,50 +421,55 @@ trait HasPromptPipeline
         $set = $schemaComponent
             ->makeSetUtility()
             ->skipComponentsChildContainersWhileSearching(false);
-        $filledFields = [];
-        $failedFields = [];
 
-        foreach ($factories as $fieldName => $factory) {
-            if (! array_key_exists($fieldName, $aiResponse)) {
-                $failedFields[] = $this->resolveFieldLabel($fieldName);
-
-                continue;
-            }
-
-            $aiValue = $aiResponse[$fieldName];
-
-            if ($aiValue === null) {
-                $failedFields[] = $this->resolveFieldLabel($fieldName);
-
-                continue;
-            }
-
-            try {
-                $formValue = $factory->toFormValue($aiValue);
-                $set($fieldName, $formValue);
-                $filledFields[] = $this->resolveFieldLabel($fieldName);
-            } catch (\Throwable $e) {
-                info($e);
-                $failedFields[] = $this->resolveFieldLabel($fieldName);
-            }
+        foreach ($values as $fieldName => $formValue) {
+            $set($fieldName, $formValue);
         }
 
-        if (! empty($filledFields) && empty($failedFields)) {
-            Notification::make()
-                ->title(filament_solaris_trans('notifications.success', ['fields' => $this->formatFieldList($filledFields)]))
-                ->success()
-                ->send();
-        } elseif (! empty($filledFields) && ! empty($failedFields)) {
-            Notification::make()
-                ->title(filament_solaris_trans_choice('notifications.partial_failure', count($failedFields), ['fields' => $this->formatFieldList($failedFields)]))
-                ->warning()
-                ->send();
-        } else {
-            Notification::make()
-                ->title(filament_solaris_trans('notifications.error'))
-                ->danger()
-                ->send();
+        $this->sendResultNotifications($filledLabels, $failedLabels);
+    }
+
+    /**
+     * Send appropriate notification based on filled/failed fields.
+     *
+     * @param  array<string>  $filledLabels
+     * @param  array<string>  $failedLabels
+     */
+    protected function sendResultNotifications(array $filledLabels, array $failedLabels): void
+    {
+        SolarisNotification::sendResultNotifications($filledLabels, $failedLabels);
+    }
+
+    /**
+     * Store preview data on the Livewire component for display in the preview modal.
+     *
+     * @param  array{values: array<string, mixed>, filledLabels: array<string>, failedLabels: array<string>}  $result
+     * @param  array<string, ComponentFactory>  $factories
+     */
+    protected function storePreviewData(array $result, array $factories): void
+    {
+        $livewire = $this->getLivewire();
+
+        $displays = [];
+        foreach ($result['values'] as $fieldName => $formValue) {
+            $factory = $factories[$fieldName] ?? null;
+            $preview = $factory?->toPreviewDisplay($formValue) ?? ['display' => (string) $formValue, 'type' => 'text'];
+
+            $displays[$fieldName] = [
+                'label' => $this->resolveFieldLabel($fieldName),
+                'display' => $preview['display'],
+                'type' => $preview['type'],
+            ];
         }
+
+        $livewire->solarisPreviewData = [
+            'values' => $result['values'],
+            'displays' => $displays,
+            'filledLabels' => $result['filledLabels'],
+            'failedLabels' => $result['failedLabels'],
+            'actionName' => $this->getName(),
+        ];
+
     }
 
     /**
@@ -431,9 +499,7 @@ trait HasPromptPipeline
      */
     protected function formatFieldList(array $labels): string
     {
-        $quoted = array_map(fn (string $label): string => "'{$label}'", $labels);
-
-        return Arr::join($quoted, ', ', ' & ');
+        return SolarisNotification::formatFieldList($labels);
     }
 
     /**
@@ -475,22 +541,6 @@ trait HasPromptPipeline
         }
 
         return null;
-    }
-
-    /**
-     * Validate that the pipeline is properly configured.
-     *
-     * @throws \RuntimeException
-     */
-    protected function validatePipelineConfiguration(): void
-    {
-        if (empty($this->getTargetFields())) {
-            throw new \RuntimeException(static::class.' requires at least one target field.');
-        }
-
-        if ($this->promptBuilder === null) {
-            throw new \RuntimeException(static::class.' requires a prompt, preset, or custom promptBuilder.');
-        }
     }
 
     /**

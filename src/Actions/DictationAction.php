@@ -11,6 +11,7 @@ use Laravel\Ai\Exceptions\AiException;
 use Laravel\Ai\Exceptions\RateLimitedException;
 use Laravel\Ai\Transcription;
 use RuntimeException;
+use Statikbe\FilamentSolaris\Concerns\HasPreviewModal;
 use Statikbe\FilamentSolaris\Concerns\HasPromptPipeline;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\Testing\AiActionFake;
@@ -18,6 +19,7 @@ use Statikbe\FilamentSolaris\Testing\DictationActionFake;
 
 class DictationAction extends Action
 {
+    use HasPreviewModal;
     use HasPromptPipeline;
 
     protected bool|Closure $append = false;
@@ -32,6 +34,41 @@ class DictationAction extends Action
     protected string|Closure|null $transcriptionModel = null;
 
     protected int|Closure|null $transcriptionTimeout = null;
+
+    /**
+     * {@inheritDoc}
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->icon(FilamentSolaris::config()->getDictationIcon());
+
+        $this->modalContent(function (DictationAction $action) {
+            /** @var view-string $viewName */
+            $viewName = 'filament-solaris::dictation-modal';
+
+            return view($viewName, [
+                'statePath' => 'componentFileAttachments.dictation_audio',
+            ]);
+        });
+
+        $this->modalHeading(fn () => filament_solaris_trans('dictation.modal_heading'));
+
+        $this->modalSubmitActionLabel(fn () => filament_solaris_trans('dictation.submit_label'));
+
+        $this->schema(function (DictationAction $action): array {
+            if ($this->hasPreviewData()) {
+                return [];
+            }
+
+            return $action->hasPromptBuilder() ? $action->getUserInputFormSchema() : [];
+        });
+
+        $this->action(function (DictationAction $action, array $data = []) {
+            $action->processDictation($data);
+        });
+    }
 
     /**
      * Whether to append the transcript to existing field content.
@@ -130,69 +167,6 @@ class DictationAction extends Action
         }
 
         return FilamentSolaris::config()->getDefaultTranscriptionTimeout();
-    }
-
-    /**
-     * Activate the fake for testing.
-     *
-     * @param  array<string, mixed>|null  $aiResponse
-     */
-    public static function fake(string $transcript = '', ?array $aiResponse = null): DictationActionFake
-    {
-        return DictationActionFake::activate($transcript, $aiResponse);
-    }
-
-    /**
-     * Assert that a dictation action was called.
-     */
-    public static function assertCalled(): void
-    {
-        DictationActionFake::getInstance()->assertCalled();
-    }
-
-    /**
-     * Assert that a transcription was processed.
-     */
-    public static function assertTranscribed(): void
-    {
-        DictationActionFake::getInstance()->assertTranscribed();
-    }
-
-    /**
-     * Assert the transcript with a callback.
-     */
-    public static function assertTranscribedWith(Closure $callback): void
-    {
-        DictationActionFake::getInstance()->assertTranscribedWith($callback);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->icon(FilamentSolaris::config()->getDictationIcon());
-
-        $this->modalContent(function (DictationAction $action) {
-            /** @var view-string $viewName */
-            $viewName = 'filament-solaris::dictation-modal';
-
-            return view($viewName, [
-                'statePath' => 'componentFileAttachments.dictation_audio',
-            ]);
-        });
-
-        $this->modalHeading(fn () => filament_solaris_trans('dictation.modal_heading'));
-
-        $this->modalSubmitActionLabel(fn () => filament_solaris_trans('dictation.submit_label'));
-
-        $this->schema(fn (DictationAction $action): array => $action->hasPromptBuilder() ? $action->getUserInputFormSchema() : []);
-
-        $this->action(function (DictationAction $action, array $data = []) {
-            $action->processDictation($data);
-        });
     }
 
     /**
@@ -373,5 +347,59 @@ class DictationAction extends Action
         if (empty($this->getTargetFields())) {
             throw new RuntimeException('DictationAction requires at least one target field.');
         }
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    //  Testing
+    // ──────────────────────────────────────────────────────────────
+
+    /**
+     * Activate the fake for testing.
+     *
+     * @param  array<string, mixed>|null  $aiResponse
+     */
+    public static function fake(string $transcript = '', ?array $aiResponse = null): DictationActionFake
+    {
+        return DictationActionFake::activate($transcript, $aiResponse);
+    }
+
+    /**
+     * Assert that a dictation action was called.
+     */
+    public static function assertCalled(): void
+    {
+        DictationActionFake::getInstance()->assertCalled();
+    }
+
+    /**
+     * Assert that a transcription was processed.
+     */
+    public static function assertTranscribed(): void
+    {
+        DictationActionFake::getInstance()->assertTranscribed();
+    }
+
+    /**
+     * Assert the transcript with a callback.
+     */
+    public static function assertTranscribedWith(Closure $callback): void
+    {
+        DictationActionFake::getInstance()->assertTranscribedWith($callback);
+    }
+
+    /**
+     * Assert that no dictation action was called.
+     */
+    public static function assertNotCalled(): void
+    {
+        DictationActionFake::getInstance()->assertNotCalled();
+    }
+
+    /**
+     * Assert the number of times a dictation action was called.
+     */
+    public static function assertCalledTimes(int $count): void
+    {
+        DictationActionFake::getInstance()->assertCalledTimes($count);
     }
 }

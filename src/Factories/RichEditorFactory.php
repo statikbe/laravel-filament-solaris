@@ -85,6 +85,25 @@ class RichEditorFactory extends ComponentFactory
     /**
      * {@inheritDoc}
      */
+    public function toPreviewDisplay(mixed $formValue): array
+    {
+        if (empty($formValue)) {
+            return ['display' => '', 'type' => 'text'];
+        }
+
+        if (is_array($formValue)) {
+            return [
+                'display' => RichContentRenderer::make($formValue)->toHtml(),
+                'type' => 'html',
+            ];
+        }
+
+        return ['display' => (string) $formValue, 'type' => 'html'];
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     public function toPromptContext(mixed $formValue): mixed
     {
         if (empty($formValue)) {
