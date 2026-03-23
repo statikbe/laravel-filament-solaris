@@ -4,7 +4,6 @@ namespace Statikbe\FilamentSolaris\Prompts;
 
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Statikbe\FilamentSolaris\Contracts\ComponentFactory;
 use Statikbe\FilamentSolaris\Contracts\PromptBuilder;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
@@ -53,15 +52,10 @@ abstract class AbstractPromptBuilder implements PromptBuilder
         ?string $locale = null,
         array $userInput = [],
     ): array {
-        $schema = new JsonSchemaTypeFactory;
-
         return [
             'instruction' => $instruction,
             'sourceData' => $sourceData,
             'factories' => $factories,
-            'responseSchema' => collect($factories)
-                ->mapWithKeys(fn ($factory, $field) => [$field => $factory->responseSchema($schema)->toArray()])
-                ->all(),
             'record' => $record,
             'locale' => $locale,
             'localeName' => $this->resolveLocaleName($locale),

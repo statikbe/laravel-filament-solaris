@@ -9,16 +9,16 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Model;
 use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Exceptions\AiException;
-use Laravel\Ai\Exceptions\ProviderOverloadedException;
-use Laravel\Ai\Exceptions\RateLimitedException;
+use Laravel\Ai\Responses\AgentResponse;
 use Laravel\Ai\Responses\StructuredAgentResponse;
+use Statikbe\FilamentSolaris\Agents\ConversationalSolarisAgent;
+use Statikbe\FilamentSolaris\Agents\SolarisAgent;
 use Statikbe\FilamentSolaris\Contracts\PromptBuilder;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\Factories\ComponentFactory;
 use Statikbe\FilamentSolaris\Prompts\InlinePromptBuilder;
 use Statikbe\FilamentSolaris\Prompts\Presets\Preset;
 use Statikbe\FilamentSolaris\Prompts\ViewPromptBuilder;
-use Statikbe\FilamentSolaris\Support\SolarisAgent;
 use Statikbe\FilamentSolaris\Support\SolarisNotification;
 use Statikbe\FilamentSolaris\Support\SolarisPromptLogger;
 use Statikbe\FilamentSolaris\Testing\AiActionFake;
@@ -48,13 +48,11 @@ trait HasPromptPipeline
      */
     public function prompt(string|View $instruction): static
     {
-        if ($instruction instanceof View) {
-            $this->promptBuilder = new ViewPromptBuilder;
-            $this->promptInstruction = $instruction;
-        } else {
-            $this->promptBuilder = new InlinePromptBuilder;
-            $this->promptInstruction = $instruction;
-        }
+        $this->promptBuilder = $instruction instanceof View
+            ? new ViewPromptBuilder
+            : new InlinePromptBuilder;
+
+        $this->promptInstruction = $instruction;
 
         return $this;
     }
@@ -175,6 +173,8 @@ trait HasPromptPipeline
             ];
         }
 
+        $config = FilamentSolaris::config();
+
         // 2. Preset-level override
         if ($this->promptBuilder instanceof Preset) {
             $presetProvider = $this->promptBuilder->getProvider();
@@ -186,7 +186,6 @@ trait HasPromptPipeline
             }
 
             // 3. Config preset_providers
-            $config = FilamentSolaris::config();
             $presetConfig = $config->getPresetProvider(get_class($this->promptBuilder));
             if ($presetConfig['provider'] !== null) {
                 return $presetConfig;
@@ -194,8 +193,6 @@ trait HasPromptPipeline
         }
 
         // 4. Config default_provider / default_model
-        $config = FilamentSolaris::config();
-
         return [
             'provider' => $config->getDefaultProvider(),
             'model' => $config->getDefaultModel(),
@@ -261,43 +258,32 @@ trait HasPromptPipeline
 
         SolarisPromptLogger::log($prompt, $factories);
 
-        try {
-            $agent = new SolarisAgent;
-            $agent->configure($prompt, $factories);
+        $agent = $this->createAgent();
+        $agent->configure($prompt, $factories);
 
-            ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
-            $timeout = $this->resolveTimeout();
+        if ($agent instanceof ConversationalSolarisAgent && auth()->user() !== null) {
+            $agent->forUser(auth()->user());
+        }
 
-            /** @var StructuredAgentResponse $response */
-            $response = $agent->prompt($prompt, [], $provider, $model, $timeout);
-            $aiResponse = $response->toArray();
-        } catch (RateLimitedException $e) {
-            report($e);
-            Notification::make()
-                ->title(filament_solaris_trans('notifications.rate_limited'))
-                ->danger()
-                ->send();
+        SolarisPromptLogger::logAgentSchema($agent);
 
-            return;
-        } catch (ProviderOverloadedException $e) {
-            report($e);
-            Notification::make()
-                ->title(filament_solaris_trans('notifications.overloaded'))
-                ->danger()
-                ->send();
+        /** @var StructuredAgentResponse|null $response */
+        $response = $this->executeAiCall(fn () => $agent->prompt($prompt, [], ...array_values($this->resolveAiCallParams())));
 
-            return;
-        } catch (AiException $e) {
-            report($e);
-            Notification::make()
-                ->title(filament_solaris_trans('notifications.error'))
-                ->danger()
-                ->send();
-
+        if ($response === null) {
             return;
         }
 
-        $this->applyResults($aiResponse, $factories);
+        $aiResponse = $response->toArray();
+        $conversationId = $response->conversationId ?? null;
+
+        SolarisPromptLogger::logResponse($aiResponse, $conversationId);
+
+        $this->applyResults($aiResponse, $factories, [
+            'sourceData' => $sourceData,
+            'userInput' => $userInput,
+            'conversationId' => $conversationId,
+        ]);
     }
 
     /**
@@ -340,7 +326,55 @@ trait HasPromptPipeline
             $aiResponse = [];
         }
 
-        $this->applyResults($aiResponse, $factories);
+        $this->applyResults($aiResponse, $factories, [
+            'sourceData' => $sourceData,
+            'userInput' => $userInput,
+            'conversationId' => $this->isConversational() ? 'fake-conversation-id' : null,
+        ]);
+    }
+
+    /**
+     * Create the appropriate agent instance.
+     */
+    protected function createAgent(): SolarisAgent
+    {
+        if ($this->isConversational()) {
+            return new ConversationalSolarisAgent;
+        }
+
+        return new SolarisAgent;
+    }
+
+    /**
+     * Resolve the provider, model, and timeout for the AI call.
+     *
+     * @return array{provider: Lab|array|string|null, model: ?string, timeout: ?int}
+     */
+    protected function resolveAiCallParams(): array
+    {
+        return [
+            ...$this->resolveProviderAndModel(),
+            'timeout' => $this->resolveTimeout(),
+        ];
+    }
+
+    /**
+     * Execute an AI call with standardized error handling.
+     *
+     * Returns the response on success, or null if an AI exception occurred
+     * (the error notification is sent automatically).
+     *
+     * @param  Closure(): AgentResponse  $callback
+     */
+    protected function executeAiCall(Closure $callback): ?AgentResponse
+    {
+        try {
+            return $callback();
+        } catch (AiException $e) {
+            SolarisNotification::sendAiErrorNotification($e);
+
+            return null;
+        }
     }
 
     /**
@@ -348,13 +382,17 @@ trait HasPromptPipeline
      *
      * @param  array<string, mixed>  $aiResponse
      * @param  array<string, ComponentFactory>  $factories
+     * @param  array{sourceData?: array<string, mixed>, userInput?: array<string, mixed>, conversationId?: ?string}  $conversationalContext
      */
-    protected function applyResults(array $aiResponse, array $factories): void
-    {
+    protected function applyResults(
+        array $aiResponse,
+        array $factories,
+        array $conversationalContext = [],
+    ): void {
         $result = $this->transformResults($aiResponse, $factories);
 
         if ($this->shouldPreview() && ! empty($result['values'])) {
-            $this->storePreviewData($result, $factories);
+            $this->storePreviewData($result, $factories, $aiResponse, $conversationalContext);
             $this->halt();
 
             return; // halt() throws, but return for clarity
@@ -445,13 +483,54 @@ trait HasPromptPipeline
      *
      * @param  array{values: array<string, mixed>, filledLabels: array<string>, failedLabels: array<string>}  $result
      * @param  array<string, ComponentFactory>  $factories
+     * @param  array<string, mixed>  $aiResponse
+     * @param  array{sourceData?: array<string, mixed>, userInput?: array<string, mixed>, conversationId?: ?string}  $conversationalContext
      */
-    protected function storePreviewData(array $result, array $factories): void
-    {
+    protected function storePreviewData(
+        array $result,
+        array $factories,
+        array $aiResponse = [],
+        array $conversationalContext = [],
+    ): void {
         $livewire = $this->getLivewire();
+        $displays = $this->buildDisplays($result['values'], $factories);
 
+        $data = [
+            'values' => $result['values'],
+            'displays' => $displays,
+            'filledLabels' => $result['filledLabels'],
+            'failedLabels' => $result['failedLabels'],
+            'actionName' => $this->getName(),
+        ];
+
+        if ($this->isConversational()) {
+            $data['isConversational'] = true;
+            $data['conversationId'] = $conversationalContext['conversationId'] ?? null;
+            $data['sourceData'] = $conversationalContext['sourceData'] ?? [];
+            $data['userInput'] = $conversationalContext['userInput'] ?? [];
+            $data['messages'] = [
+                [
+                    'role' => 'assistant',
+                    'content' => $aiResponse['_message'] ?? filament_solaris_trans('conversation.initial_message'),
+                ],
+            ];
+        }
+
+        $livewire->solarisPreviewData = $data;
+    }
+
+    /**
+     * Build display arrays from values and factories.
+     *
+     * @param  array<string, mixed>  $values
+     * @param  array<string, ComponentFactory>  $factories
+     * @return array<string, array{label: string, display: string, type: string}>
+     */
+    protected function buildDisplays(array $values, array $factories): array
+    {
         $displays = [];
-        foreach ($result['values'] as $fieldName => $formValue) {
+
+        foreach ($values as $fieldName => $formValue) {
             $factory = $factories[$fieldName] ?? null;
             $preview = $factory?->toPreviewDisplay($formValue) ?? ['display' => (string) $formValue, 'type' => 'text'];
 
@@ -462,14 +541,113 @@ trait HasPromptPipeline
             ];
         }
 
-        $livewire->solarisPreviewData = [
-            'values' => $result['values'],
-            'displays' => $displays,
-            'filledLabels' => $result['filledLabels'],
-            'failedLabels' => $result['failedLabels'],
-            'actionName' => $this->getName(),
+        return $displays;
+    }
+
+    /**
+     * Refine the preview results with a conversational follow-up message.
+     */
+    public function refine(string $message): void
+    {
+        $livewire = $this->getLivewire();
+        $previewData = $livewire->solarisPreviewData;
+
+        if ($previewData === null || ! ($previewData['isConversational'] ?? false)) {
+            return;
+        }
+
+        // Append user message
+        $previewData['messages'][] = ['role' => 'user', 'content' => $message];
+        $livewire->solarisPreviewData = $previewData;
+
+        if (AiActionFake::isActive()) {
+            $this->runFakeRefinement($message, $previewData);
+
+            return;
+        }
+
+        $this->runRefinement($message, $previewData);
+    }
+
+    /**
+     * Run a real refinement call against the AI.
+     *
+     * @param  array<string, mixed>  $previewData
+     */
+    protected function runRefinement(string $message, array $previewData): void
+    {
+        $sourceData = $previewData['sourceData'] ?? [];
+        $userInput = $previewData['userInput'] ?? [];
+
+        [$prompt, $factories] = $this->buildPrompt($sourceData, $userInput);
+
+        $agent = new ConversationalSolarisAgent;
+        $agent->configure($prompt, $factories);
+
+        $user = auth()->user();
+
+        if ($user !== null) {
+            $agent->continue($previewData['conversationId'], $user);
+        }
+
+        SolarisPromptLogger::logAgentSchema($agent);
+
+        /** @var StructuredAgentResponse|null $response */
+        $response = $this->executeAiCall(fn () => $agent->prompt($message, [], ...array_values($this->resolveAiCallParams())));
+
+        if ($response === null) {
+            return;
+        }
+
+        $aiResponse = $response->toArray();
+
+        SolarisPromptLogger::logResponse($aiResponse, $previewData['conversationId']);
+
+        $result = $this->transformResults($aiResponse, $factories);
+        $this->updatePreviewData($result, $factories, $aiResponse);
+    }
+
+    /**
+     * Run a fake refinement call for testing.
+     *
+     * @param  array<string, mixed>  $previewData
+     */
+    protected function runFakeRefinement(string $message, array $previewData): void
+    {
+        $fake = AiActionFake::getInstance();
+        $fake->recordRefinementCall($this->getName(), $message);
+
+        $aiResponse = $fake->resolveRefinement($this->getName()) ?? [];
+
+        $factories = $this->resolveTargetFactories();
+        $result = $this->transformResults($aiResponse, $factories);
+        $this->updatePreviewData($result, $factories, $aiResponse);
+    }
+
+    /**
+     * Update the existing preview data with refined results.
+     *
+     * @param  array{values: array<string, mixed>, filledLabels: array<string>, failedLabels: array<string>}  $result
+     * @param  array<string, ComponentFactory>  $factories
+     * @param  array<string, mixed>  $aiResponse
+     */
+    protected function updatePreviewData(array $result, array $factories, array $aiResponse = []): void
+    {
+        $livewire = $this->getLivewire();
+        $previewData = $livewire->solarisPreviewData;
+
+        $previewData['values'] = $result['values'];
+        $previewData['displays'] = $this->buildDisplays($result['values'], $factories);
+        $previewData['filledLabels'] = $result['filledLabels'];
+        $previewData['failedLabels'] = $result['failedLabels'];
+
+        // Append assistant message
+        $previewData['messages'][] = [
+            'role' => 'assistant',
+            'content' => $aiResponse['_message'] ?? filament_solaris_trans('conversation.refined_message'),
         ];
 
+        $livewire->solarisPreviewData = $previewData;
     }
 
     /**

@@ -18,6 +18,20 @@ return [
         'microphone_denied' => 'L\'accès au microphone est requis pour la dictée.',
     ],
 
+    'preview' => [
+        'modal_heading' => 'Vérifier les résultats IA',
+        'accept' => 'Accepter',
+        'discard' => 'Rejeter',
+    ],
+
+    'conversation' => [
+        'heading' => 'Conversation',
+        'refine_placeholder' => 'Affiner les résultats...',
+        'send' => 'Envoyer',
+        'initial_message' => 'Voici les résultats générés par l\'IA. Vous pouvez les affiner en envoyant un message.',
+        'refined_message' => 'J\'ai mis à jour les résultats en fonction de vos commentaires.',
+    ],
+
     'dictation' => [
         'modal_heading' => 'Enregistrer l\'audio',
         'submit_label' => 'Transcrire',

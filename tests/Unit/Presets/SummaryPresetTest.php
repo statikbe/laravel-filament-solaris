@@ -56,7 +56,7 @@ it('includes source data in prompt', function () {
     expect($prompt)->toContain('The article discusses AI trends.');
 });
 
-it('includes JSON schema in prompt', function () {
+it('does not include JSON schema in prompt text', function () {
     $preset = SummaryPreset::make();
     $factory = TextFactory::make(Textarea::make('summary'));
 
@@ -66,6 +66,5 @@ it('includes JSON schema in prompt', function () {
         factories: ['summary' => $factory],
     );
 
-    expect($prompt)->toContain('"summary"')
-        ->toContain('"type"');
+    expect($prompt)->not->toContain('Response Format');
 });

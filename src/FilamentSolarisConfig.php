@@ -59,6 +59,14 @@ class FilamentSolarisConfig
     }
 
     /**
+     * Get the conversational refinement send icon.
+     */
+    public function getConversationSendIcon(): string|\BackedEnum
+    {
+        return $this->packageConfig('conversation_send_icon', Heroicon::OutlinedPaperAirplane);
+    }
+
+    /**
      * Get the default tone.
      */
     public function getDefaultTone(): string

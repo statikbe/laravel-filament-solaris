@@ -18,8 +18,7 @@ it('renders the base wrapper with instruction', function () {
     expect($prompt)
         ->toContain('You are an AI assistant')
         ->toContain('Summarize this article.')
-        ->toContain('Article content here.')
-        ->toContain('Response Format');
+        ->toContain('Article content here.');
 });
 
 it('includes source data in the prompt', function () {
@@ -88,7 +87,7 @@ it('omits locale hint for English', function () {
     expect($prompt)->not->toContain('Language');
 });
 
-it('includes JSON schema from factories in the prompt', function () {
+it('does not include JSON schema in the prompt text', function () {
     $builder = new InlinePromptBuilder;
 
     $prompt = $builder->build(
@@ -99,8 +98,5 @@ it('includes JSON schema from factories in the prompt', function () {
         ],
     );
 
-    expect($prompt)
-        ->toContain('"category"')
-        ->toContain('"type"')
-        ->toContain('"string"');
+    expect($prompt)->not->toContain('Response Format');
 });

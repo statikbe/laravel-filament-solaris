@@ -33,6 +33,16 @@ class AiActionFake
     protected ?string $currentActionName = null;
 
     /**
+     * @var array<int, array<string, mixed>>
+     */
+    protected array $refinementResponses = [];
+
+    /**
+     * @var array<int, array{name: string, message: string}>
+     */
+    protected array $refinementCalls = [];
+
+    /**
      * Activate the fake with a default response.
      *
      * @param  array<string, mixed>  $defaultResponse
@@ -176,6 +186,43 @@ class AiActionFake
     }
 
     /**
+     * Queue a response for a refinement turn.
+     *
+     * @param  array<string, mixed>  $response
+     */
+    public function fakeRefinement(array $response): static
+    {
+        $this->refinementResponses[] = $response;
+
+        return $this;
+    }
+
+    /**
+     * Resolve the response for a refinement call.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function resolveRefinement(string $actionName): ?array
+    {
+        if (! empty($this->refinementResponses)) {
+            return array_shift($this->refinementResponses);
+        }
+
+        return $this->resolve($actionName);
+    }
+
+    /**
+     * Record a refinement call.
+     */
+    public function recordRefinementCall(string $actionName, string $message): void
+    {
+        $this->refinementCalls[] = [
+            'name' => $actionName,
+            'message' => $message,
+        ];
+    }
+
+    /**
      * Assert that at least one AI action was called.
      */
     public function assertCalled(): void
@@ -217,6 +264,40 @@ class AiActionFake
             $count,
             $this->calls,
             "Expected AiAction to be called {$count} times, but was called ".count($this->calls).' times.'
+        );
+    }
+
+    /**
+     * Assert that at least one refinement was made.
+     */
+    public function assertRefined(): void
+    {
+        Assert::assertNotEmpty(
+            $this->refinementCalls,
+            'Expected a refinement call, but none was made.'
+        );
+    }
+
+    /**
+     * Assert with a callback on the last refinement call.
+     */
+    public function assertRefinedWith(\Closure $callback): void
+    {
+        $this->assertRefined();
+
+        $lastCall = end($this->refinementCalls);
+        $callback($lastCall['message']);
+    }
+
+    /**
+     * Assert the number of refinement calls.
+     */
+    public function assertRefinedTimes(int $count): void
+    {
+        Assert::assertCount(
+            $count,
+            $this->refinementCalls,
+            "Expected {$count} refinement calls, but got ".count($this->refinementCalls).'.'
         );
     }
 }

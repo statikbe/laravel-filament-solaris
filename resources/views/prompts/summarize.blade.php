@@ -1,4 +1,4 @@
-You are an AI assistant integrated into a form interface. You must respond with valid JSON matching the schema below.
+You are an AI assistant integrated into a form interface.
 
 ## Instruction
 
@@ -26,11 +26,3 @@ Respond in {{ $localeName }}.
 - {{ str($key)->headline() }}: {{ is_array($value) ? json_encode($value) : $value }}
 @endforeach
 @endif
-
-## Response Format
-
-Respond with a JSON object matching this schema:
-
-```json
-@json($responseSchema, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
-```

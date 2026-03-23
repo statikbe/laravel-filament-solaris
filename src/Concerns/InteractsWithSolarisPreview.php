@@ -54,6 +54,28 @@ trait InteractsWithSolarisPreview
     }
 
     /**
+     * Refine the preview results with a conversational follow-up message.
+     */
+    public function solarisRefinePreview(string $message): void
+    {
+        if ($this->solarisPreviewData === null) {
+            return;
+        }
+
+        if (! ($this->solarisPreviewData['isConversational'] ?? false)) {
+            return;
+        }
+
+        $action = $this->getMountedAction();
+
+        if ($action === null || ! method_exists($action, 'refine')) {
+            return;
+        }
+
+        $action->refine($message);
+    }
+
+    /**
      * Discard the preview and close the modal.
      */
     public function solarisDiscardPreview(): void

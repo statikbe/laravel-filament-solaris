@@ -24,6 +24,14 @@ return [
         'discard' => 'Discard',
     ],
 
+    'conversation' => [
+        'heading' => 'Conversation',
+        'refine_placeholder' => 'Refine the results...',
+        'send' => 'Send',
+        'initial_message' => 'Here are the AI-generated results. You can refine them by sending a message.',
+        'refined_message' => 'I\'ve updated the results based on your feedback.',
+    ],
+
     'dictation' => [
         'modal_heading' => 'Record Audio',
         'submit_label' => 'Transcribe',

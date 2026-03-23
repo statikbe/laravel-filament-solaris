@@ -56,25 +56,6 @@ it('passes all standard variables to a custom Blade view', function () {
         ->toContain('formal');
 });
 
-it('includes response schema as arrays in view data', function () {
-    file_put_contents(
-        $this->viewDir.'/schema-check.blade.php',
-        '@foreach($responseSchema as $field => $schema){{ $field }}:{{ $schema["type"] }},@endforeach'
-    );
-
-    $builder = new ViewPromptBuilder;
-
-    $prompt = $builder->build(
-        instruction: 'test-int::schema-check',
-        sourceData: ['body' => 'Content'],
-        factories: [
-            'summary' => TextFactory::make(Textarea::make('summary')),
-        ],
-    );
-
-    expect($prompt)->toContain('summary:string');
-});
-
 it('passes factories to the view for custom introspection', function () {
     file_put_contents(
         $this->viewDir.'/factory-check.blade.php',

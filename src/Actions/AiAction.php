@@ -6,6 +6,7 @@ use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Contracts\View\View;
+use Statikbe\FilamentSolaris\Concerns\HasConversational;
 use Statikbe\FilamentSolaris\Concerns\HasPreviewModal;
 use Statikbe\FilamentSolaris\Concerns\HasPromptPipeline;
 use Statikbe\FilamentSolaris\Concerns\HasSourceFields;
@@ -14,6 +15,7 @@ use Statikbe\FilamentSolaris\Testing\AiActionFake;
 
 class AiAction extends Action
 {
+    use HasConversational;
     use HasPreviewModal;
     use HasPromptPipeline;
     use HasSourceFields;
@@ -73,11 +75,23 @@ class AiAction extends Action
     public function getModalContent(): View|Htmlable|null
     {
         if ($this->hasPreviewData()) {
+            $previewData = $this->getLivewire()->solarisPreviewData;
+
+            if ($previewData['isConversational'] ?? false) {
+                /** @var view-string $viewName */
+                $viewName = 'filament-solaris::preview-conversational';
+
+                return view($viewName, [
+                    'displays' => $previewData['displays'],
+                    'messages' => $previewData['messages'] ?? [],
+                ]);
+            }
+
             /** @var view-string $viewName */
             $viewName = 'filament-solaris::preview-modal';
 
             return view($viewName, [
-                'displays' => $this->getLivewire()->solarisPreviewData['displays'],
+                'displays' => $previewData['displays'],
             ]);
         }
 

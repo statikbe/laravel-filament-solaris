@@ -11,6 +11,7 @@ use Laravel\Ai\Exceptions\AiException;
 use Laravel\Ai\Exceptions\RateLimitedException;
 use Laravel\Ai\Transcription;
 use RuntimeException;
+use Statikbe\FilamentSolaris\Concerns\HasConversational;
 use Statikbe\FilamentSolaris\Concerns\HasPreviewModal;
 use Statikbe\FilamentSolaris\Concerns\HasPromptPipeline;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
@@ -19,6 +20,7 @@ use Statikbe\FilamentSolaris\Testing\DictationActionFake;
 
 class DictationAction extends Action
 {
+    use HasConversational;
     use HasPreviewModal;
     use HasPromptPipeline;
 

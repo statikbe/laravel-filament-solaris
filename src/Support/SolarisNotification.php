@@ -4,9 +4,31 @@ namespace Statikbe\FilamentSolaris\Support;
 
 use Filament\Notifications\Notification;
 use Illuminate\Support\Arr;
+use Laravel\Ai\Exceptions\AiException;
+use Laravel\Ai\Exceptions\ProviderOverloadedException;
+use Laravel\Ai\Exceptions\RateLimitedException;
 
 class SolarisNotification
 {
+    /**
+     * Handle an AI exception by reporting it and sending a danger notification.
+     */
+    public static function sendAiErrorNotification(AiException $e): void
+    {
+        report($e);
+
+        $translationKey = match (true) {
+            $e instanceof RateLimitedException => 'notifications.rate_limited',
+            $e instanceof ProviderOverloadedException => 'notifications.overloaded',
+            default => 'notifications.error',
+        };
+
+        Notification::make()
+            ->title(filament_solaris_trans($translationKey))
+            ->danger()
+            ->send();
+    }
+
     /**
      * Send appropriate notification based on filled/failed fields.
      *

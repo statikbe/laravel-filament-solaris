@@ -1,6 +1,6 @@
 <?php
 
-namespace Statikbe\FilamentSolaris\Support;
+namespace Statikbe\FilamentSolaris\Agents;
 
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
