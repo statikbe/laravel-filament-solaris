@@ -40,6 +40,11 @@
                             'bg-gray-100 text-gray-900 dark:bg-white/10 dark:text-gray-100' => $msg['role'] === 'assistant',
                             'bg-primary-500 text-white' => $msg['role'] === 'user',
                         ])>
+                            @if ($msg['role'] === 'assistant')
+                                <x-filament::badge class="mb-1" size="sm">
+                                    {{ filament_solaris_trans('conversation.ai_label') }}
+                                </x-filament::badge>
+                            @endif
                             {{ $msg['content'] }}
                         </div>
                     </div>

@@ -30,6 +30,7 @@ return [
         'send' => 'Envoyer',
         'initial_message' => 'Voici les résultats générés par l\'IA. Vous pouvez les affiner en envoyant un message.',
         'refined_message' => 'J\'ai mis à jour les résultats en fonction de vos commentaires.',
+        'ai_label' => 'IA',
     ],
 
     'dictation' => [
