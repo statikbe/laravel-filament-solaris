@@ -108,6 +108,20 @@ class AiAction extends Action
     /**
      * {@inheritDoc}
      *
+     * Conversational mode renders buttons inline; non-conversational uses the footer.
+     */
+    public function getModalContentFooter(): View|Htmlable|null
+    {
+        if ($this->hasPreviewData() && ($this->getLivewire()->solarisPreviewData['isConversational'] ?? false)) {
+            return null;
+        }
+
+        return parent::getModalContentFooter();
+    }
+
+    /**
+     * {@inheritDoc}
+     *
      * Hidden during both loading and preview states.
      */
     public function getModalSubmitAction(): ?Action

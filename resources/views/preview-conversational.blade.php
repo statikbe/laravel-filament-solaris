@@ -49,7 +49,7 @@
     @endif
 
     {{-- Refinement input --}}
-    <div class="flex items-end gap-2">
+    <div class="flex items-center gap-2">
         <div class="flex-1">
             <input
                 x-model="message"
@@ -61,7 +61,6 @@
             />
         </div>
         <x-filament::button
-            size="sm"
             @click="send()"
             ::disabled="!message.trim() || sending"
         >
@@ -72,8 +71,24 @@
                 />
             </span>
             <span x-show="sending" x-cloak>
-                <x-filament::loading-indicator class="h-4 w-4" />
+                <x-filament::loading-indicator class="h-5 w-5" />
             </span>
+        </x-filament::button>
+    </div>
+
+    {{-- Actions --}}
+    <div class="flex justify-end gap-3">
+        <x-filament::button
+            color="gray"
+            wire:click="solarisDiscardPreview"
+        >
+            {{ filament_solaris_trans('preview.discard') }}
+        </x-filament::button>
+
+        <x-filament::button
+            wire:click="solarisAcceptPreview"
+        >
+            {{ filament_solaris_trans('preview.accept') }}
         </x-filament::button>
     </div>
 </div>
