@@ -2,12 +2,14 @@
 
 # Laravel Filament Solaris
 
-AI actions for Filament v4 & v5 — auto-detect form fields, compose prompts, and write structured AI responses back. Powered by [laravel/ai](https://github.com/laravel/ai).
-
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/statikbe/laravel-filament-solaris.svg?style=flat-square)](https://packagist.org/packages/statikbe/laravel-filament-solaris)
 [![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/statikbe/laravel-filament-solaris/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/statikbe/laravel-filament-solaris/actions?query=workflow%3Arun-tests+branch%3Amain)
 [![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/statikbe/laravel-filament-solaris/fix-php-code-style-issues.yml?branch=main&label=code%20style&style=flat-square)](https://github.com/statikbe/laravel-filament-solaris/actions?query=workflow%3A"Fix+PHP+code+style+issues"+branch%3Amain)
 [![Total Downloads](https://img.shields.io/packagist/dt/statikbe/laravel-filament-solaris.svg?style=flat-square)](https://packagist.org/packages/statikbe/laravel-filament-solaris)
+
+AI actions for Filament v4 & v5 — auto-detect form fields, compose prompts, write structured AI responses back, generate images, and transcribe audio. Powered by [laravel/ai](https://github.com/laravel/ai).
+
+> “There are no answers, only choices.” ― Stanislav Lem, Solaris
 
 ## Table of Contents
 
@@ -40,6 +42,12 @@ AI actions for Filament v4 & v5 — auto-detect form fields, compose prompts, an
   - [Inline Prompts](#inline-prompts)
   - [View Prompts](#view-prompts)
   - [Custom Prompt Builders](#custom-prompt-builders)
+- [ImageGenerationAction](#imagegenerationaction)
+  - [Basic Usage](#basic-usage-1)
+  - [Size & Quality](#size--quality)
+  - [Provider & Model](#provider--model-1)
+  - [Storage](#storage)
+  - [Testing ImageGenerationAction](#testing-imagegenerationaction)
 - [DictationAction](#dictationaction)
   - [Pure Transcription](#pure-transcription)
   - [Transcription + AI Processing](#transcription--ai-processing)
@@ -188,6 +196,7 @@ classDiagram
     AbstractComponentFactory <|-- BooleanFactory
     AbstractComponentFactory <|-- CheckboxListFactory
     AbstractComponentFactory <|-- RichEditorFactory
+    AbstractComponentFactory <|-- FileUploadFactory
     SelectFactory <|-- RadioFactory
 
     class PromptBuilder {
@@ -399,7 +408,8 @@ Factories are the bridge between Filament components and AI. Each factory implem
 | Method | Purpose |
 |---|---|
 | `responseSchema(JsonSchema $schema): Type` | Returns the JSON schema fragment for this field, constraining the AI's output format |
-| `toFormValue(mixed $aiValue): mixed` | Transforms the AI's raw response into valid Filament form state |
+| `toFormValue(mixed $aiValue): mixed` | Transforms the AI's raw JSON response into valid Filament form state |
+| `toFormValueFromFile(string $content, string $mimeType): mixed` | Transforms generated file content (e.g. from `ImageGenerationAction`) into valid form state |
 | `toPromptContext(mixed $formValue): mixed` | Transforms the current form state into a human-readable string for the prompt |
 
 ### Supported Components
@@ -418,6 +428,8 @@ Factories are the bridge between Filament components and AI. Each factory implem
 | `Toggle` | `BooleanFactory` | `boolean` | Handles string/int coercion ("true", "yes", 1 → true) |
 | `Checkbox` | `BooleanFactory` | `boolean` | Same as Toggle |
 | `TagsInput` | `TagsFactory` | `array` of `string` | Includes suggestions in schema, handles comma-separated strings |
+| `FileUpload` | `FileUploadFactory` | — | Supports `toFormValueFromFile()` for image generation output |
+| `SpatieMediaLibraryFileUpload` | `FileUploadFactory` | — | Same as FileUpload — creates Livewire temp upload, Spatie handles Media record on save |
 
 ### Custom Factories
 
@@ -642,6 +654,100 @@ AiAction::make('custom')
     ->promptBuilder(new MyPromptBuilder())
 ```
 
+## ImageGenerationAction
+
+`ImageGenerationAction` generates images via `laravel/ai`'s Image API and writes them to `FileUpload` or `SpatieMediaLibraryFileUpload` fields. It composes a text prompt from an instruction, source field values, and optional user input.
+
+### Basic Usage
+
+```php
+use Statikbe\FilamentSolaris\Actions\ImageGenerationAction;
+
+Forms\Components\Actions::make([
+    ImageGenerationAction::make('generate-poster')
+        ->prompt('Generate a movie poster based on the story')
+        ->sourceFields(['title', 'description'])
+        ->targetField('poster'),
+]),
+
+SpatieMediaLibraryFileUpload::make('poster')
+    ->collection('poster')
+    ->disk('public')
+    ->image(),
+```
+
+### Size & Quality
+
+Control the image dimensions and quality using enums or strings:
+
+```php
+use Statikbe\FilamentSolaris\Enums\ImageSize;
+use Statikbe\FilamentSolaris\Enums\ImageQuality;
+
+ImageGenerationAction::make('generate')
+    ->prompt('A hero banner image')
+    ->targetField('hero_image')
+    ->imageSize(ImageSize::Landscape)       // or 'landscape', '3:2'
+    ->imageQuality(ImageQuality::High)      // or 'high'
+```
+
+Available sizes: `Square` (`1:1`), `Portrait` (`2:3`), `Landscape` (`3:2`) — or pass any ratio string directly.
+
+Available qualities: `Low`, `Medium`, `High`.
+
+### Provider & Model
+
+Image generation has its own provider resolution chain, separate from the structured output pipeline:
+
+```php
+ImageGenerationAction::make('generate')
+    ->prompt('A product photo')
+    ->targetField('image')
+    ->provider('openai', 'gpt-image-1.5')
+    ->timeout(120)
+```
+
+**Resolution chain** (highest wins):
+1. Action-level `->provider()`
+2. Config `default_image_provider` / `default_image_model`
+3. laravel/ai default (`config('ai.default_for_images')`)
+
+Supported image providers in laravel/ai: **OpenAI**, **Gemini**, **xAI (Grok)**.
+
+### Storage
+
+For `FileUpload` and `SpatieMediaLibraryFileUpload` targets, the generated image is stored as a Livewire temporary upload. Filament's save pipeline handles the rest — including creating Spatie Media records. The image is stored to the disk/directory configured on the component itself.
+
+For other component types (e.g. `TextInput`), the image is stored to the disk/directory from the package config and the path is set as the field value:
+
+```php
+// In config/filament-solaris.php
+'default_image_disk' => null,           // null = default filesystem disk
+'default_image_directory' => 'ai-images',
+'default_image_visibility' => null,     // 'public' or null
+```
+
+### User Input
+
+Add a modal for the user to provide additional instructions:
+
+```php
+use Statikbe\FilamentSolaris\Support\UserInput;
+
+ImageGenerationAction::make('generate')
+    ->prompt('Generate an image based on the product')
+    ->sourceFields(['name', 'description'])
+    ->targetField('image')
+    ->userInput(UserInput::make()
+        ->prompt('Any specific instructions?')
+        ->placeholder('e.g. bright colors, minimalist style...')
+    )
+```
+
+### Testing ImageGenerationAction
+
+See [Testing documentation](documentation/testing.md#testing-imagegenerationaction).
+
 ## DictationAction
 
 `DictationAction` captures audio via the browser's MediaRecorder API, transcribes it using `laravel/ai`'s Transcription API, and optionally processes the transcript through the AI pipeline. It works in two modes: pure transcription and transcription with AI processing.
@@ -722,25 +828,7 @@ DictationAction uses the MediaRecorder API and works in all modern browsers (Chr
 
 ### Testing DictationAction
 
-```php
-use Statikbe\FilamentSolaris\Actions\DictationAction;
-
-// Fake pure transcription
-DictationAction::fake('This is the transcribed text.');
-
-// Fake transcription + AI processing
-DictationAction::fake('Meeting notes about deadlines.', aiResponse: [
-    'summary' => 'Discussion about project deadlines.',
-    'category_id' => 'meetings',
-]);
-
-// Assertions
-DictationAction::assertCalled();
-DictationAction::assertTranscribed();
-DictationAction::assertTranscribedWith(function (string $transcript) {
-    expect($transcript)->toContain('meeting');
-});
-```
+See [Testing documentation](documentation/testing.md#testing-dictationaction).
 
 ## Testing
 
@@ -752,10 +840,11 @@ The configuration is published to `config/filament-solaris.php`. Key options inc
 
 - **AI provider & model** — package-wide defaults, per-preset overrides, failover arrays
 - **Transcription provider** — separate provider/model/timeout for `DictationAction`
+- **Image generation** — separate provider/model/timeout/size/quality/storage for `ImageGenerationAction`
 - **Timeout** — default timeout for AI calls
-- **Icons** — `action_icon` for AiAction, `dictation_icon` for DictationAction
-- **Factory map** — custom component-to-factory mappings
-- **Prompt logging** — log composed prompts during development
+- **Icons** — `action_icon` for AiAction, `dictation_icon` for DictationAction, `image_generation_icon` for ImageGenerationAction
+- **Factory map** — custom component-to-factory mappings (includes `FileUploadFactory` for image targets)
+- **Prompt logging** — log composed prompts and image generation calls during development
 - **Locales** — supported locales for the translation preset
 
 See the [Configuration Reference](documentation/configuration.md) for all available options.
@@ -768,6 +857,8 @@ A complete resource form with multiple AI actions:
 use Filament\Forms;
 use Statikbe\FilamentSolaris\Actions\AiAction;
 use Statikbe\FilamentSolaris\Actions\DictationAction;
+use Statikbe\FilamentSolaris\Actions\ImageGenerationAction;
+use Statikbe\FilamentSolaris\Enums\ImageSize;
 use Statikbe\FilamentSolaris\Prompts\Presets\ClassificationPreset;
 use Statikbe\FilamentSolaris\Prompts\Presets\GenerationPreset;
 use Statikbe\FilamentSolaris\Prompts\Presets\SummaryPreset;
@@ -829,7 +920,19 @@ public function form(Form $form): Form
                 ->targetField('summary')
                 ->preset(SummaryPreset::make()->maxWords(100))
                 ->lang('en-US'),
+
+            // Generate a cover image from the article content
+            ImageGenerationAction::make('generate-cover')
+                ->prompt('Generate a cover image for this article')
+                ->sourceFields(['title', 'body'])
+                ->targetField('cover_image')
+                ->imageSize(ImageSize::Landscape),
         ]),
+
+        Forms\Components\SpatieMediaLibraryFileUpload::make('cover_image')
+            ->collection('cover')
+            ->disk('public')
+            ->image(),
     ]);
 }
 ```

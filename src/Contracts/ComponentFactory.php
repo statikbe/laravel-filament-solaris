@@ -21,6 +21,20 @@ interface ComponentFactory
     public function toFormValue(mixed $aiValue): mixed;
 
     /**
+     * Transform generated file content into Filament form state.
+     *
+     * Used by ImageGenerationAction to write generated images (or other files)
+     * to the target component. Each factory decides the appropriate state format:
+     * - FileUploadFactory: creates a Livewire TemporaryUploadedFile
+     * - TextFactory: stores to disk and returns the path string
+     *
+     * @param  string  $content  Raw binary file content
+     * @param  string  $mimeType  MIME type (e.g. 'image/png')
+     * @return mixed Value suitable for Filament's form state
+     */
+    public function toFormValueFromFile(string $content, string $mimeType): mixed;
+
+    /**
      * Transform form state into prompt-friendly context.
      *
      * @param  mixed  $formValue  The current value from Filament's form state

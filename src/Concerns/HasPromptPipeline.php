@@ -468,6 +468,18 @@ trait HasPromptPipeline
     }
 
     /**
+     * Accept the preview and apply values to the form.
+     *
+     * Called by InteractsWithSolarisPreview when the user clicks "Accept".
+     *
+     * @param  array<string, mixed>  $data  The preview data stored on the Livewire component
+     */
+    public function acceptPreview(array $data): void
+    {
+        $this->writeResults($data['values'], $data['filledLabels'], $data['failedLabels']);
+    }
+
+    /**
      * Send appropriate notification based on filled/failed fields.
      *
      * @param  array<string>  $filledLabels

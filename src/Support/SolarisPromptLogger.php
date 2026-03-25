@@ -81,6 +81,54 @@ class SolarisPromptLogger
     }
 
     /**
+     * Log an image generation prompt.
+     */
+    public static function logImagePrompt(string $prompt, ?string $size, ?string $quality, mixed $provider, ?string $model): void
+    {
+        if (! FilamentSolaris::config()->isPromptLoggingEnabled()) {
+            return;
+        }
+
+        static::logger()->debug('Filament Solaris — Image Prompt', array_filter([
+            'prompt' => $prompt,
+            'size' => $size,
+            'quality' => $quality,
+            'provider' => $provider instanceof \BackedEnum ? $provider->value : $provider,
+            'model' => $model,
+        ]));
+    }
+
+    /**
+     * Log an image generation response.
+     */
+    public static function logImageResponse(int $imageCount, ?string $mime): void
+    {
+        if (! FilamentSolaris::config()->isPromptLoggingEnabled()) {
+            return;
+        }
+
+        static::logger()->debug('Filament Solaris — Image Response', [
+            'images' => $imageCount,
+            'mime' => $mime,
+        ]);
+    }
+
+    /**
+     * Log the image target handler and result.
+     */
+    public static function logImageWrite(string $handler, string $targetField): void
+    {
+        if (! FilamentSolaris::config()->isPromptLoggingEnabled()) {
+            return;
+        }
+
+        static::logger()->debug('Filament Solaris — Image Write', [
+            'handler' => $handler,
+            'targetField' => $targetField,
+        ]);
+    }
+
+    /**
      * Resolve the logger instance.
      */
     protected static function logger(): LoggerInterface

@@ -3,13 +3,14 @@
 namespace Statikbe\FilamentSolaris\Prompts\Presets;
 
 use Closure;
+use Statikbe\FilamentSolaris\Enums\Tone;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 
 class SummaryPreset extends Preset
 {
     protected int|Closure $maxWords = 200;
 
-    protected string|Closure|null $tone = null;
+    protected Tone|string|Closure|null $tone = null;
 
     protected string|Closure|null $language = null;
 
@@ -30,8 +31,10 @@ class SummaryPreset extends Preset
 
     /**
      * Set the tone of the summary.
+     *
+     * Accepts a Tone enum or any string for custom tones.
      */
-    public function tone(string|Closure $tone): static
+    public function tone(Tone|string|Closure $tone): static
     {
         $this->tone = $tone;
 
@@ -40,7 +43,9 @@ class SummaryPreset extends Preset
 
     public function getTone(): string
     {
-        return value($this->tone) ?? FilamentSolaris::config()->getDefaultTone();
+        $tone = value($this->tone) ?? FilamentSolaris::config()->getDefaultTone();
+
+        return $tone instanceof Tone ? $tone->value : $tone;
     }
 
     /**

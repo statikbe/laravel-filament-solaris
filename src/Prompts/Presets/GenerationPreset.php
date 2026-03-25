@@ -3,12 +3,13 @@
 namespace Statikbe\FilamentSolaris\Prompts\Presets;
 
 use Closure;
+use Statikbe\FilamentSolaris\Enums\Tone;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\Support\UserInput;
 
 class GenerationPreset extends Preset
 {
-    protected string|Closure|null $tone = null;
+    protected Tone|string|Closure|null $tone = null;
 
     protected int|Closure|null $maxLength = null;
 
@@ -18,8 +19,10 @@ class GenerationPreset extends Preset
 
     /**
      * Set the desired tone.
+     *
+     * Accepts a Tone enum or any string for custom tones.
      */
-    public function tone(string|Closure $tone): static
+    public function tone(Tone|string|Closure $tone): static
     {
         $this->tone = $tone;
 
@@ -28,7 +31,9 @@ class GenerationPreset extends Preset
 
     public function getTone(): string
     {
-        return value($this->tone) ?? FilamentSolaris::config()->getDefaultTone();
+        $tone = value($this->tone) ?? FilamentSolaris::config()->getDefaultTone();
+
+        return $tone instanceof Tone ? $tone->value : $tone;
     }
 
     /**

@@ -2,8 +2,6 @@
 
 namespace Statikbe\FilamentSolaris\Concerns;
 
-use Statikbe\FilamentSolaris\Support\SolarisNotification;
-
 trait InteractsWithSolarisPreview
 {
     /**
@@ -15,6 +13,10 @@ trait InteractsWithSolarisPreview
 
     /**
      * Accept the preview and apply values to the form.
+     *
+     * Delegates to the mounted action's acceptPreview() method, allowing
+     * each action type to handle acceptance differently (e.g. AiAction
+     * writes field values, ImageGenerationAction stores and writes images).
      */
     public function solarisAcceptPreview(): void
     {
@@ -25,31 +27,12 @@ trait InteractsWithSolarisPreview
         $data = $this->solarisPreviewData;
         $this->solarisPreviewData = null;
 
-        $firstField = array_key_first($data['values']);
+        $action = $this->getMountedAction();
 
-        if ($firstField === null) {
-            $this->unmountAction();
-
-            return;
+        if ($action !== null && method_exists($action, 'acceptPreview')) {
+            $action->acceptPreview($data);
         }
 
-        $component = $this->getSchemaComponent("form.{$firstField}");
-
-        if ($component === null) {
-            $this->unmountAction();
-
-            return;
-        }
-
-        $set = $component
-            ->makeSetUtility()
-            ->skipComponentsChildContainersWhileSearching(false);
-
-        foreach ($data['values'] as $fieldName => $formValue) {
-            $set($fieldName, $formValue);
-        }
-
-        SolarisNotification::sendResultNotifications($data['filledLabels'], $data['failedLabels']);
         $this->unmountAction();
     }
 

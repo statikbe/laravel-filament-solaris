@@ -5,6 +5,7 @@ namespace Statikbe\FilamentSolaris\Factories;
 use Closure;
 use Filament\Schemas\Components\Component;
 use Statikbe\FilamentSolaris\Contracts\ComponentFactory as ComponentFactoryContract;
+use Statikbe\FilamentSolaris\Exceptions\UnsupportedFactoryOperationException;
 
 abstract class ComponentFactory implements ComponentFactoryContract
 {
@@ -59,6 +60,19 @@ abstract class ComponentFactory implements ComponentFactoryContract
     public function getScope(): ?Closure
     {
         return $this->scope;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * By default, factories do not support file output. Override this method
+     * in factories for components that can receive generated files.
+     *
+     * @throws UnsupportedFactoryOperationException
+     */
+    public function toFormValueFromFile(string $content, string $mimeType): mixed
+    {
+        throw UnsupportedFactoryOperationException::fileOutput(static::class);
     }
 
     /**

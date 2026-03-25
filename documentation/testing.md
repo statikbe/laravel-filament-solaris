@@ -88,9 +88,33 @@ DictationAction::assertTranscribedWith(function (string $transcript) {
 });
 ```
 
+## Testing ImageGenerationAction
+
+```php
+use Statikbe\FilamentSolaris\Actions\ImageGenerationAction;
+
+// Fake image generation with a predetermined stored path
+ImageGenerationAction::fake('ai-images/fake-image.png');
+
+// ... trigger the action via Livewire testing ...
+
+// Assertions
+ImageGenerationAction::assertCalled();
+ImageGenerationAction::assertCalledTimes(1);
+ImageGenerationAction::assertNotCalled();
+
+// Inspect prompt, size, quality, provider, model
+ImageGenerationAction::assertCalledWith(function (string $prompt, ?string $size, ?string $quality, $provider, ?string $model) {
+    expect($prompt)->toContain('product photo');
+    expect($size)->toBe('3:2');
+    expect($quality)->toBe('high');
+    expect($provider)->toBe('openai');
+});
+```
+
 ## Auto-Reset Trait
 
-Use `WithAiActionFake` to automatically reset the fake after each test:
+Use `WithAiActionFake` to automatically reset all fakes after each test:
 
 ```php
 use Statikbe\FilamentSolaris\Testing\WithAiActionFake;
@@ -99,6 +123,7 @@ class MyTest extends TestCase
 {
     use WithAiActionFake;
 
-    // AiActionFake::reset() is called automatically after each test
+    // AiActionFake, DictationActionFake, and ImageGenerationActionFake
+    // are all reset automatically after each test
 }
 ```

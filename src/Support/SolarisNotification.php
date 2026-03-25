@@ -56,6 +56,25 @@ class SolarisNotification
     }
 
     /**
+     * Handle an AI exception for image generation.
+     */
+    public static function sendImageGenerationErrorNotification(AiException $e): void
+    {
+        report($e);
+
+        $translationKey = match (true) {
+            $e instanceof RateLimitedException => 'notifications.image_generation_rate_limited',
+            $e instanceof ProviderOverloadedException => 'notifications.overloaded',
+            default => 'notifications.image_generation_error',
+        };
+
+        Notification::make()
+            ->title(filament_solaris_trans($translationKey))
+            ->danger()
+            ->send();
+    }
+
+    /**
      * Format a list of field labels for display in notifications.
      *
      * @param  array<string>  $labels

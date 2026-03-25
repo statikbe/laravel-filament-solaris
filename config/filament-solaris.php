@@ -2,6 +2,7 @@
 
 // config for Statikbe/FilamentSolaris
 
+use Filament\Forms\Components\BaseFileUpload;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\CodeEditor;
@@ -17,6 +18,7 @@ use Filament\Forms\Components\ToggleButtons;
 use Filament\Support\Icons\Heroicon;
 use Statikbe\FilamentSolaris\Factories\BooleanFactory;
 use Statikbe\FilamentSolaris\Factories\CheckboxListFactory;
+use Statikbe\FilamentSolaris\Factories\FileUploadFactory;
 use Statikbe\FilamentSolaris\Factories\MarkdownFactory;
 use Statikbe\FilamentSolaris\Factories\RadioFactory;
 use Statikbe\FilamentSolaris\Factories\RichEditorFactory;
@@ -49,6 +51,7 @@ return [
         ToggleButtons::class => SelectFactory::class,
         TagsInput::class => TagsFactory::class,
         CodeEditor::class => TextFactory::class,
+        BaseFileUpload::class => FileUploadFactory::class,
     ],
 
     /*
@@ -216,5 +219,36 @@ return [
     */
 
     'preset_providers' => [],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Image Generation Icon
+    |--------------------------------------------------------------------------
+    |
+    | The default icon for image generation actions.
+    |
+    */
+
+    'image_generation_icon' => Heroicon::OutlinedPhoto,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Image Generation Defaults
+    |--------------------------------------------------------------------------
+    |
+    | Default settings for AI image generation. When null, laravel/ai defaults
+    | are used. The disk and directory should match the FileUpload component's
+    | configuration for the generated image to display correctly.
+    |
+    */
+
+    'default_image_provider' => null,
+    'default_image_model' => null,
+    'default_image_timeout' => null,
+    'default_image_size' => null,           // '1:1', '3:2', '2:3'
+    'default_image_quality' => null,        // 'low', 'medium', 'high'
+    'default_image_disk' => null,           // Storage disk (null = default filesystem disk)
+    'default_image_directory' => 'ai-images',
+    'default_image_visibility' => null,     // 'public' or null
 
 ];

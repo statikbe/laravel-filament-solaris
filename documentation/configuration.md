@@ -45,6 +45,22 @@ The default icon for AI action buttons.
 'action_icon' => Heroicon::OutlinedSparkles,
 ```
 
+## Dictation Icon
+
+The default icon for dictation action buttons.
+
+```php
+'dictation_icon' => Heroicon::OutlinedMicrophone,
+```
+
+## Conversation Send Icon
+
+The default icon for the send button in conversational refinement.
+
+```php
+'conversation_send_icon' => Heroicon::OutlinedPaperAirplane,
+```
+
 ## Default Tone
 
 The default tone used by presets like `SummaryPreset` and `GenerationPreset`. Individual presets can override this with `->tone()`.
@@ -144,6 +160,38 @@ DictationAction::make('voice')
     ->provider('anthropic')                          // AI processing provider
     ->timeout(120)                                   // AI processing timeout
 ```
+
+## Image Generation Icon
+
+The default icon for image generation action buttons.
+
+```php
+'image_generation_icon' => Heroicon::OutlinedPhoto,
+```
+
+## Image Generation Provider & Model
+
+Default provider for image generation. When `null`, the `laravel/ai` default for images (`config('ai.default_for_images')`) is used. Only providers that implement `ImageProvider` are supported: OpenAI, Gemini, xAI.
+
+```php
+'default_image_provider' => null,
+'default_image_model' => null,
+'default_image_timeout' => null,
+```
+
+## Image Generation Defaults
+
+Default size, quality, and storage settings for `ImageGenerationAction`.
+
+```php
+'default_image_size' => null,           // '1:1', '3:2', '2:3'
+'default_image_quality' => null,        // 'low', 'medium', 'high'
+'default_image_disk' => null,           // Storage disk (null = default filesystem disk)
+'default_image_directory' => 'ai-images',
+'default_image_visibility' => null,     // 'public' or null
+```
+
+The `disk`, `directory`, and `visibility` settings are only used as fallback when the target field is not a `FileUpload` component (e.g. `TextInput`). For `FileUpload` and `SpatieMediaLibraryFileUpload`, the image is stored as a Livewire temporary upload and the component's own disk/directory configuration is used on save.
 
 ## Per-Preset Provider Overrides
 

@@ -233,6 +233,82 @@ class FilamentSolarisConfig
     }
 
     /**
+     * Get the image generation icon.
+     */
+    public function getImageGenerationIcon(): string|\BackedEnum
+    {
+        return $this->packageConfig('image_generation_icon', Heroicon::OutlinedPhoto);
+    }
+
+    /**
+     * Get the default image generation provider.
+     *
+     * @return Lab|array<string, string>|array<int, string>|string|null
+     */
+    public function getDefaultImageProvider(): Lab|array|string|null
+    {
+        return $this->packageConfig('default_image_provider');
+    }
+
+    /**
+     * Get the default image generation model.
+     */
+    public function getDefaultImageModel(): ?string
+    {
+        return $this->packageConfig('default_image_model');
+    }
+
+    /**
+     * Get the default image generation timeout in seconds.
+     */
+    public function getDefaultImageTimeout(): ?int
+    {
+        $value = $this->packageConfig('default_image_timeout');
+
+        return $value !== null ? (int) $value : null;
+    }
+
+    /**
+     * Get the default image size.
+     */
+    public function getDefaultImageSize(): ?string
+    {
+        return $this->packageConfig('default_image_size');
+    }
+
+    /**
+     * Get the default image quality.
+     */
+    public function getDefaultImageQuality(): ?string
+    {
+        return $this->packageConfig('default_image_quality');
+    }
+
+    /**
+     * Get the default image storage disk.
+     */
+    public function getDefaultImageDisk(): ?string
+    {
+        return $this->packageConfig('default_image_disk');
+    }
+
+    /**
+     * Get the default image storage directory.
+     */
+    public function getDefaultImageDirectory(): string
+    {
+        return (string) $this->packageConfig('default_image_directory', 'ai-images');
+    }
+
+    /**
+     * Get the default image storage visibility.
+     */
+    public function getDefaultImageVisibility(): ?string
+    {
+        return $this->packageConfig('default_image_visibility');
+    }
+
+    /**
      * Get the provider/model/timeout override for a specific preset class.
      *
      * @return array{provider: Lab|array|string|null, model: ?string, timeout: ?int}

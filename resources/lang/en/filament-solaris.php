@@ -16,6 +16,10 @@ return [
         'transcription_error' => 'Could not transcribe the audio. Please try again.',
         'transcription_rate_limited' => 'Too many transcription requests. Please wait a moment.',
         'microphone_denied' => 'Microphone access is required for dictation.',
+        'image_generation_success' => 'AI image generated for :fields.',
+        'image_generation_error' => 'Could not generate the image. Please try again.',
+        'image_generation_rate_limited' => 'Too many image generation requests. Please wait a moment.',
+        'image_generation_store_failed' => 'Could not store the generated image.',
     ],
 
     'preview' => [
@@ -38,6 +42,11 @@ return [
         'submit_label' => 'Transcribe',
         'not_supported' => 'Your browser does not support audio recording.',
         'microphone_denied' => 'Microphone access was denied. Please allow microphone access in your browser settings and try again.',
+    ],
+
+    'image_generation' => [
+        'modal_heading' => 'Generate Image',
+        'submit_label' => 'Generate',
     ],
 
     'user_input' => [
