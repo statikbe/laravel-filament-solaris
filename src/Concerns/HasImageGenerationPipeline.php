@@ -382,12 +382,22 @@ trait HasImageGenerationPipeline
         );
 
         $image = $response->firstImage();
-        $formValue = $factory->toFormValueFromFile(
-            $image->content(),
-            $image->mime ?? 'image/png',
-        );
+
+        $this->applyImageToTarget($factory, $image->content(), $image->mime ?? 'image/png');
+    }
+
+    /**
+     * Write a generated image's raw bytes to the target component via its factory.
+     *
+     * Also invokes `afterStateHydration()` so JS-driven factories (e.g. FilePond)
+     * can push the new value to the browser-side widget. Most factories no-op.
+     */
+    protected function applyImageToTarget(ComponentFactory $factory, string $content, string $mimeType): void
+    {
+        $formValue = $factory->toFormValueFromFile($content, $mimeType);
 
         $factory->getComponent()->state($formValue);
+        $factory->afterStateHydration($formValue, $this->getLivewire());
     }
 
     /**
@@ -632,13 +642,12 @@ trait HasImageGenerationPipeline
      */
     public function acceptPreview(array $data): void
     {
-        $factory = $this->resolveTargetFactory();
-        $formValue = $factory->toFormValueFromFile(
+        $this->applyImageToTarget(
+            $this->resolveTargetFactory(),
             base64_decode($data['imageBase64']),
             $data['imageMime'] ?? 'image/png',
         );
 
-        $factory->getComponent()->state($formValue);
         $this->sendImageSuccessNotification();
     }
 

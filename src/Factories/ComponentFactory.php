@@ -4,6 +4,7 @@ namespace Statikbe\FilamentSolaris\Factories;
 
 use Closure;
 use Filament\Schemas\Components\Component;
+use Livewire\Component as LivewireComponent;
 use Statikbe\FilamentSolaris\Contracts\ComponentFactory as ComponentFactoryContract;
 use Statikbe\FilamentSolaris\Exceptions\UnsupportedFactoryOperationException;
 
@@ -84,5 +85,16 @@ abstract class ComponentFactory implements ComponentFactoryContract
             'display' => (string) $this->toPromptContext($formValue),
             'type' => 'text',
         ];
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * No-op by default. JS-driven widgets (FilePond, TipTap, code editors, …)
+     * override this to push a browser-side update via `$livewire->js()`.
+     */
+    public function afterStateHydration(mixed $formValue, LivewireComponent $livewire): void
+    {
+        // Intentionally empty.
     }
 }
