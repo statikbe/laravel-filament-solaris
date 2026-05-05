@@ -27,6 +27,7 @@ AI actions for Filament v4 & v5 — auto-detect form fields, compose prompts, wr
   - [Locale](#locale)
   - [Provider & Model](#provider--model)
   - [Timeout](#timeout)
+  - [Tools](#tools)
   - [Preview](#preview)
 - [Component Factories](#component-factories)
   - [Supported Components](#supported-components)
@@ -71,13 +72,6 @@ flowchart LR
     D -->|JSON response| E[ComponentFactory]
     E -->|transform & write| F[Target Fields]
 ```
-
-## Requirements
-
-- PHP ^8.3
-- Filament ^4.2 || ^5.0
-- laravel/ai ^0.3
-- ext-intl
 
 ## Installation
 
@@ -376,6 +370,23 @@ AiAction::make('classify')
 
 A package-wide default can be set in the config (`default_timeout`). See [Configuration](documentation/configuration.md).
 
+### Tools
+
+Pass tools to the underlying `laravel/ai` agent for this action. Tools are provider-specific — refer to your provider's laravel/ai documentation for available tool classes.
+
+```php
+use OpenAI\Laravel\Facades\OpenAI;
+
+AiAction::make('research')
+    ->sourceFields(['query'])
+    ->targetField('result')
+    ->tools([new WebSearchTool()])
+
+// Closure form
+AiAction::make('research')
+    ->tools(fn () => auth()->user()->can('web-search') ? [new WebSearchTool()] : [])
+```
+
 ### Closure Support
 
 Most setters accept a `Closure` alongside their static type, following Filament's own pattern. The closure is resolved at execution time via Laravel's `value()` helper, enabling dynamic configuration based on the current record or application state:
@@ -391,7 +402,7 @@ AiAction::make('translate')
     )
 ```
 
-Closures are supported on: `sourceFields()`, `targetFields()`, `locale()`, `provider()`, `timeout()`, `userInput()`, and all preset setters (e.g., `maxWords()`, `tone()`, `language()`, `style()`, etc.). Static values continue to work unchanged.
+Closures are supported on: `sourceFields()`, `targetFields()`, `locale()`, `provider()`, `timeout()`, `tools()`, `userInput()`, and all preset setters (e.g., `maxWords()`, `tone()`, `language()`, `style()`, etc.). Static values continue to work unchanged.
 
 ### Preview
 

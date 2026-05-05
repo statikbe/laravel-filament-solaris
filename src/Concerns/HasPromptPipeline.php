@@ -7,8 +7,10 @@ use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Component;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Model;
+use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Exceptions\AiException;
+use Laravel\Ai\Providers\Tools\ProviderTool;
 use Laravel\Ai\Responses\AgentResponse;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use Statikbe\FilamentSolaris\Agents\ConversationalSolarisAgent;
@@ -42,6 +44,9 @@ trait HasPromptPipeline
     protected string|Closure|null $pipelineModel = null;
 
     protected int|Closure|null $pipelineTimeout = null;
+
+    /** @var array<Tool|ProviderTool>|Closure|null */
+    protected array|Closure|null $pipelineTools = null;
 
     /**
      * Set an inline prompt instruction or a Blade view.
@@ -117,6 +122,18 @@ trait HasPromptPipeline
     public function timeout(int|Closure $timeout): static
     {
         $this->pipelineTimeout = $timeout;
+
+        return $this;
+    }
+
+    /**
+     * Set the tools available to the agent for this action.
+     *
+     * @param  array<Tool|ProviderTool>|Closure  $tools
+     */
+    public function tools(array|Closure $tools): static
+    {
+        $this->pipelineTools = $tools;
 
         return $this;
     }
@@ -260,6 +277,10 @@ trait HasPromptPipeline
 
         $agent = $this->createAgent();
         $agent->configure($prompt, $factories);
+
+        if ($this->pipelineTools !== null) {
+            $agent->withTools($this->evaluate($this->pipelineTools));
+        }
 
         if ($agent instanceof ConversationalSolarisAgent && auth()->user() !== null) {
             $agent->forUser(auth()->user());
