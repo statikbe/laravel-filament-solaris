@@ -94,6 +94,44 @@ class ProviderFormComponent extends FormsComponent
             ->timeout(120);
     }
 
+    public function generateWithOptionsAction(): AiAction
+    {
+        return AiAction::make('generateWithOptions')
+            ->sourceFields(['title', 'body'])
+            ->targetField('summary')
+            ->prompt('Summarize.')
+            ->temperature(0.7)
+            ->maxTokens(2048)
+            ->maxSteps(5)
+            ->topP(0.95);
+    }
+
+    public function generateWithPresetOptionsAction(): AiAction
+    {
+        return AiAction::make('generateWithPresetOptions')
+            ->sourceFields(['title', 'body'])
+            ->targetField('summary')
+            ->preset(SummaryPreset::make()->temperature(0.3)->maxTokens(512));
+    }
+
+    public function generateWithBothOptionsAction(): AiAction
+    {
+        return AiAction::make('generateWithBothOptions')
+            ->sourceFields(['title', 'body'])
+            ->targetField('summary')
+            ->preset(SummaryPreset::make()->temperature(0.3)->maxTokens(512))
+            ->temperature(0.9);
+    }
+
+    public function generateWithClosureTemperatureAction(): AiAction
+    {
+        return AiAction::make('generateWithClosureTemperature')
+            ->sourceFields(['title', 'body'])
+            ->targetField('summary')
+            ->prompt('Summarize.')
+            ->temperature(fn () => 0.42);
+    }
+
     public function render(): string
     {
         return '<div>{{ $this->form }}</div>';

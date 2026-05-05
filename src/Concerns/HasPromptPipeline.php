@@ -48,6 +48,14 @@ trait HasPromptPipeline
     /** @var array<Tool|ProviderTool>|Closure|null */
     protected array|Closure|null $pipelineTools = null;
 
+    protected float|int|Closure|null $pipelineTemperature = null;
+
+    protected int|Closure|null $pipelineMaxTokens = null;
+
+    protected int|Closure|null $pipelineMaxSteps = null;
+
+    protected float|int|Closure|null $pipelineTopP = null;
+
     /**
      * Set an inline prompt instruction or a Blade view.
      */
@@ -139,6 +147,46 @@ trait HasPromptPipeline
     }
 
     /**
+     * Set the sampling temperature for this action.
+     */
+    public function temperature(float|int|Closure|null $temperature): static
+    {
+        $this->pipelineTemperature = $temperature;
+
+        return $this;
+    }
+
+    /**
+     * Set the max output tokens for this action.
+     */
+    public function maxTokens(int|Closure|null $maxTokens): static
+    {
+        $this->pipelineMaxTokens = $maxTokens;
+
+        return $this;
+    }
+
+    /**
+     * Set the max tool-call steps for this action.
+     */
+    public function maxSteps(int|Closure|null $maxSteps): static
+    {
+        $this->pipelineMaxSteps = $maxSteps;
+
+        return $this;
+    }
+
+    /**
+     * Set the nucleus sampling top_p for this action.
+     */
+    public function topP(float|int|Closure|null $topP): static
+    {
+        $this->pipelineTopP = $topP;
+
+        return $this;
+    }
+
+    /**
      * Resolve the timeout for this pipeline call.
      *
      * Resolution chain (highest to lowest priority):
@@ -165,6 +213,52 @@ trait HasPromptPipeline
         }
 
         return $config->getDefaultTimeout();
+    }
+
+    /**
+     * Resolve text-generation options for this pipeline call.
+     *
+     * Resolution chain per option (highest to lowest priority):
+     * 1. Action ->temperature() / ->maxTokens() / ->maxSteps() / ->topP()
+     * 2. Preset ->temperature() / ... method
+     * 3. Config preset_providers[class].{temperature|max_tokens|max_steps|top_p}
+     * 4. Config default_{temperature|max_tokens|max_steps|top_p}
+     * 5. null (laravel/ai falls back to its own attribute defaults)
+     *
+     * @return array{temperature: ?float, max_tokens: ?int, max_steps: ?int, top_p: ?float}
+     */
+    protected function resolveOptions(): array
+    {
+        $config = FilamentSolaris::config();
+        $preset = $this->promptBuilder instanceof Preset ? $this->promptBuilder : null;
+        $presetConfig = $preset !== null ? $config->getPresetProvider(get_class($preset)) : [];
+
+        $temperature = $this->evaluate($this->pipelineTemperature)
+            ?? $preset?->getTemperature()
+            ?? $presetConfig['temperature']
+            ?? $config->getDefaultTemperature();
+
+        $maxTokens = $this->evaluate($this->pipelineMaxTokens)
+            ?? $preset?->getMaxTokens()
+            ?? $presetConfig['max_tokens']
+            ?? $config->getDefaultMaxTokens();
+
+        $maxSteps = $this->evaluate($this->pipelineMaxSteps)
+            ?? $preset?->getMaxSteps()
+            ?? $presetConfig['max_steps']
+            ?? $config->getDefaultMaxSteps();
+
+        $topP = $this->evaluate($this->pipelineTopP)
+            ?? $preset?->getTopP()
+            ?? $presetConfig['top_p']
+            ?? $config->getDefaultTopP();
+
+        return [
+            'temperature' => $temperature !== null ? (float) $temperature : null,
+            'max_tokens' => $maxTokens,
+            'max_steps' => $maxSteps,
+            'top_p' => $topP !== null ? (float) $topP : null,
+        ];
     }
 
     /**
@@ -282,6 +376,8 @@ trait HasPromptPipeline
             $agent->withTools($this->evaluate($this->pipelineTools));
         }
 
+        $this->applyOptionsToAgent($agent);
+
         if ($agent instanceof ConversationalSolarisAgent && auth()->user() !== null) {
             $agent->forUser(auth()->user());
         }
@@ -321,7 +417,8 @@ trait HasPromptPipeline
 
         ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
         $timeout = $this->resolveTimeout();
-        $fake->recordCall($this->getName(), $sourceData, $prompt, $provider, $model, $timeout);
+        $options = $this->resolveOptions();
+        $fake->recordCall($this->getName(), $sourceData, $prompt, $provider, $model, $timeout, $options);
 
         if ($fake->shouldSimulateError()) {
             Notification::make()
@@ -364,6 +461,20 @@ trait HasPromptPipeline
         }
 
         return new SolarisAgent;
+    }
+
+    /**
+     * Apply resolved text-generation options to the agent.
+     */
+    protected function applyOptionsToAgent(SolarisAgent $agent): void
+    {
+        $options = $this->resolveOptions();
+
+        $agent
+            ->withTemperature($options['temperature'])
+            ->withMaxTokens($options['max_tokens'])
+            ->withMaxSteps($options['max_steps'])
+            ->withTopP($options['top_p']);
     }
 
     /**
@@ -616,6 +727,8 @@ trait HasPromptPipeline
 
         $agent = new ConversationalSolarisAgent;
         $agent->configure($prompt, $factories);
+
+        $this->applyOptionsToAgent($agent);
 
         $user = auth()->user();
 

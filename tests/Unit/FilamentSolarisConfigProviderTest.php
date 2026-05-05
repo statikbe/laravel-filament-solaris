@@ -116,6 +116,65 @@ it('returns null default timeout when not configured', function () {
     expect($config->getDefaultTimeout())->toBeNull();
 });
 
+it('returns default temperature from config', function () {
+    config()->set('filament-solaris.default_temperature', 0.7);
+
+    expect(app(FilamentSolarisConfig::class)->getDefaultTemperature())->toBe(0.7);
+});
+
+it('returns null default temperature when not configured', function () {
+    config()->set('filament-solaris.default_temperature', null);
+
+    expect(app(FilamentSolarisConfig::class)->getDefaultTemperature())->toBeNull();
+});
+
+it('returns default maxTokens from config', function () {
+    config()->set('filament-solaris.default_max_tokens', 4096);
+
+    expect(app(FilamentSolarisConfig::class)->getDefaultMaxTokens())->toBe(4096);
+});
+
+it('returns default maxSteps from config', function () {
+    config()->set('filament-solaris.default_max_steps', 5);
+
+    expect(app(FilamentSolarisConfig::class)->getDefaultMaxSteps())->toBe(5);
+});
+
+it('returns default topP from config', function () {
+    config()->set('filament-solaris.default_top_p', 0.9);
+
+    expect(app(FilamentSolarisConfig::class)->getDefaultTopP())->toBe(0.9);
+});
+
+it('returns preset options from preset_providers config', function () {
+    config()->set('filament-solaris.preset_providers', [
+        SummaryPreset::class => [
+            'temperature' => 0.5,
+            'max_tokens' => 1024,
+            'max_steps' => 3,
+            'top_p' => 0.8,
+        ],
+    ]);
+
+    $result = app(FilamentSolarisConfig::class)->getPresetProvider(SummaryPreset::class);
+
+    expect($result['temperature'])->toBe(0.5)
+        ->and($result['max_tokens'])->toBe(1024)
+        ->and($result['max_steps'])->toBe(3)
+        ->and($result['top_p'])->toBe(0.8);
+});
+
+it('returns null option keys for unconfigured preset', function () {
+    config()->set('filament-solaris.preset_providers', []);
+
+    $result = app(FilamentSolarisConfig::class)->getPresetProvider(SummaryPreset::class);
+
+    expect($result['temperature'])->toBeNull()
+        ->and($result['max_tokens'])->toBeNull()
+        ->and($result['max_steps'])->toBeNull()
+        ->and($result['top_p'])->toBeNull();
+});
+
 it('supports failover array in preset provider config', function () {
     $failover = ['openai' => 'gpt-4o', 'anthropic'];
     config()->set('filament-solaris.preset_providers', [

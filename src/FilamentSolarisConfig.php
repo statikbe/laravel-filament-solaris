@@ -204,6 +204,34 @@ class FilamentSolarisConfig
         return $value !== null ? (int) $value : null;
     }
 
+    public function getDefaultTemperature(): ?float
+    {
+        $value = $this->packageConfig('default_temperature');
+
+        return $value !== null ? (float) $value : null;
+    }
+
+    public function getDefaultMaxTokens(): ?int
+    {
+        $value = $this->packageConfig('default_max_tokens');
+
+        return $value !== null ? (int) $value : null;
+    }
+
+    public function getDefaultMaxSteps(): ?int
+    {
+        $value = $this->packageConfig('default_max_steps');
+
+        return $value !== null ? (int) $value : null;
+    }
+
+    public function getDefaultTopP(): ?float
+    {
+        $value = $this->packageConfig('default_top_p');
+
+        return $value !== null ? (float) $value : null;
+    }
+
     /**
      * Get the default transcription provider.
      *
@@ -309,9 +337,9 @@ class FilamentSolarisConfig
     }
 
     /**
-     * Get the provider/model/timeout override for a specific preset class.
+     * Get the per-preset overrides for a specific preset class.
      *
-     * @return array{provider: Lab|array|string|null, model: ?string, timeout: ?int}
+     * @return array{provider: Lab|array|string|null, model: ?string, timeout: ?int, temperature: ?float, max_tokens: ?int, max_steps: ?int, top_p: ?float}
      */
     public function getPresetProvider(string $presetClass): array
     {
@@ -319,11 +347,19 @@ class FilamentSolarisConfig
         $config = $presets[$presetClass] ?? [];
 
         $timeout = $config['timeout'] ?? null;
+        $temperature = $config['temperature'] ?? null;
+        $maxTokens = $config['max_tokens'] ?? null;
+        $maxSteps = $config['max_steps'] ?? null;
+        $topP = $config['top_p'] ?? null;
 
         return [
             'provider' => $config['provider'] ?? null,
             'model' => $config['model'] ?? null,
             'timeout' => $timeout !== null ? (int) $timeout : null,
+            'temperature' => $temperature !== null ? (float) $temperature : null,
+            'max_tokens' => $maxTokens !== null ? (int) $maxTokens : null,
+            'max_steps' => $maxSteps !== null ? (int) $maxSteps : null,
+            'top_p' => $topP !== null ? (float) $topP : null,
         ];
     }
 

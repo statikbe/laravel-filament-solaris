@@ -27,6 +27,14 @@ class SolarisAgent implements Agent, HasStructuredOutput, HasTools
     /** @var iterable<Tool|ProviderTool> */
     protected iterable $tools = [];
 
+    protected ?float $temperature = null;
+
+    protected ?int $maxTokens = null;
+
+    protected ?int $maxSteps = null;
+
+    protected ?float $topP = null;
+
     /**
      * Configure the agent for a specific AI call.
      *
@@ -61,6 +69,66 @@ class SolarisAgent implements Agent, HasStructuredOutput, HasTools
     public function tools(): iterable
     {
         return $this->tools;
+    }
+
+    public function withTemperature(?float $temperature): static
+    {
+        $this->temperature = $temperature;
+
+        return $this;
+    }
+
+    public function withMaxTokens(?int $maxTokens): static
+    {
+        $this->maxTokens = $maxTokens;
+
+        return $this;
+    }
+
+    public function withMaxSteps(?int $maxSteps): static
+    {
+        $this->maxSteps = $maxSteps;
+
+        return $this;
+    }
+
+    public function withTopP(?float $topP): static
+    {
+        $this->topP = $topP;
+
+        return $this;
+    }
+
+    /**
+     * Read by laravel/ai's TextGenerationOptions::forAgent() before falling back to #[Temperature].
+     */
+    public function temperature(): ?float
+    {
+        return $this->temperature;
+    }
+
+    /**
+     * Read by laravel/ai's TextGenerationOptions::forAgent() before falling back to #[MaxTokens].
+     */
+    public function maxTokens(): ?int
+    {
+        return $this->maxTokens;
+    }
+
+    /**
+     * Read by laravel/ai's TextGenerationOptions::forAgent() before falling back to #[MaxSteps].
+     */
+    public function maxSteps(): ?int
+    {
+        return $this->maxSteps;
+    }
+
+    /**
+     * Read by laravel/ai's TextGenerationOptions::forAgent() before falling back to #[TopP].
+     */
+    public function topP(): ?float
+    {
+        return $this->topP;
     }
 
     /**

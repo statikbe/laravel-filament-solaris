@@ -189,6 +189,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Default Text Generation Options
+    |--------------------------------------------------------------------------
+    |
+    | Defaults for text-generation parameters resolved by laravel/ai's
+    | TextGenerationOptions. When null, laravel/ai falls back to the agent's
+    | PHP attributes (#[Temperature], #[MaxTokens], #[MaxSteps], #[TopP]) and
+    | then to the provider's own defaults.
+    |
+    | These can be overridden per-action (->temperature(), ->maxTokens(),
+    | ->maxSteps(), ->topP()) or per-preset (Preset::make()->temperature()).
+    |
+    */
+
+    'default_temperature' => null,
+    'default_max_tokens' => null,
+    'default_max_steps' => null,
+    'default_top_p' => null,
+
+    /*
+    |--------------------------------------------------------------------------
     | Default Transcription Provider & Model
     |--------------------------------------------------------------------------
     |
@@ -206,14 +226,19 @@ return [
     | Per-Preset Provider Overrides
     |--------------------------------------------------------------------------
     |
-    | Override the provider/model for specific preset classes. Key is the
-    | preset FQCN. Useful for routing cheap tasks to cheaper models.
+    | Override provider/model/timeout and text-generation options for specific
+    | preset classes. Key is the preset FQCN. Useful for routing cheap tasks
+    | to cheaper models or tuning sampling per preset.
     |
     | Example:
     |   \Statikbe\FilamentSolaris\Prompts\Presets\ClassificationPreset::class => [
     |       'provider' => 'openai',
     |       'model' => 'gpt-4o-mini',
     |       'timeout' => 30,
+    |       'temperature' => 0.0,
+    |       'max_tokens' => 256,
+    |       'max_steps' => 1,
+    |       'top_p' => 1.0,
     |   ],
     |
     */

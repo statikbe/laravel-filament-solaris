@@ -17,6 +17,14 @@ abstract class Preset extends AbstractPromptBuilder
 
     protected ?string $presetModel = null;
 
+    protected ?float $presetTemperature = null;
+
+    protected ?int $presetMaxTokens = null;
+
+    protected ?int $presetMaxSteps = null;
+
+    protected ?float $presetTopP = null;
+
     /**
      * Create a new preset instance.
      */
@@ -57,6 +65,54 @@ abstract class Preset extends AbstractPromptBuilder
     public function getModel(): ?string
     {
         return $this->presetModel;
+    }
+
+    public function temperature(?float $temperature): static
+    {
+        $this->presetTemperature = $temperature;
+
+        return $this;
+    }
+
+    public function maxTokens(?int $maxTokens): static
+    {
+        $this->presetMaxTokens = $maxTokens;
+
+        return $this;
+    }
+
+    public function maxSteps(?int $maxSteps): static
+    {
+        $this->presetMaxSteps = $maxSteps;
+
+        return $this;
+    }
+
+    public function topP(?float $topP): static
+    {
+        $this->presetTopP = $topP;
+
+        return $this;
+    }
+
+    public function getTemperature(): ?float
+    {
+        return $this->presetTemperature;
+    }
+
+    public function getMaxTokens(): ?int
+    {
+        return $this->presetMaxTokens;
+    }
+
+    public function getMaxSteps(): ?int
+    {
+        return $this->presetMaxSteps;
+    }
+
+    public function getTopP(): ?float
+    {
+        return $this->presetTopP;
     }
 
     /**

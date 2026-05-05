@@ -20,7 +20,7 @@ class AiActionFake
     protected array $actionResponses = [];
 
     /**
-     * @var array<int, array{name: string, sourceData: array, prompt: string, provider: Lab|array|string|null, model: ?string, timeout: ?int}>
+     * @var array<int, array{name: string, sourceData: array, prompt: string, provider: Lab|array|string|null, model: ?string, timeout: ?int, options: array{temperature: ?float, max_tokens: ?int, max_steps: ?int, top_p: ?float}}>
      */
     protected array $calls = [];
 
@@ -148,8 +148,9 @@ class AiActionFake
      *
      * @param  array<string, mixed>  $sourceData
      * @param  Lab|array<string, string>|array<int, string>|string|null  $provider
+     * @param  array{temperature?: ?float, max_tokens?: ?int, max_steps?: ?int, top_p?: ?float}  $options
      */
-    public function recordCall(string $actionName, array $sourceData, string $prompt, Lab|array|string|null $provider = null, ?string $model = null, ?int $timeout = null): void
+    public function recordCall(string $actionName, array $sourceData, string $prompt, Lab|array|string|null $provider = null, ?string $model = null, ?int $timeout = null, array $options = []): void
     {
         $this->calls[] = [
             'name' => $actionName,
@@ -158,6 +159,12 @@ class AiActionFake
             'provider' => $provider,
             'model' => $model,
             'timeout' => $timeout,
+            'options' => [
+                'temperature' => $options['temperature'] ?? null,
+                'max_tokens' => $options['max_tokens'] ?? null,
+                'max_steps' => $options['max_steps'] ?? null,
+                'top_p' => $options['top_p'] ?? null,
+            ],
         ];
     }
 
@@ -241,7 +248,19 @@ class AiActionFake
         $this->assertCalled();
 
         $lastCall = end($this->calls);
-        $callback($lastCall['sourceData'], $lastCall['prompt'], $lastCall['provider'] ?? null, $lastCall['model'] ?? null, $lastCall['timeout'] ?? null);
+        $callback(
+            $lastCall['sourceData'],
+            $lastCall['prompt'],
+            $lastCall['provider'] ?? null,
+            $lastCall['model'] ?? null,
+            $lastCall['timeout'] ?? null,
+            $lastCall['options'] ?? [
+                'temperature' => null,
+                'max_tokens' => null,
+                'max_steps' => null,
+                'top_p' => null,
+            ],
+        );
     }
 
     /**

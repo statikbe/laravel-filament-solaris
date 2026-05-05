@@ -28,6 +28,7 @@ AI actions for Filament v4 & v5 — auto-detect form fields, compose prompts, wr
   - [Provider & Model](#provider--model)
   - [Timeout](#timeout)
   - [Tools](#tools)
+  - [Generation Options](#generation-options)
   - [Preview](#preview)
 - [Component Factories](#component-factories)
   - [Supported Components](#supported-components)
@@ -387,6 +388,34 @@ AiAction::make('research')
     ->tools(fn () => auth()->user()->can('web-search') ? [new WebSearchTool()] : [])
 ```
 
+### Generation Options
+
+Tune the underlying text generation. All four options are optional — when not set, `laravel/ai` falls back to the agent's PHP attributes (`#[Temperature]`, `#[MaxTokens]`, `#[MaxSteps]`, `#[TopP]`) and then to the provider's own defaults.
+
+```php
+AiAction::make('summarize')
+    ->temperature(0.7)   // sampling temperature (float)
+    ->maxTokens(2048)    // hard cap on output tokens
+    ->maxSteps(5)        // max tool-call steps in an agent loop
+    ->topP(0.95)         // nucleus sampling
+```
+
+Setters accept `Closure` for runtime values (user preferences, feature flags, per-record tuning):
+
+```php
+AiAction::make('summarize')
+    ->temperature(fn () => auth()->user()->ai_creativity)
+    ->maxTokens(fn () => $this->record->is_premium ? 4096 : 1024)
+```
+
+On a preset:
+
+```php
+->preset(SummaryPreset::make()->temperature(0.3)->maxTokens(512))
+```
+
+Resolution chain per option (highest wins): action → preset → config `preset_providers[class]` → config `default_*` → `laravel/ai` default. See [Configuration](documentation/configuration.md) for the package-wide `default_temperature` / `default_max_tokens` / `default_max_steps` / `default_top_p` keys.
+
 ### Closure Support
 
 Most setters accept a `Closure` alongside their static type, following Filament's own pattern. The closure is resolved at execution time via Laravel's `value()` helper, enabling dynamic configuration based on the current record or application state:
@@ -402,7 +431,7 @@ AiAction::make('translate')
     )
 ```
 
-Closures are supported on: `sourceFields()`, `targetFields()`, `locale()`, `provider()`, `timeout()`, `tools()`, `userInput()`, and all preset setters (e.g., `maxWords()`, `tone()`, `language()`, `style()`, etc.). Static values continue to work unchanged.
+Closures are supported on: `sourceFields()`, `targetFields()`, `locale()`, `provider()`, `timeout()`, `tools()`, `temperature()`, `maxTokens()`, `maxSteps()`, `topP()`, `userInput()`, and all preset setters (e.g., `maxWords()`, `tone()`, `language()`, `style()`, etc.). Static values continue to work unchanged.
 
 ### Preview
 

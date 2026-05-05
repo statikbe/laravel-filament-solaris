@@ -141,6 +141,27 @@ Provider, model, and timeout are each resolved with a priority chain (highest wi
 3. Config `default_timeout`
 4. laravel/ai default (60s)
 
+**Generation options (`temperature`, `max_tokens`, `max_steps`, `top_p`):**
+1. Action-level `->temperature()` / `->maxTokens()` / `->maxSteps()` / `->topP()`
+2. Preset-level method on the preset object (e.g. `SummaryPreset::make()->temperature(0.3)`)
+3. Config `preset_providers[PresetClass]` `temperature` / `max_tokens` / `max_steps` / `top_p`
+4. Config `default_temperature` / `default_max_tokens` / `default_max_steps` / `default_top_p`
+5. Agent PHP attributes (`#[Temperature]`, `#[MaxTokens]`, `#[MaxSteps]`, `#[TopP]`) — read by laravel/ai
+6. Provider default
+
+## Generation Options
+
+Defaults for text-generation parameters resolved by laravel/ai's `TextGenerationOptions`. When `null`, laravel/ai falls back to the agent's PHP attributes and then to the provider's own defaults.
+
+```php
+'default_temperature' => null,  // float, e.g. 0.7
+'default_max_tokens' => null,   // int, hard cap on output tokens
+'default_max_steps' => null,    // int, max tool-call steps
+'default_top_p' => null,        // float, nucleus sampling
+```
+
+These can be overridden per-action (`->temperature()`, `->maxTokens()`, `->maxSteps()`, `->topP()`) or per-preset (`Preset::make()->temperature(...)`). See the [AiAction Generation Options](../README.md#generation-options) section for usage.
+
 ## Transcription Provider & Model
 
 Default provider for the transcription step in `DictationAction`. Separate from the AI processing provider.
@@ -202,13 +223,17 @@ Route specific preset types to different providers, models, and timeouts. Useful
     \Statikbe\FilamentSolaris\Prompts\Presets\ClassificationPreset::class => [
         'provider' => 'openai',
         'model' => 'gpt-4o-mini',
-        'timeout' => 30,  // fast model, short timeout
+        'timeout' => 30,        // fast model, short timeout
+        'temperature' => 0.0,   // deterministic for classification
+        'max_tokens' => 256,    // classifications are short
     ],
     \Statikbe\FilamentSolaris\Prompts\Presets\SummaryPreset::class => [
         'provider' => ['openai' => 'gpt-4o', 'anthropic'], // failover
         'timeout' => 120,
+        'temperature' => 0.5,
+        'top_p' => 0.95,
     ],
 ],
 ```
 
-All three keys (`provider`, `model`, `timeout`) are optional. This is overridden by action-level `->provider()` / `->timeout()` calls.
+All keys are optional: `provider`, `model`, `timeout`, `temperature`, `max_tokens`, `max_steps`, `top_p`. Each is overridden by the matching action-level setter (`->provider()`, `->timeout()`, `->temperature()`, etc.) or by a preset-level setter on the preset object.
