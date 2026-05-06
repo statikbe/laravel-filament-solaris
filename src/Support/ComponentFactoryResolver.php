@@ -59,6 +59,33 @@ class ComponentFactoryResolver
     }
 
     /**
+     * Resolve the factory CLASS for a field name without instantiating it.
+     *
+     * Returns null when no component matches the field, or no factory is
+     * registered for the matched component's class hierarchy. Used by
+     * `HasAttachments` so it can dispatch to a subclass's static
+     * `toAttachments()` (e.g. SpatieMediaLibraryFileUploadFactory) without
+     * needing a full ComponentFactory instance.
+     *
+     * @param  array<Component>  $components
+     * @return class-string<ComponentFactory>|null
+     */
+    public function resolveFactoryClassForField(array $components, string $fieldName): ?string
+    {
+        $component = $this->findComponent($components, $fieldName);
+
+        if ($component === null) {
+            return null;
+        }
+
+        try {
+            return $this->getFactoryClass($component);
+        } catch (RuntimeException) {
+            return null;
+        }
+    }
+
+    /**
      * Find a component by state path or name.
      *
      * @param  array<Component>  $components

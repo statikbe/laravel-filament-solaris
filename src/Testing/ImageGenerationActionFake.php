@@ -3,6 +3,7 @@
 namespace Statikbe\FilamentSolaris\Testing;
 
 use Laravel\Ai\Enums\Lab;
+use Laravel\Ai\Files\File;
 use PHPUnit\Framework\Assert;
 
 class ImageGenerationActionFake
@@ -12,7 +13,7 @@ class ImageGenerationActionFake
     protected string $storedPath = 'ai-images/fake-image.png';
 
     /**
-     * @var array<int, array{name: string, prompt: string, size: ?string, quality: ?string, provider: Lab|array|string|null, model: ?string, timeout: ?int, disk: ?string, directory: string}>
+     * @var array<int, array{name: string, prompt: string, size: ?string, quality: ?string, provider: Lab|array|string|null, model: ?string, timeout: ?int, disk: ?string, directory: string, attachments: array<File>}>
      */
     protected array $calls = [];
 
@@ -67,6 +68,7 @@ class ImageGenerationActionFake
      * Record a call to the image generation action.
      *
      * @param  Lab|array<string, string>|array<int, string>|string|null  $provider
+     * @param  array<File>  $attachments
      */
     public function recordCall(
         string $actionName,
@@ -78,6 +80,7 @@ class ImageGenerationActionFake
         ?int $timeout = null,
         ?string $disk = null,
         string $directory = 'ai-images',
+        array $attachments = [],
     ): void {
         $this->calls[] = [
             'name' => $actionName,
@@ -89,6 +92,7 @@ class ImageGenerationActionFake
             'timeout' => $timeout,
             'disk' => $disk,
             'directory' => $directory,
+            'attachments' => $attachments,
         ];
     }
 
@@ -105,6 +109,10 @@ class ImageGenerationActionFake
 
     /**
      * Assert with a callback on call data.
+     *
+     * Callback signature: (prompt, size, quality, provider, model, timeout, disk, directory, attachments).
+     * Existing tests using fewer parameters continue to work since PHP closures
+     * silently accept extra positional arguments.
      */
     public function assertCalledWith(\Closure $callback): void
     {
@@ -117,6 +125,10 @@ class ImageGenerationActionFake
             $lastCall['quality'] ?? null,
             $lastCall['provider'] ?? null,
             $lastCall['model'] ?? null,
+            $lastCall['timeout'] ?? null,
+            $lastCall['disk'] ?? null,
+            $lastCall['directory'] ?? 'ai-images',
+            $lastCall['attachments'] ?? [],
         );
     }
 

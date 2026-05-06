@@ -27,6 +27,7 @@ use Statikbe\FilamentSolaris\Testing\AiActionFake;
 
 trait HasPromptPipeline
 {
+    use HasAttachments;
     use HasTargetFields;
     use HasUserInput;
 
@@ -384,8 +385,10 @@ trait HasPromptPipeline
 
         SolarisPromptLogger::logAgentSchema($agent);
 
+        $attachments = $this->resolveAttachments($userInput);
+
         /** @var StructuredAgentResponse|null $response */
-        $response = $this->executeAiCall(fn () => $agent->prompt($prompt, [], ...array_values($this->resolveAiCallParams())));
+        $response = $this->executeAiCall(fn () => $agent->prompt($prompt, $attachments, ...array_values($this->resolveAiCallParams())));
 
         if ($response === null) {
             return;
@@ -418,7 +421,8 @@ trait HasPromptPipeline
         ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
         $timeout = $this->resolveTimeout();
         $options = $this->resolveOptions();
-        $fake->recordCall($this->getName(), $sourceData, $prompt, $provider, $model, $timeout, $options);
+        $attachments = $this->resolveAttachments($userInput);
+        $fake->recordCall($this->getName(), $sourceData, $prompt, $provider, $model, $timeout, $options, $attachments);
 
         if ($fake->shouldSimulateError()) {
             Notification::make()
@@ -738,8 +742,10 @@ trait HasPromptPipeline
 
         SolarisPromptLogger::logAgentSchema($agent);
 
+        $attachments = $this->resolveAttachments($userInput);
+
         /** @var StructuredAgentResponse|null $response */
-        $response = $this->executeAiCall(fn () => $agent->prompt($message, [], ...array_values($this->resolveAiCallParams())));
+        $response = $this->executeAiCall(fn () => $agent->prompt($message, $attachments, ...array_values($this->resolveAiCallParams())));
 
         if ($response === null) {
             return;

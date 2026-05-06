@@ -24,6 +24,7 @@
         "ext-intl": "*"
     },
     "require-dev": {
+        "filament/spatie-laravel-media-library-plugin": "^4.2||^5.0",
         "larastan/larastan": "^3.0",
         "laravel/pint": "^1.14",
         "nunomaduro/collision": "^8.8",
@@ -33,7 +34,8 @@
         "pestphp/pest-plugin-laravel": "^4.0",
         "phpstan/extension-installer": "^1.4",
         "phpstan/phpstan-deprecation-rules": "^2.0",
-        "phpstan/phpstan-phpunit": "^2.0"
+        "phpstan/phpstan-phpunit": "^2.0",
+        "spatie/laravel-medialibrary": "^11.0||^12.0"
     },
     "autoload": {
         "psr-4": {

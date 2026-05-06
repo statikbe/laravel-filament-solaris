@@ -7,6 +7,8 @@ use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Component;
 use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Exceptions\AiException;
+use Laravel\Ai\Files\File;
+use Laravel\Ai\Files\Image as ImageFile;
 use Laravel\Ai\Image;
 use Laravel\Ai\Responses\ImageResponse;
 use Statikbe\FilamentSolaris\Enums\ImageQuality;
@@ -20,6 +22,7 @@ use Statikbe\FilamentSolaris\Testing\ImageGenerationActionFake;
 
 trait HasImageGenerationPipeline
 {
+    use HasAttachments;
     use HasUserInput;
 
     protected string|Closure|null $imagePromptInstruction = null;
@@ -288,6 +291,15 @@ trait HasImageGenerationPipeline
     }
 
     /**
+     * Reuse the action's configured storage disk for dereferencing
+     * persisted attachment paths supplied via attachmentField()/attachmentFromUserInput().
+     */
+    protected function resolveAttachmentDisk(): ?string
+    {
+        return $this->resolveStorageDisk();
+    }
+
+    /**
      * Compose the final prompt string from instruction, source data, and user input.
      *
      * @param  array<string, mixed>  $sourceData
@@ -324,11 +336,26 @@ trait HasImageGenerationPipeline
 
     /**
      * Generate an image via the laravel/ai Image API.
+     *
+     * @param  array<File>  $attachments
      */
-    protected function generateImage(string $prompt): ?ImageResponse
+    protected function generateImage(string $prompt, array $attachments = []): ?ImageResponse
     {
         try {
             $pending = Image::of($prompt);
+
+            // laravel/ai's PendingImageGeneration::attachments() is typed for
+            // Image[]; non-image attachments to image generation are misuse,
+            // so silently drop them rather than handing the upstream a value
+            // it would reject anyway.
+            $imageAttachments = array_values(array_filter(
+                $attachments,
+                fn (File $attachment): bool => $attachment instanceof ImageFile,
+            ));
+
+            if (! empty($imageAttachments)) {
+                $pending->attachments($imageAttachments);
+            }
 
             $size = $this->resolveImageSize();
             if ($size !== null) {
@@ -469,6 +496,7 @@ trait HasImageGenerationPipeline
     protected function runFakeImagePipeline(array $sourceData, array $userInput): void
     {
         $prompt = $this->composePrompt($sourceData, $userInput);
+        $attachments = $this->resolveAttachments($userInput);
 
         $fake = ImageGenerationActionFake::getInstance();
 
@@ -484,6 +512,7 @@ trait HasImageGenerationPipeline
             $this->resolveImageTimeout(),
             $this->resolveStorageDisk(),
             $this->resolveStorageDirectory(),
+            $attachments,
         );
 
         if ($this->shouldPreview()) {
@@ -506,8 +535,9 @@ trait HasImageGenerationPipeline
     protected function runImagePipeline(array $sourceData, array $userInput): void
     {
         $prompt = $this->composePrompt($sourceData, $userInput);
+        $attachments = $this->resolveAttachments($userInput);
 
-        $response = $this->generateImage($prompt);
+        $response = $this->generateImage($prompt, $attachments);
 
         if ($response === null) {
             return;
@@ -687,7 +717,11 @@ trait HasImageGenerationPipeline
     {
         $refinedPrompt = $previewData['originalPrompt']."\n\nFeedback: ".$message;
 
-        $response = $this->generateImage($refinedPrompt);
+        // Re-attach the original input image(s) on every refinement turn —
+        // expected behaviour for "now make it warmer" style follow-ups.
+        $attachments = $this->resolveAttachments($previewData['userInput'] ?? []);
+
+        $response = $this->generateImage($refinedPrompt, $attachments);
 
         if ($response === null) {
             return;

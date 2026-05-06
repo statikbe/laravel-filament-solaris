@@ -3,6 +3,7 @@
 namespace Statikbe\FilamentSolaris\Testing;
 
 use Laravel\Ai\Enums\Lab;
+use Laravel\Ai\Files\File;
 use PHPUnit\Framework\Assert;
 
 class AiActionFake
@@ -20,7 +21,7 @@ class AiActionFake
     protected array $actionResponses = [];
 
     /**
-     * @var array<int, array{name: string, sourceData: array, prompt: string, provider: Lab|array|string|null, model: ?string, timeout: ?int, options: array{temperature: ?float, max_tokens: ?int, max_steps: ?int, top_p: ?float}}>
+     * @var array<int, array{name: string, sourceData: array, prompt: string, provider: Lab|array|string|null, model: ?string, timeout: ?int, options: array{temperature: ?float, max_tokens: ?int, max_steps: ?int, top_p: ?float}, attachments: array<File>}>
      */
     protected array $calls = [];
 
@@ -149,8 +150,9 @@ class AiActionFake
      * @param  array<string, mixed>  $sourceData
      * @param  Lab|array<string, string>|array<int, string>|string|null  $provider
      * @param  array{temperature?: ?float, max_tokens?: ?int, max_steps?: ?int, top_p?: ?float}  $options
+     * @param  array<File>  $attachments
      */
-    public function recordCall(string $actionName, array $sourceData, string $prompt, Lab|array|string|null $provider = null, ?string $model = null, ?int $timeout = null, array $options = []): void
+    public function recordCall(string $actionName, array $sourceData, string $prompt, Lab|array|string|null $provider = null, ?string $model = null, ?int $timeout = null, array $options = [], array $attachments = []): void
     {
         $this->calls[] = [
             'name' => $actionName,
@@ -165,6 +167,7 @@ class AiActionFake
                 'max_steps' => $options['max_steps'] ?? null,
                 'top_p' => $options['top_p'] ?? null,
             ],
+            'attachments' => $attachments,
         ];
     }
 
@@ -260,6 +263,7 @@ class AiActionFake
                 'max_steps' => null,
                 'top_p' => null,
             ],
+            $lastCall['attachments'] ?? [],
         );
     }
 

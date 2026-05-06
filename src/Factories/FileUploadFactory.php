@@ -7,12 +7,149 @@ use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Laravel\Ai\Files\Audio;
+use Laravel\Ai\Files\Document;
+use Laravel\Ai\Files\File;
+use Laravel\Ai\Files\Image;
 use Livewire\Component as LivewireComponent;
 use Livewire\Features\SupportFileUploads\FileUploadConfiguration;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 
 class FileUploadFactory extends ComponentFactory
 {
+    private const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'svg', 'heic', 'avif'];
+
+    private const AUDIO_EXTENSIONS = ['mp3', 'wav', 'm4a', 'ogg', 'flac', 'aac', 'opus'];
+
+    /**
+     * Convert FileUpload form-state value(s) into laravel/ai attachment objects.
+     *
+     * Handles three state shapes:
+     *   - `[uuid => TemporaryUploadedFile, ...]` — fresh Livewire upload (single or multi)
+     *   - `string` — a persisted filesystem path
+     *   - `array<string>` — multiple persisted paths
+     *
+     * Type (Image / Audio / Document) is sniffed from MIME first, then extension.
+     * Override this in a custom factory (e.g. for SpatieMediaLibraryFileUpload)
+     * when the form-state shape diverges from the default Filament FileUpload.
+     *
+     * @return array<int, File>
+     */
+    public static function toAttachments(mixed $value, ?string $disk): array
+    {
+        if (blank($value)) {
+            return [];
+        }
+
+        $attachments = [];
+
+        if (is_array($value)) {
+            foreach ($value as $entry) {
+                if ($entry instanceof TemporaryUploadedFile) {
+                    $attachments[] = self::attachmentFromUpload($entry);
+                } elseif (is_string($entry) && filled($entry)) {
+                    $attachments[] = self::attachmentFromStorage($entry, $disk);
+                }
+            }
+
+            return $attachments;
+        }
+
+        if (is_string($value)) {
+            $attachments[] = self::attachmentFromStorage($value, $disk);
+        }
+
+        return $attachments;
+    }
+
+    /**
+     * Build a Base64-backed attachment from a Livewire temporary upload.
+     */
+    private static function attachmentFromUpload(TemporaryUploadedFile $file): File
+    {
+        $mimeType = $file->getMimeType() ?: $file->getClientMimeType();
+        $type = self::resolveAttachmentType($file->getClientOriginalName(), $mimeType);
+
+        return match ($type) {
+            Image::class => Image::fromUpload($file, $mimeType),
+            Document::class => Document::fromUpload($file, $mimeType),
+            // Audio has no fromUpload(); build a Base64Audio directly so the
+            // base64 + mime resolution stays consistent across all three types.
+            default => Audio::fromBase64(base64_encode($file->getContent()), $mimeType),
+        };
+    }
+
+    /**
+     * Build a Storage-disk-backed attachment from a persisted path.
+     */
+    private static function attachmentFromStorage(string $path, ?string $disk): File
+    {
+        return self::storedAttachmentFor(
+            self::resolveAttachmentType($path, null),
+            $path,
+            $disk,
+        );
+    }
+
+    /**
+     * Build a Storage-disk-backed attachment for a pre-resolved type.
+     *
+     * Shared by the parent (which derives type from a path alone) and the
+     * Spatie subclass (which has a stored MIME type to feed into the
+     * resolver). Centralising the match keeps the Image/Audio/Document
+     * dispatch in one place.
+     *
+     * @param  class-string<File>  $type
+     */
+    protected static function storedAttachmentFor(string $type, string $path, ?string $disk): File
+    {
+        return match ($type) {
+            Image::class => Image::fromStorage($path, $disk),
+            Audio::class => Audio::fromStorage($path, $disk),
+            default => Document::fromStorage($path, $disk),
+        };
+    }
+
+    /**
+     * Resolve the laravel/ai Files\* class for an attachment from MIME type and filename.
+     *
+     * Specific MIME types (image/*, audio/*) win immediately. For generic or
+     * unavailable MIMEs (application/octet-stream, null) the filename
+     * extension is the tiebreaker — Spatie's fake-file storage and various
+     * upload paths frequently produce a generic MIME for files whose
+     * extension makes their type obvious.
+     *
+     * Anything still unresolved falls into Document — the most permissive
+     * bucket — so unknown files attach gracefully and the upstream provider
+     * decides whether to accept them.
+     *
+     * @return class-string<File>
+     */
+    public static function resolveAttachmentType(string $filename, ?string $mimeType): string
+    {
+        if ($mimeType !== null) {
+            if (str_starts_with($mimeType, 'image/')) {
+                return Image::class;
+            }
+
+            if (str_starts_with($mimeType, 'audio/')) {
+                return Audio::class;
+            }
+        }
+
+        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+        if (in_array($extension, self::IMAGE_EXTENSIONS, true)) {
+            return Image::class;
+        }
+
+        if (in_array($extension, self::AUDIO_EXTENSIONS, true)) {
+            return Audio::class;
+        }
+
+        return Document::class;
+    }
+
     /**
      * {@inheritDoc}
      */

@@ -2,10 +2,12 @@
 
 namespace Statikbe\FilamentSolaris\Tests\Fixtures;
 
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\FormsComponent;
 use Filament\Schemas\Schema;
+use Laravel\Ai\Files\Image;
 use Statikbe\FilamentSolaris\Actions\ImageGenerationAction;
 use Statikbe\FilamentSolaris\Enums\ImageQuality;
 use Statikbe\FilamentSolaris\Enums\ImageSize;
@@ -25,6 +27,7 @@ class ImageGenerationFormComponent extends FormsComponent
             'title' => '',
             'description' => '',
             'featured_image' => '',
+            'reference_image' => null,
         ]);
     }
 
@@ -43,6 +46,9 @@ class ImageGenerationFormComponent extends FormsComponent
                     ->label('Description'),
                 TextInput::make('featured_image')
                     ->label('Featured Image'),
+                FileUpload::make('reference_image')
+                    ->label('Reference Image')
+                    ->image(),
             ])
             ->statePath('data');
     }
@@ -94,6 +100,28 @@ class ImageGenerationFormComponent extends FormsComponent
             ->prompt('Generate an image')
             ->targetField('featured_image')
             ->userInput(UserInput::make());
+    }
+
+    /**
+     * Image generation with an input image attached from a parent form FileUpload.
+     */
+    public function generateWithReferenceFieldAction(): ImageGenerationAction
+    {
+        return ImageGenerationAction::make('generateWithReferenceField')
+            ->prompt('Reskin in studio-photography style')
+            ->targetField('featured_image')
+            ->attachmentField('reference_image');
+    }
+
+    /**
+     * Image generation with a hardcoded closure-supplied input image.
+     */
+    public function generateWithClosureRefAction(): ImageGenerationAction
+    {
+        return ImageGenerationAction::make('generateWithClosureRef')
+            ->prompt('Match this brand logo')
+            ->targetField('featured_image')
+            ->attachments(fn () => [Image::fromUrl('https://example.com/logo.png')]);
     }
 
     /**

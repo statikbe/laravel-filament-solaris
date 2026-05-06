@@ -29,6 +29,7 @@ AI actions for Filament v4 & v5 — auto-detect form fields, compose prompts, wr
   - [Timeout](#timeout)
   - [Tools](#tools)
   - [Generation Options](#generation-options)
+  - [Attachments](#attachments)
   - [Preview](#preview)
 - [Component Factories](#component-factories)
   - [Supported Components](#supported-components)
@@ -49,6 +50,7 @@ AI actions for Filament v4 & v5 — auto-detect form fields, compose prompts, wr
   - [Size & Quality](#size--quality)
   - [Provider & Model](#provider--model-1)
   - [Storage](#storage)
+  - [Reference Images](#reference-images)
   - [Testing ImageGenerationAction](#testing-imagegenerationaction)
 - [DictationAction](#dictationaction)
   - [Pure Transcription](#pure-transcription)
@@ -433,6 +435,40 @@ AiAction::make('translate')
 
 Closures are supported on: `sourceFields()`, `targetFields()`, `locale()`, `provider()`, `timeout()`, `tools()`, `temperature()`, `maxTokens()`, `maxSteps()`, `topP()`, `userInput()`, and all preset setters (e.g., `maxWords()`, `tone()`, `language()`, `style()`, etc.). Static values continue to work unchanged.
 
+### Attachments
+
+Send files to the underlying `laravel/ai` agent alongside the prompt — images for vision-capable models, PDFs/text for document understanding, audio for multimodal voice models. Three explicit channels feed into the same attachment slot, all of which accumulate:
+
+```php
+use Laravel\Ai\Files\Image;
+use Laravel\Ai\Files\Document;
+
+AiAction::make('analyse')
+    ->sourceFields(['title'])
+    ->targetField('analysis')
+    ->prompt('Analyse this content.')
+
+    // Channel 1: a FileUpload field on the parent form
+    ->attachmentField('reference_image')
+
+    // Channel 2: a FileUpload inside the UserInput modal
+    ->userInput(UserInput::make()->fields([
+        FileUpload::make('extra_doc'),
+    ]))
+    ->attachmentFromUserInput('extra_doc')
+
+    // Channel 3: hardcoded / programmatic
+    ->attachments(fn () => [Image::fromUrl('https://example.com/logo.png')])
+```
+
+Type detection is automatic: MIME-sniffed first, extension fallback. Image MIMEs / extensions (jpg, png, webp, heic, …) become `Files\Image`; audio MIMEs / extensions (mp3, wav, m4a, …) become `Files\Audio`; everything else becomes `Files\Document` (PDFs, text, anything unknown).
+
+`attachmentField()` and `attachmentFromUserInput()` accept either a single field name or an array. Multiple uploads via Filament's `->multiple()` modifier flow through unchanged. The closure form on `attachments()` may be called multiple times — closures accumulate. Persisted paths fall back to the action's resolved storage disk (image-gen reuses `->disk()`).
+
+Provider behaviour for attachments is delegated entirely to `laravel/ai` — providers that don't accept the file type silently drop it.
+
+**Spatie media-library**: when `filament/spatie-laravel-media-library-plugin` is installed, `SpatieMediaLibraryFileUpload` fields are auto-detected — `->attachmentField('reference_image')` resolves both fresh uploads and existing media records (looked up by UUID through the package's own `Media` model) without any extra wiring.
+
 ### Preview
 
 Enable a preview modal that shows the AI result before applying it to the form:
@@ -783,6 +819,29 @@ ImageGenerationAction::make('generate')
         ->placeholder('e.g. bright colors, minimalist style...')
     )
 ```
+
+### Reference Images
+
+Pass an input image (or several) to the image-generation provider for image-to-image, edit, or reference-based generation. OpenAI switches to its `images/edits` endpoint; Gemini sends the input as native multi-modal parts. Same three-channel API as [`AiAction` Attachments](#attachments) — only `Files\Image` instances reach the gateway (other types are silently dropped):
+
+```php
+use Laravel\Ai\Files\Image;
+
+ImageGenerationAction::make('reskin')
+    ->prompt('Reskin in studio-photography style')
+    ->targetField('featured_image')
+    ->attachmentField('reference_image')   // FileUpload on the parent form
+```
+
+Closure form (e.g. for a brand logo from a record relationship):
+
+```php
+->attachments(fn ($livewire) => [
+    Image::fromStorage($livewire->record->logo_path, 'public'),
+])
+```
+
+Multiple references work too — bind a `->multiple()` FileUpload, or supply an array from a closure. Conversational refinement re-attaches the input image on every turn, so "now make it warmer" follow-ups still see the original reference.
 
 ### Testing ImageGenerationAction
 

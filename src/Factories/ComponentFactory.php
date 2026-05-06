@@ -4,6 +4,7 @@ namespace Statikbe\FilamentSolaris\Factories;
 
 use Closure;
 use Filament\Schemas\Components\Component;
+use Laravel\Ai\Files\File;
 use Livewire\Component as LivewireComponent;
 use Statikbe\FilamentSolaris\Contracts\ComponentFactory as ComponentFactoryContract;
 use Statikbe\FilamentSolaris\Exceptions\UnsupportedFactoryOperationException;
@@ -74,6 +75,21 @@ abstract class ComponentFactory implements ComponentFactoryContract
     public function toFormValueFromFile(string $content, string $mimeType): mixed
     {
         throw UnsupportedFactoryOperationException::fileOutput(static::class);
+    }
+
+    /**
+     * Convert form-state value(s) into laravel/ai attachment objects.
+     *
+     * Default behaviour returns no attachments — only file-shaped components
+     * (FileUpload, SpatieMediaLibraryFileUpload) override this to produce
+     * `Files\File` instances. Called statically by `HasAttachments` so the
+     * dispatch can pick the right subclass without instantiating a factory.
+     *
+     * @return array<int, File>
+     */
+    public static function toAttachments(mixed $value, ?string $disk): array
+    {
+        return [];
     }
 
     /**
