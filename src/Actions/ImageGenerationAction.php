@@ -4,8 +4,6 @@ namespace Statikbe\FilamentSolaris\Actions;
 
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
-use Illuminate\Contracts\Support\Htmlable;
-use Illuminate\Contracts\View\View;
 use Statikbe\FilamentSolaris\Concerns\HasConversational;
 use Statikbe\FilamentSolaris\Concerns\HasImageGenerationPipeline;
 use Statikbe\FilamentSolaris\Concerns\HasPreviewModal;
@@ -69,86 +67,6 @@ class ImageGenerationAction extends Action
         $this->action(function (ImageGenerationAction $action, array $data = []) {
             $action->execute($data);
         });
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * Shows loading spinner during generation, then image preview.
-     */
-    public function getModalContent(): View|Htmlable|null
-    {
-        if ($this->hasPreviewData()) {
-            $previewData = $this->getLivewire()->solarisPreviewData;
-
-            if ($previewData['isConversational'] ?? false) {
-                /** @var view-string $viewName */
-                $viewName = 'filament-solaris::preview-conversational';
-
-                return view($viewName, [
-                    'displays' => $previewData['displays'],
-                    'messages' => $previewData['messages'] ?? [],
-                ]);
-            }
-
-            /** @var view-string $viewName */
-            $viewName = 'filament-solaris::preview-modal';
-
-            return view($viewName, [
-                'displays' => $previewData['displays'],
-            ]);
-        }
-
-        if ($this->shouldPreview()) {
-            /** @var view-string $viewName */
-            $viewName = 'filament-solaris::preview-loading';
-
-            return view($viewName);
-        }
-
-        return parent::getModalContent();
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * Conversational mode renders buttons inline; non-conversational uses the footer.
-     */
-    public function getModalContentFooter(): View|Htmlable|null
-    {
-        if ($this->hasPreviewData() && ($this->getLivewire()->solarisPreviewData['isConversational'] ?? false)) {
-            return null;
-        }
-
-        return parent::getModalContentFooter();
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * Hidden during loading and preview states.
-     */
-    public function getModalSubmitAction(): ?Action
-    {
-        if ($this->shouldPreview()) {
-            return null;
-        }
-
-        return parent::getModalSubmitAction();
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * Hidden during loading and preview states.
-     */
-    public function getModalCancelAction(): ?Action
-    {
-        if ($this->shouldPreview()) {
-            return null;
-        }
-
-        return parent::getModalCancelAction();
     }
 
     /**
