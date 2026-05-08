@@ -3,55 +3,74 @@
 namespace Statikbe\FilamentSolaris\Concerns;
 
 use Closure;
+use Illuminate\Http\UploadedFile;
 use Laravel\Ai\Files\File;
 use Statikbe\FilamentSolaris\Factories\FileUploadFactory;
 use Statikbe\FilamentSolaris\Support\ComponentFactoryResolver;
 
 trait HasAttachments
 {
-    /** @var array<string> */
-    protected array $attachmentFieldList = [];
+    /** @var array<string>|Closure */
+    protected array|Closure $attachmentFieldList = [];
 
-    /** @var array<string> */
-    protected array $attachmentUserInputKeyList = [];
+    /** @var array<string>|Closure */
+    protected array|Closure $attachmentUserInputKeyList = [];
 
     /** @var array<Closure> */
     protected array $attachmentClosures = [];
 
     /**
      * Bind one or more parent-form FileUpload fields as attachment sources.
+     *
+     * Accepts a literal field name, an array of field names, or a Closure
+     * resolving to either at execution time. Replaces any previously set
+     * value — pass an array to bind multiple fields in one call.
      */
-    public function attachmentField(string|array $fields): static
+    public function attachmentField(string|array|Closure $fields): static
     {
-        $this->attachmentFieldList = array_merge(
-            $this->attachmentFieldList,
-            is_array($fields) ? $fields : [$fields],
-        );
+        $this->attachmentFieldList = $fields instanceof Closure || is_array($fields)
+            ? $fields
+            : [$fields];
 
         return $this;
     }
 
     /**
      * Bind one or more UserInput modal keys as attachment sources.
+     *
+     * Accepts a literal key, an array of keys, or a Closure resolving to
+     * either at execution time. Replaces any previously set value.
      */
-    public function attachmentFromUserInput(string|array $keys): static
+    public function attachmentFromUserInput(string|array|Closure $keys): static
     {
-        $this->attachmentUserInputKeyList = array_merge(
-            $this->attachmentUserInputKeyList,
-            is_array($keys) ? $keys : [$keys],
-        );
+        $this->attachmentUserInputKeyList = $keys instanceof Closure || is_array($keys)
+            ? $keys
+            : [$keys];
 
         return $this;
     }
 
     /**
-     * Provide a Closure that returns laravel/ai Files\File instances directly.
+     * Supply attachments directly.
      *
-     * The closure receives the same evaluation context as other Filament closures
-     * and may return any iterable of Files\File. Multiple calls accumulate.
+     * Accepts:
+     *   - a single `Files\File` instance (`Image::fromUrl(...)`, `Audio::fromPath(...)`, ...)
+     *   - a single Laravel `UploadedFile` (e.g. `$request->file('upload')`) — auto-converted
+     *   - an array mixing any of the above
+     *   - a `Closure` returning any of the above
+     *
+     * Multiple calls accumulate — non-Closure values are wrapped internally so
+     * every channel composes the same way.
+     *
+     * @param  File|UploadedFile|array<File|UploadedFile>|Closure  $resolver
      */
-    public function attachments(Closure $resolver): static
+    public function attachments(File|UploadedFile|array|Closure $resolver): static
     {
+        if (! ($resolver instanceof Closure)) {
+            $value = $resolver;
+            $resolver = fn () => $value;
+        }
+
         $this->attachmentClosures[] = $resolver;
 
         return $this;
@@ -82,7 +101,7 @@ trait HasAttachments
             ->all();
         $resolver = app(ComponentFactoryResolver::class);
 
-        foreach ($this->attachmentFieldList as $field) {
+        foreach ($this->resolveFieldList($this->attachmentFieldList) as $field) {
             $factoryClass = $resolver->resolveFactoryClassForField($components, $field) ?? FileUploadFactory::class;
             $attachments = array_merge(
                 $attachments,
@@ -90,7 +109,7 @@ trait HasAttachments
             );
         }
 
-        foreach ($this->attachmentUserInputKeyList as $key) {
+        foreach ($this->resolveFieldList($this->attachmentUserInputKeyList) as $key) {
             // UserInput modal fields aren't in the parent schema, so we can't
             // dispatch by component class for v1. Defaults to plain
             // FileUploadFactory; users with Spatie inside a UserInput modal
@@ -108,9 +127,11 @@ trait HasAttachments
                 continue;
             }
 
-            foreach ($resolved as $item) {
+            foreach (is_array($resolved) ? $resolved : [$resolved] as $item) {
                 if ($item instanceof File) {
                     $attachments[] = $item;
+                } elseif ($item instanceof UploadedFile) {
+                    $attachments[] = FileUploadFactory::attachmentFromUpload($item);
                 }
             }
         }
@@ -128,5 +149,27 @@ trait HasAttachments
     protected function resolveAttachmentDisk(): ?string
     {
         return null;
+    }
+
+    /**
+     * Resolve a stored field/key list (which may be an array, a Closure
+     * returning a string or array, or a Closure returning null) into a flat
+     * list of non-empty string names.
+     *
+     * @param  array<string>|Closure  $list
+     * @return array<int, string>
+     */
+    private function resolveFieldList(array|Closure $list): array
+    {
+        $resolved = $list instanceof Closure ? $this->evaluate($list) : $list;
+
+        if ($resolved === null) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            (array) $resolved,
+            fn ($name): bool => is_string($name) && filled($name),
+        ));
     }
 }

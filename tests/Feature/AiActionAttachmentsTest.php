@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Storage;
+use Laravel\Ai\Files\Base64Audio;
 use Laravel\Ai\Files\Base64Image;
 use Laravel\Ai\Files\RemoteImage;
 use Laravel\Ai\Files\StoredImage;
@@ -85,6 +86,119 @@ it('attaches a path supplied via UserInput modal data', function () {
     AiAction::assertCalledWith(function ($sourceData, $prompt, $provider, $model, $timeout, $options, $attachments) {
         expect($attachments)->toHaveCount(1)
             ->and($attachments[0])->toBeInstanceOf(StoredImage::class);
+    });
+});
+
+it('attachmentField accepts a Closure returning a single field name', function () {
+    AiAction::fake(['summary' => 'Test']);
+
+    $tempFile = createTempUploadedFile('photo.png', 'image/png', 'fake-png-bytes');
+
+    Livewire::test(AttachmentFormComponent::class)
+        ->fillForm(['title' => 'Hello'])
+        ->set('data.reference_image', [uniqid() => $tempFile])
+        ->callAction('summarizeWithClosureField');
+
+    AiAction::assertCalledWith(function ($sourceData, $prompt, $provider, $model, $timeout, $options, $attachments) {
+        expect($attachments)->toHaveCount(1)
+            ->and($attachments[0])->toBeInstanceOf(Base64Image::class);
+    });
+});
+
+it('attachmentField accepts a Closure returning an array of field names', function () {
+    AiAction::fake(['summary' => 'Test']);
+
+    $tempFile = createTempUploadedFile('photo.png', 'image/png', 'fake-png-bytes');
+
+    Livewire::test(AttachmentFormComponent::class)
+        ->fillForm(['title' => 'Hello'])
+        ->set('data.reference_image', [uniqid() => $tempFile])
+        ->callAction('summarizeWithClosureFieldArray');
+
+    AiAction::assertCalledWith(function ($sourceData, $prompt, $provider, $model, $timeout, $options, $attachments) {
+        expect($attachments)->toHaveCount(1)
+            ->and($attachments[0])->toBeInstanceOf(Base64Image::class);
+    });
+});
+
+it('attachmentFromUserInput accepts a Closure returning the key', function () {
+    AiAction::fake(['summary' => 'Test']);
+
+    Livewire::test(AttachmentFormComponent::class)
+        ->fillForm(['title' => 'Hello'])
+        ->callAction('summarizeWithClosureUserInput', data: [
+            'extra_image' => 'modal/already-saved.png',
+        ]);
+
+    AiAction::assertCalledWith(function ($sourceData, $prompt, $provider, $model, $timeout, $options, $attachments) {
+        expect($attachments)->toHaveCount(1)
+            ->and($attachments[0])->toBeInstanceOf(StoredImage::class);
+    });
+});
+
+it('attachments() accepts a static array of Files\File instances', function () {
+    AiAction::fake(['summary' => 'Test']);
+
+    Livewire::test(AttachmentFormComponent::class)
+        ->fillForm(['title' => 'Hello'])
+        ->callAction('summarizeWithStaticAttachmentArray');
+
+    AiAction::assertCalledWith(function ($sourceData, $prompt, $provider, $model, $timeout, $options, $attachments) {
+        expect($attachments)->toHaveCount(1)
+            ->and($attachments[0])->toBeInstanceOf(RemoteImage::class);
+    });
+});
+
+it('attachments() accepts a single Files\File instance', function () {
+    AiAction::fake(['summary' => 'Test']);
+
+    Livewire::test(AttachmentFormComponent::class)
+        ->fillForm(['title' => 'Hello'])
+        ->callAction('summarizeWithSingleFileInstance');
+
+    AiAction::assertCalledWith(function ($sourceData, $prompt, $provider, $model, $timeout, $options, $attachments) {
+        expect($attachments)->toHaveCount(1)
+            ->and($attachments[0])->toBeInstanceOf(RemoteImage::class);
+    });
+});
+
+it('attachments() accepts a single Illuminate UploadedFile', function () {
+    AiAction::fake(['summary' => 'Test']);
+
+    Livewire::test(AttachmentFormComponent::class)
+        ->fillForm(['title' => 'Hello'])
+        ->callAction('summarizeWithSingleUploadedFile');
+
+    AiAction::assertCalledWith(function ($sourceData, $prompt, $provider, $model, $timeout, $options, $attachments) {
+        expect($attachments)->toHaveCount(1)
+            ->and($attachments[0])->toBeInstanceOf(Base64Image::class);
+    });
+});
+
+it('attachments() accepts a mixed array of File and UploadedFile', function () {
+    AiAction::fake(['summary' => 'Test']);
+
+    Livewire::test(AttachmentFormComponent::class)
+        ->fillForm(['title' => 'Hello'])
+        ->callAction('summarizeWithMixedArray');
+
+    AiAction::assertCalledWith(function ($sourceData, $prompt, $provider, $model, $timeout, $options, $attachments) {
+        expect($attachments)->toHaveCount(2)
+            ->and($attachments[0])->toBeInstanceOf(RemoteImage::class)
+            ->and($attachments[1])->toBeInstanceOf(Base64Audio::class);
+    });
+});
+
+it('attachments() Closure may return a single Files\File', function () {
+    AiAction::fake(['summary' => 'Test']);
+
+    Livewire::test(AttachmentFormComponent::class)
+        ->fillForm(['title' => 'Hello'])
+        ->callAction('summarizeWithClosureReturningSingleFile');
+
+    AiAction::assertCalledWith(function ($sourceData, $prompt, $provider, $model, $timeout, $options, $attachments) {
+        expect($attachments)->toHaveCount(1)
+            ->and($attachments[0])->toBeInstanceOf(RemoteImage::class);
     });
 });
 

@@ -433,7 +433,7 @@ AiAction::make('translate')
     )
 ```
 
-Closures are supported on: `sourceFields()`, `targetFields()`, `locale()`, `provider()`, `timeout()`, `tools()`, `temperature()`, `maxTokens()`, `maxSteps()`, `topP()`, `userInput()`, and all preset setters (e.g., `maxWords()`, `tone()`, `language()`, `style()`, etc.). Static values continue to work unchanged.
+Closures are supported on: `sourceFields()`, `targetFields()`, `locale()`, `provider()`, `timeout()`, `tools()`, `temperature()`, `maxTokens()`, `maxSteps()`, `topP()`, `userInput()`, `attachmentField()`, `attachmentFromUserInput()`, `attachments()`, and all preset setters (e.g., `maxWords()`, `tone()`, `language()`, `style()`, etc.). Static values continue to work unchanged.
 
 ### Attachments
 
@@ -441,6 +441,7 @@ Send files to the underlying `laravel/ai` agent alongside the prompt — images 
 
 ```php
 use Laravel\Ai\Files\Image;
+use Laravel\Ai\Files\Audio;
 use Laravel\Ai\Files\Document;
 
 AiAction::make('analyse')
@@ -457,13 +458,19 @@ AiAction::make('analyse')
     ]))
     ->attachmentFromUserInput('extra_doc')
 
-    // Channel 3: hardcoded / programmatic
-    ->attachments(fn () => [Image::fromUrl('https://example.com/logo.png')])
+    // Channel 3: hardcoded / programmatic — pass anything reasonable
+    ->attachments(Image::fromUrl('https://example.com/logo.png'))   // single Files\File
+    ->attachments(Audio::fromPath('intro.mp3'))                       // any Files\* type
+    ->attachments($request->file('upload'))                           // Laravel UploadedFile, auto-converted
+    ->attachments([Image::fromUrl('...'), $request->file('extra')])  // mixed array
+    ->attachments(fn ($livewire) => Image::fromStorage(               // Closure (Filament-style)
+        $livewire->record->logo_path, 'public',
+    ))
 ```
 
 Type detection is automatic: MIME-sniffed first, extension fallback. Image MIMEs / extensions (jpg, png, webp, heic, …) become `Files\Image`; audio MIMEs / extensions (mp3, wav, m4a, …) become `Files\Audio`; everything else becomes `Files\Document` (PDFs, text, anything unknown).
 
-`attachmentField()` and `attachmentFromUserInput()` accept either a single field name or an array. Multiple uploads via Filament's `->multiple()` modifier flow through unchanged. The closure form on `attachments()` may be called multiple times — closures accumulate. Persisted paths fall back to the action's resolved storage disk (image-gen reuses `->disk()`).
+`attachmentField()` and `attachmentFromUserInput()` accept a single field name, an array, or a Closure resolving to either. `attachments()` accepts a single `Files\File`, a single `UploadedFile` (auto-converted via the same MIME detection), an array mixing both, or a Closure returning any of the above — multiple `attachments()` calls accumulate. Multiple uploads via Filament's `->multiple()` modifier flow through unchanged. Persisted paths fall back to the action's resolved storage disk (image-gen reuses `->disk()`).
 
 Provider behaviour for attachments is delegated entirely to `laravel/ai` — providers that don't accept the file type silently drop it.
 

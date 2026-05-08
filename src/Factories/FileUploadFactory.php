@@ -63,9 +63,13 @@ class FileUploadFactory extends ComponentFactory
     }
 
     /**
-     * Build a Base64-backed attachment from a Livewire temporary upload.
+     * Build a Base64-backed attachment from any Laravel UploadedFile.
+     *
+     * Public so `HasAttachments` can normalize bare `UploadedFile` /
+     * `TemporaryUploadedFile` instances supplied via `->attachments(...)`.
+     * Type (Image/Audio/Document) is resolved from MIME with extension fallback.
      */
-    private static function attachmentFromUpload(TemporaryUploadedFile $file): File
+    public static function attachmentFromUpload(UploadedFile $file): File
     {
         $mimeType = $file->getMimeType() ?: $file->getClientMimeType();
         $type = self::resolveAttachmentType($file->getClientOriginalName(), $mimeType);

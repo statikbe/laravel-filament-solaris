@@ -88,6 +88,90 @@ class AttachmentFormComponent extends FormsComponent
             ->attachments(fn () => [Image::fromUrl('https://example.com/logo.png')]);
     }
 
+    public function summarizeWithClosureFieldAction(): AiAction
+    {
+        return AiAction::make('summarizeWithClosureField')
+            ->sourceFields(['title'])
+            ->targetField('summary')
+            ->prompt('Summarize.')
+            ->attachmentField(fn () => 'reference_image');
+    }
+
+    public function summarizeWithClosureFieldArrayAction(): AiAction
+    {
+        return AiAction::make('summarizeWithClosureFieldArray')
+            ->sourceFields(['title'])
+            ->targetField('summary')
+            ->prompt('Summarize.')
+            ->attachmentField(fn () => ['reference_image']);
+    }
+
+    public function summarizeWithClosureUserInputAction(): AiAction
+    {
+        return AiAction::make('summarizeWithClosureUserInput')
+            ->sourceFields(['title'])
+            ->targetField('summary')
+            ->prompt('Summarize.')
+            ->userInput(
+                UserInput::make()->fields([
+                    TextInput::make('extra_image'),
+                ])
+            )
+            ->attachmentFromUserInput(fn () => 'extra_image');
+    }
+
+    public function summarizeWithStaticAttachmentArrayAction(): AiAction
+    {
+        return AiAction::make('summarizeWithStaticAttachmentArray')
+            ->sourceFields(['title'])
+            ->targetField('summary')
+            ->prompt('Summarize.')
+            ->attachments([Image::fromUrl('https://example.com/static.png')]);
+    }
+
+    public function summarizeWithSingleFileInstanceAction(): AiAction
+    {
+        return AiAction::make('summarizeWithSingleFileInstance')
+            ->sourceFields(['title'])
+            ->targetField('summary')
+            ->prompt('Summarize.')
+            ->attachments(Image::fromUrl('https://example.com/single.png'));
+    }
+
+    public function summarizeWithSingleUploadedFileAction(): AiAction
+    {
+        $tempFile = createTempUploadedFile('cover.png', 'image/png', 'fake-png');
+
+        return AiAction::make('summarizeWithSingleUploadedFile')
+            ->sourceFields(['title'])
+            ->targetField('summary')
+            ->prompt('Summarize.')
+            ->attachments($tempFile);
+    }
+
+    public function summarizeWithMixedArrayAction(): AiAction
+    {
+        $tempFile = createTempUploadedFile('clip.mp3', 'audio/mpeg', 'fake-audio');
+
+        return AiAction::make('summarizeWithMixedArray')
+            ->sourceFields(['title'])
+            ->targetField('summary')
+            ->prompt('Summarize.')
+            ->attachments([
+                Image::fromUrl('https://example.com/logo.png'),
+                $tempFile,
+            ]);
+    }
+
+    public function summarizeWithClosureReturningSingleFileAction(): AiAction
+    {
+        return AiAction::make('summarizeWithClosureReturningSingleFile')
+            ->sourceFields(['title'])
+            ->targetField('summary')
+            ->prompt('Summarize.')
+            ->attachments(fn () => Image::fromUrl('https://example.com/closure-single.png'));
+    }
+
     public function render(): string
     {
         return '<div>{{ $this->form }}</div>';
