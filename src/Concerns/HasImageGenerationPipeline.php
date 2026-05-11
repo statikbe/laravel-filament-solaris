@@ -686,8 +686,11 @@ trait HasImageGenerationPipeline
      *
      * Re-generates the image with the feedback appended to the original prompt.
      * Image APIs are stateless — no conversation agent needed.
+     *
+     * @param  array<string, mixed>  $turnAttachments  Files attached to this turn only,
+     *                                                 in Livewire's `[uuid => TemporaryUploadedFile]` shape.
      */
-    public function refine(string $message): void
+    public function refine(string $message, array $turnAttachments = []): void
     {
         $livewire = $this->getLivewire();
         $previewData = $livewire->solarisPreviewData;
@@ -696,30 +699,35 @@ trait HasImageGenerationPipeline
             return;
         }
 
-        $previewData['messages'][] = ['role' => 'user', 'content' => $message];
+        $previewData['messages'][] = [
+            'role' => 'user',
+            'content' => $message,
+            'attachments' => $this->extractAttachmentMetadata($turnAttachments),
+        ];
         $livewire->solarisPreviewData = $previewData;
 
         if (ImageGenerationActionFake::isActive()) {
-            $this->runFakeImageRefinement($message, $previewData);
+            $this->runFakeImageRefinement($message, $previewData, $turnAttachments);
 
             return;
         }
 
-        $this->runImageRefinement($message, $previewData);
+        $this->runImageRefinement($message, $previewData, $turnAttachments);
     }
 
     /**
      * Run a real image refinement — re-generate with feedback.
      *
      * @param  array<string, mixed>  $previewData
+     * @param  array<string, mixed>  $turnAttachments
      */
-    protected function runImageRefinement(string $message, array $previewData): void
+    protected function runImageRefinement(string $message, array $previewData, array $turnAttachments = []): void
     {
         $refinedPrompt = $previewData['originalPrompt']."\n\nFeedback: ".$message;
 
         // Re-attach the original input image(s) on every refinement turn —
         // expected behaviour for "now make it warmer" style follow-ups.
-        $attachments = $this->resolveAttachments($previewData['userInput'] ?? []);
+        $attachments = $this->resolveAttachmentsForTurn($previewData['userInput'] ?? [], $turnAttachments);
 
         $response = $this->generateImage($refinedPrompt, $attachments);
 
@@ -734,11 +742,13 @@ trait HasImageGenerationPipeline
      * Run a fake image refinement for testing.
      *
      * @param  array<string, mixed>  $previewData
+     * @param  array<string, mixed>  $turnAttachments
      */
-    protected function runFakeImageRefinement(string $message, array $previewData): void
+    protected function runFakeImageRefinement(string $message, array $previewData, array $turnAttachments = []): void
     {
         $fake = ImageGenerationActionFake::getInstance();
-        $fake->recordRefinementCall($this->getName(), $message);
+        $attachments = $this->resolveAttachmentsForTurn($previewData['userInput'] ?? [], $turnAttachments);
+        $fake->recordRefinementCall($this->getName(), $message, $attachments);
 
         $livewire = $this->getLivewire();
         $previewData = $livewire->solarisPreviewData;

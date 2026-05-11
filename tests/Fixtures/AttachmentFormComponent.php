@@ -39,10 +39,7 @@ class AttachmentFormComponent extends FormsComponent
 
     public function summarizeAction(): AiAction
     {
-        return AiAction::make('summarize')
-            ->sourceFields(['title'])
-            ->targetField('summary')
-            ->prompt('Summarize.')
+        return $this->aiAction('summarize')
             ->attachmentField('reference_image');
     }
 
@@ -51,10 +48,7 @@ class AttachmentFormComponent extends FormsComponent
         // Modal field is a TextInput (not FileUpload) for testability — the
         // resolver reads `$userInput['extra_image']` regardless of which
         // component produced it. Live consumers would put a FileUpload here.
-        return AiAction::make('summarizeFromUserInput')
-            ->sourceFields(['title'])
-            ->targetField('summary')
-            ->prompt('Summarize.')
+        return $this->aiAction('summarizeFromUserInput')
             ->userInput(
                 UserInput::make()->fields([
                     TextInput::make('extra_image'),
@@ -65,19 +59,13 @@ class AttachmentFormComponent extends FormsComponent
 
     public function summarizeWithClosureAction(): AiAction
     {
-        return AiAction::make('summarizeWithClosure')
-            ->sourceFields(['title'])
-            ->targetField('summary')
-            ->prompt('Summarize.')
+        return $this->aiAction('summarizeWithClosure')
             ->attachments(fn () => [Image::fromUrl('https://example.com/logo.png')]);
     }
 
     public function summarizeAllChannelsAction(): AiAction
     {
-        return AiAction::make('summarizeAllChannels')
-            ->sourceFields(['title'])
-            ->targetField('summary')
-            ->prompt('Summarize.')
+        return $this->aiAction('summarizeAllChannels')
             ->attachmentField('reference_image')
             ->userInput(
                 UserInput::make()->fields([
@@ -90,28 +78,19 @@ class AttachmentFormComponent extends FormsComponent
 
     public function summarizeWithClosureFieldAction(): AiAction
     {
-        return AiAction::make('summarizeWithClosureField')
-            ->sourceFields(['title'])
-            ->targetField('summary')
-            ->prompt('Summarize.')
+        return $this->aiAction('summarizeWithClosureField')
             ->attachmentField(fn () => 'reference_image');
     }
 
     public function summarizeWithClosureFieldArrayAction(): AiAction
     {
-        return AiAction::make('summarizeWithClosureFieldArray')
-            ->sourceFields(['title'])
-            ->targetField('summary')
-            ->prompt('Summarize.')
+        return $this->aiAction('summarizeWithClosureFieldArray')
             ->attachmentField(fn () => ['reference_image']);
     }
 
     public function summarizeWithClosureUserInputAction(): AiAction
     {
-        return AiAction::make('summarizeWithClosureUserInput')
-            ->sourceFields(['title'])
-            ->targetField('summary')
-            ->prompt('Summarize.')
+        return $this->aiAction('summarizeWithClosureUserInput')
             ->userInput(
                 UserInput::make()->fields([
                     TextInput::make('extra_image'),
@@ -122,54 +101,47 @@ class AttachmentFormComponent extends FormsComponent
 
     public function summarizeWithStaticAttachmentArrayAction(): AiAction
     {
-        return AiAction::make('summarizeWithStaticAttachmentArray')
-            ->sourceFields(['title'])
-            ->targetField('summary')
-            ->prompt('Summarize.')
+        return $this->aiAction('summarizeWithStaticAttachmentArray')
             ->attachments([Image::fromUrl('https://example.com/static.png')]);
     }
 
     public function summarizeWithSingleFileInstanceAction(): AiAction
     {
-        return AiAction::make('summarizeWithSingleFileInstance')
-            ->sourceFields(['title'])
-            ->targetField('summary')
-            ->prompt('Summarize.')
+        return $this->aiAction('summarizeWithSingleFileInstance')
             ->attachments(Image::fromUrl('https://example.com/single.png'));
     }
 
     public function summarizeWithSingleUploadedFileAction(): AiAction
     {
-        $tempFile = createTempUploadedFile('cover.png', 'image/png', 'fake-png');
-
-        return AiAction::make('summarizeWithSingleUploadedFile')
-            ->sourceFields(['title'])
-            ->targetField('summary')
-            ->prompt('Summarize.')
-            ->attachments($tempFile);
+        return $this->aiAction('summarizeWithSingleUploadedFile')
+            ->attachments(createTempUploadedFile('cover.png', 'image/png', 'fake-png'));
     }
 
     public function summarizeWithMixedArrayAction(): AiAction
     {
-        $tempFile = createTempUploadedFile('clip.mp3', 'audio/mpeg', 'fake-audio');
-
-        return AiAction::make('summarizeWithMixedArray')
-            ->sourceFields(['title'])
-            ->targetField('summary')
-            ->prompt('Summarize.')
+        return $this->aiAction('summarizeWithMixedArray')
             ->attachments([
                 Image::fromUrl('https://example.com/logo.png'),
-                $tempFile,
+                createTempUploadedFile('clip.mp3', 'audio/mpeg', 'fake-audio'),
             ]);
     }
 
     public function summarizeWithClosureReturningSingleFileAction(): AiAction
     {
-        return AiAction::make('summarizeWithClosureReturningSingleFile')
+        return $this->aiAction('summarizeWithClosureReturningSingleFile')
+            ->attachments(fn () => Image::fromUrl('https://example.com/closure-single.png'));
+    }
+
+    /**
+     * Build the baseline AiAction used by every fixture method —
+     * every action in this fixture shares the same source/target/prompt.
+     */
+    private function aiAction(string $name): AiAction
+    {
+        return AiAction::make($name)
             ->sourceFields(['title'])
             ->targetField('summary')
-            ->prompt('Summarize.')
-            ->attachments(fn () => Image::fromUrl('https://example.com/closure-single.png'));
+            ->prompt('Summarize.');
     }
 
     public function render(): string

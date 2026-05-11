@@ -160,18 +160,21 @@ class ImageGenerationActionFake
     // ──────────────────────────────────────────────────────────────
 
     /**
-     * @var array<int, array{name: string, message: string}>
+     * @var array<int, array{name: string, message: string, attachments: array<int, mixed>}>
      */
     protected array $refinementCalls = [];
 
     /**
      * Record a refinement call.
+     *
+     * @param  array<int, mixed>  $attachments
      */
-    public function recordRefinementCall(string $actionName, string $message): void
+    public function recordRefinementCall(string $actionName, string $message, array $attachments = []): void
     {
         $this->refinementCalls[] = [
             'name' => $actionName,
             'message' => $message,
+            'attachments' => $attachments,
         ];
     }
 
@@ -194,7 +197,7 @@ class ImageGenerationActionFake
         $this->assertRefined();
 
         $lastCall = end($this->refinementCalls);
-        $callback($lastCall['message']);
+        $callback($lastCall['message'], $lastCall['attachments'] ?? []);
     }
 
     /**

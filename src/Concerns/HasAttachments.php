@@ -152,6 +152,41 @@ trait HasAttachments
     }
 
     /**
+     * Resolve the configured attachment channels plus the files supplied for
+     * a single conversational refinement turn into a single `Files\File[]`.
+     *
+     * @param  array<string, mixed>  $userInput
+     * @param  array<string, mixed>  $turnAttachments  Livewire `[uuid => TemporaryUploadedFile]` shape.
+     * @return array<int, File>
+     */
+    protected function resolveAttachmentsForTurn(array $userInput, array $turnAttachments): array
+    {
+        return array_merge(
+            $this->resolveAttachments($userInput),
+            FileUploadFactory::toAttachments($turnAttachments, $this->resolveAttachmentDisk()),
+        );
+    }
+
+    /**
+     * Build display metadata (filenames) for chat-bubble attachment chips.
+     *
+     * UI-only concern: the returned shape is consumed by
+     * `preview-conversational.blade.php` to render small chips inside the
+     * user's message bubble. The persistent attachment channels live in
+     * `resolveAttachments()`; this is purely for chat display.
+     *
+     * @param  array<string, mixed>  $turnAttachments
+     * @return array<int, array{name: string}>
+     */
+    protected function extractAttachmentMetadata(array $turnAttachments): array
+    {
+        return array_values(array_map(
+            fn ($file): array => ['name' => $file instanceof UploadedFile ? $file->getClientOriginalName() : 'file'],
+            $turnAttachments,
+        ));
+    }
+
+    /**
      * Resolve a stored field/key list (which may be an array, a Closure
      * returning a string or array, or a Closure returning null) into a flat
      * list of non-empty string names.

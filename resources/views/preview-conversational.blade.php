@@ -46,6 +46,15 @@
                                 </x-filament::badge>
                             @endif
                             {{ $msg['content'] }}
+                            @if (! empty($msg['attachments'] ?? []))
+                                <div class="mt-1 flex flex-wrap gap-1">
+                                    @foreach ($msg['attachments'] as $attachment)
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-xs">
+                                            {{ $attachment['name'] }}
+                                        </span>
+                                    @endforeach
+                                </div>
+                            @endif
                         </div>
                     </div>
                 @endforeach
@@ -54,31 +63,35 @@
     @endif
 
     {{-- Refinement input --}}
-    <div class="flex items-center gap-2">
-        <div class="flex-1">
-            <input
-                x-model="message"
-                @keydown.enter.prevent="send()"
-                :disabled="sending"
-                type="text"
-                class="fi-input block w-full rounded-lg border-gray-300 text-sm shadow-sm transition duration-75 focus:border-primary-500 focus:ring-1 focus:ring-inset focus:ring-primary-500 dark:border-white/10 dark:bg-white/5 dark:text-white disabled:opacity-50"
-                placeholder="{{ filament_solaris_trans('conversation.refine_placeholder') }}"
-            />
-        </div>
-        <x-filament::button
-            @click="send()"
-            ::disabled="!message.trim() || sending"
-        >
-            <span x-show="!sending">
-                <x-filament::icon
-                    :icon="Statikbe\FilamentSolaris\Facades\FilamentSolaris::config()->getConversationSendIcon()"
-                    class="h-5 w-5"
+    <div class="flex flex-col gap-2">
+        <x-filament-solaris::refinement-attachments wire-model="solarisRefinementAttachments" />
+
+        <div class="flex items-center gap-2">
+            <div class="flex-1">
+                <input
+                    x-model="message"
+                    @keydown.enter.prevent="send()"
+                    :disabled="sending"
+                    type="text"
+                    class="fi-input block w-full rounded-lg border-gray-300 text-sm shadow-sm transition duration-75 focus:border-primary-500 focus:ring-1 focus:ring-inset focus:ring-primary-500 dark:border-white/10 dark:bg-white/5 dark:text-white disabled:opacity-50"
+                    placeholder="{{ filament_solaris_trans('conversation.refine_placeholder') }}"
                 />
-            </span>
-            <span x-show="sending" x-cloak>
-                <x-filament::loading-indicator class="h-5 w-5" />
-            </span>
-        </x-filament::button>
+            </div>
+            <x-filament::button
+                @click="send()"
+                ::disabled="!message.trim() || sending"
+            >
+                <span x-show="!sending">
+                    <x-filament::icon
+                        :icon="Statikbe\FilamentSolaris\Facades\FilamentSolaris::config()->getConversationSendIcon()"
+                        class="h-5 w-5"
+                    />
+                </span>
+                <span x-show="sending" x-cloak>
+                    <x-filament::loading-indicator class="h-5 w-5" />
+                </span>
+            </x-filament::button>
+        </div>
     </div>
 
     {{-- Actions --}}

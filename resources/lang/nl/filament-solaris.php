@@ -31,6 +31,7 @@ return [
         'initial_message' => 'Hier zijn de AI-gegenereerde resultaten. U kunt ze verfijnen door een bericht te sturen.',
         'refined_message' => 'Ik heb de resultaten bijgewerkt op basis van uw feedback.',
         'ai_label' => 'AI',
+        'attach_files' => 'Bestanden toevoegen',
     ],
 
     'dictation' => [

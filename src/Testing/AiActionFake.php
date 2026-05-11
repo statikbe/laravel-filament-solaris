@@ -223,12 +223,15 @@ class AiActionFake
 
     /**
      * Record a refinement call.
+     *
+     * @param  array<int, mixed>  $attachments
      */
-    public function recordRefinementCall(string $actionName, string $message): void
+    public function recordRefinementCall(string $actionName, string $message, array $attachments = []): void
     {
         $this->refinementCalls[] = [
             'name' => $actionName,
             'message' => $message,
+            'attachments' => $attachments,
         ];
     }
 
@@ -309,7 +312,7 @@ class AiActionFake
         $this->assertRefined();
 
         $lastCall = end($this->refinementCalls);
-        $callback($lastCall['message']);
+        $callback($lastCall['message'], $lastCall['attachments'] ?? []);
     }
 
     /**

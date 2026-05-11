@@ -12,6 +12,16 @@ trait InteractsWithSolarisPreview
     public ?array $solarisPreviewData = null;
 
     /**
+     * Files attached to the next conversational refinement turn.
+     *
+     * Holds the standard Livewire file-upload shape
+     * (`[uuid => TemporaryUploadedFile, ...]`) until consumed by `refine()`.
+     *
+     * @var array<string, mixed>
+     */
+    public array $solarisRefinementAttachments = [];
+
+    /**
      * Accept the preview and apply values to the form.
      *
      * Delegates to the mounted action's acceptPreview() method, allowing
@@ -55,7 +65,12 @@ trait InteractsWithSolarisPreview
             return;
         }
 
-        $action->refine($message);
+        $turnAttachments = $this->solarisRefinementAttachments;
+        $this->solarisRefinementAttachments = [];
+
+        $action->refine($message, $turnAttachments);
+
+        $this->dispatch('solaris-clear-refinement-attachments');
     }
 
     /**
@@ -73,6 +88,7 @@ trait InteractsWithSolarisPreview
     public function unmountAction(bool $canCancelParentActions = true): void
     {
         $this->solarisPreviewData = null;
+        $this->solarisRefinementAttachments = [];
 
         parent::unmountAction($canCancelParentActions);
     }

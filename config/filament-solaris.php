@@ -115,6 +115,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Conversational Refinement Attachment Icon
+    |--------------------------------------------------------------------------
+    |
+    | The icon for the attach-files button in the conversational refinement
+    | chat (used to attach files to a refinement message).
+    |
+    */
+
+    'conversation_attachment_icon' => Heroicon::OutlinedPaperClip,
+
+    /*
+    |--------------------------------------------------------------------------
     | Default Tone
     |--------------------------------------------------------------------------
     |

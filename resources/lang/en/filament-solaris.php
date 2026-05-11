@@ -35,6 +35,7 @@ return [
         'initial_message' => 'Here are the AI-generated results. You can refine them by sending a message.',
         'refined_message' => 'I\'ve updated the results based on your feedback.',
         'ai_label' => 'AI',
+        'attach_files' => 'Attach files',
     ],
 
     'dictation' => [

@@ -694,8 +694,11 @@ trait HasPromptPipeline
 
     /**
      * Refine the preview results with a conversational follow-up message.
+     *
+     * @param  array<string, mixed>  $turnAttachments  Files attached to this turn only,
+     *                                                 in Livewire's `[uuid => TemporaryUploadedFile]` shape.
      */
-    public function refine(string $message): void
+    public function refine(string $message, array $turnAttachments = []): void
     {
         $livewire = $this->getLivewire();
         $previewData = $livewire->solarisPreviewData;
@@ -704,25 +707,30 @@ trait HasPromptPipeline
             return;
         }
 
-        // Append user message
-        $previewData['messages'][] = ['role' => 'user', 'content' => $message];
+        // Append user message (with attachment metadata for chat display)
+        $previewData['messages'][] = [
+            'role' => 'user',
+            'content' => $message,
+            'attachments' => $this->extractAttachmentMetadata($turnAttachments),
+        ];
         $livewire->solarisPreviewData = $previewData;
 
         if (AiActionFake::isActive()) {
-            $this->runFakeRefinement($message, $previewData);
+            $this->runFakeRefinement($message, $previewData, $turnAttachments);
 
             return;
         }
 
-        $this->runRefinement($message, $previewData);
+        $this->runRefinement($message, $previewData, $turnAttachments);
     }
 
     /**
      * Run a real refinement call against the AI.
      *
      * @param  array<string, mixed>  $previewData
+     * @param  array<string, mixed>  $turnAttachments
      */
-    protected function runRefinement(string $message, array $previewData): void
+    protected function runRefinement(string $message, array $previewData, array $turnAttachments = []): void
     {
         $sourceData = $previewData['sourceData'] ?? [];
         $userInput = $previewData['userInput'] ?? [];
@@ -742,7 +750,7 @@ trait HasPromptPipeline
 
         SolarisPromptLogger::logAgentSchema($agent);
 
-        $attachments = $this->resolveAttachments($userInput);
+        $attachments = $this->resolveAttachmentsForTurn($userInput, $turnAttachments);
 
         /** @var StructuredAgentResponse|null $response */
         $response = $this->executeAiCall(fn () => $agent->prompt($message, $attachments, ...array_values($this->resolveAiCallParams())));
@@ -763,11 +771,13 @@ trait HasPromptPipeline
      * Run a fake refinement call for testing.
      *
      * @param  array<string, mixed>  $previewData
+     * @param  array<string, mixed>  $turnAttachments
      */
-    protected function runFakeRefinement(string $message, array $previewData): void
+    protected function runFakeRefinement(string $message, array $previewData, array $turnAttachments = []): void
     {
         $fake = AiActionFake::getInstance();
-        $fake->recordRefinementCall($this->getName(), $message);
+        $attachments = $this->resolveAttachmentsForTurn($previewData['userInput'] ?? [], $turnAttachments);
+        $fake->recordRefinementCall($this->getName(), $message, $attachments);
 
         $aiResponse = $fake->resolveRefinement($this->getName()) ?? [];
 

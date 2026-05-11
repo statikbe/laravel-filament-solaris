@@ -67,6 +67,14 @@ class FilamentSolarisConfig
     }
 
     /**
+     * Get the conversational refinement attach-files icon.
+     */
+    public function getConversationAttachmentIcon(): string|\BackedEnum
+    {
+        return $this->packageConfig('conversation_attachment_icon', Heroicon::OutlinedPaperClip);
+    }
+
+    /**
      * Get the default tone.
      */
     public function getDefaultTone(): string
