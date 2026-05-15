@@ -2,19 +2,15 @@
 
 namespace Statikbe\FilamentSolaris\Actions;
 
-use Filament\Actions\Action;
-use Filament\Notifications\Notification;
-use Statikbe\FilamentSolaris\Concerns\HasConversational;
-use Statikbe\FilamentSolaris\Concerns\HasPreviewModal;
+use Statikbe\FilamentSolaris\Concerns\HasFormPipeline;
 use Statikbe\FilamentSolaris\Concerns\HasPromptPipeline;
 use Statikbe\FilamentSolaris\Concerns\HasSourceFields;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\Testing\AiActionFake;
 
-class AiAction extends Action
+class AiAction extends SolarisAction
 {
-    use HasConversational;
-    use HasPreviewModal;
+    use HasFormPipeline;
     use HasPromptPipeline;
     use HasSourceFields;
 
@@ -88,20 +84,7 @@ class AiAction extends Action
             return;
         }
 
-        // Warn if source fields are configured but all empty
-        if (! empty($this->getSourceFields()) && ! collect($sourceData)->contains(fn (mixed $value): bool => filled($value))) {
-            $labels = array_map(
-                fn (string $field): string => $this->resolveFieldLabel($field),
-                $this->getSourceFields(),
-            );
-
-            Notification::make()
-                ->title(filament_solaris_trans_choice('notifications.empty_source_fields', count($labels), [
-                    'fields' => $this->formatFieldList($labels),
-                ]))
-                ->warning()
-                ->send();
-
+        if ($this->warnIfSourceFieldsEmpty($sourceData)) {
             return;
         }
 

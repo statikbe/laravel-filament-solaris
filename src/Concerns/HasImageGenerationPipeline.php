@@ -4,13 +4,13 @@ namespace Statikbe\FilamentSolaris\Concerns;
 
 use Closure;
 use Filament\Notifications\Notification;
-use Filament\Schemas\Components\Component;
 use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Exceptions\AiException;
 use Laravel\Ai\Files\File;
 use Laravel\Ai\Files\Image as ImageFile;
 use Laravel\Ai\Image;
 use Laravel\Ai\Responses\ImageResponse;
+use Statikbe\FilamentSolaris\Actions\SolarisAction;
 use Statikbe\FilamentSolaris\Enums\ImageQuality;
 use Statikbe\FilamentSolaris\Enums\ImageSize;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
@@ -20,9 +20,19 @@ use Statikbe\FilamentSolaris\Support\SolarisNotification;
 use Statikbe\FilamentSolaris\Support\SolarisPromptLogger;
 use Statikbe\FilamentSolaris\Testing\ImageGenerationActionFake;
 
+/**
+ * Image-generation pipeline plumbing for Solaris actions.
+ *
+ * Owns the bits specific to running a stateless image API call:
+ * size/quality enums, storage disk/directory/visibility, single-target
+ * field, the `Image::of()` builder, and image-specific preview/refine.
+ *
+ * Form-side helpers come from {@see HasFormPipeline}. Provider/timeout
+ * state, withPreview, and executeAiCall come from
+ * {@see SolarisAction}.
+ */
 trait HasImageGenerationPipeline
 {
-    use HasAttachments;
     use HasUserInput;
 
     protected string|Closure|null $imagePromptInstruction = null;
@@ -38,43 +48,6 @@ trait HasImageGenerationPipeline
     protected string|Closure|null $storageDirectory = null;
 
     protected string|Closure|null $storageVisibility = null;
-
-    /**
-     * @var Lab|array<string, string>|array<int, string>|string|Closure|null
-     */
-    protected Lab|array|string|Closure|null $imageProvider = null;
-
-    protected string|Closure|null $imageModel = null;
-
-    protected int|Closure|null $imageTimeout = null;
-
-    protected bool $imagePreview = false;
-
-    /**
-     * Enable the preview modal for image generation.
-     *
-     * When enabled, the generated image is shown in a preview modal
-     * before being applied to the form. The image is held as base64
-     * until the user accepts.
-     */
-    public function withPreview(bool $preview = true): static
-    {
-        $this->imagePreview = $preview;
-
-        if ($preview) {
-            $this->modal(true);
-        }
-
-        return $this;
-    }
-
-    /**
-     * Check if preview mode is enabled.
-     */
-    public function shouldPreview(): bool
-    {
-        return $this->imagePreview;
-    }
 
     /**
      * Set the prompt instruction for image generation.
@@ -160,32 +133,6 @@ trait HasImageGenerationPipeline
     }
 
     /**
-     * Set the AI provider (and optionally model) for image generation.
-     *
-     * @param  Lab|array<string, string>|array<int, string>|string|Closure  $provider
-     */
-    public function provider(Lab|array|string|Closure $provider, string|Closure|null $model = null): static
-    {
-        $this->imageProvider = $provider;
-
-        if ($model !== null) {
-            $this->imageModel = $model;
-        }
-
-        return $this;
-    }
-
-    /**
-     * Set the timeout in seconds for the image generation call.
-     */
-    public function timeout(int|Closure $timeout): static
-    {
-        $this->imageTimeout = $timeout;
-
-        return $this;
-    }
-
-    /**
      * Resolve the provider and model for image generation.
      *
      * Resolution chain: action → config → null (laravel/ai default).
@@ -194,12 +141,9 @@ trait HasImageGenerationPipeline
      */
     protected function resolveImageProviderAndModel(): array
     {
-        $provider = $this->evaluate($this->imageProvider);
-        if ($provider !== null) {
-            return [
-                'provider' => $provider,
-                'model' => $this->evaluate($this->imageModel),
-            ];
+        $action = $this->resolveActionProvider();
+        if ($action !== null) {
+            return $action;
         }
 
         $config = FilamentSolaris::config();
@@ -215,7 +159,7 @@ trait HasImageGenerationPipeline
      */
     protected function resolveImageTimeout(): ?int
     {
-        $timeout = $this->evaluate($this->imageTimeout);
+        $timeout = $this->resolveActionTimeout();
 
         if ($timeout !== null) {
             return $timeout;
@@ -341,54 +285,58 @@ trait HasImageGenerationPipeline
      */
     protected function generateImage(string $prompt, array $attachments = []): ?ImageResponse
     {
-        try {
-            $pending = Image::of($prompt);
+        $pending = Image::of($prompt);
 
-            // laravel/ai's PendingImageGeneration::attachments() is typed for
-            // Image[]; non-image attachments to image generation are misuse,
-            // so silently drop them rather than handing the upstream a value
-            // it would reject anyway.
-            $imageAttachments = array_values(array_filter(
-                $attachments,
-                fn (File $attachment): bool => $attachment instanceof ImageFile,
-            ));
+        // laravel/ai's PendingImageGeneration::attachments() is typed for
+        // Image[]; non-image attachments to image generation are misuse,
+        // so silently drop them rather than handing the upstream a value
+        // it would reject anyway.
+        $imageAttachments = array_values(array_filter(
+            $attachments,
+            fn (File $attachment): bool => $attachment instanceof ImageFile,
+        ));
 
-            if (! empty($imageAttachments)) {
-                $pending->attachments($imageAttachments);
-            }
+        if (! empty($imageAttachments)) {
+            $pending->attachments($imageAttachments);
+        }
 
-            $size = $this->resolveImageSize();
-            if ($size !== null) {
-                $pending->size($size);
-            }
+        $size = $this->resolveImageSize();
+        if ($size !== null) {
+            $pending->size($size);
+        }
 
-            $quality = $this->resolveImageQuality();
-            if ($quality !== null) {
-                $pending->quality($quality);
-            }
+        $quality = $this->resolveImageQuality();
+        if ($quality !== null) {
+            $pending->quality($quality);
+        }
 
-            $timeout = $this->resolveImageTimeout();
-            if ($timeout !== null) {
-                $pending->timeout($timeout);
-            }
+        $timeout = $this->resolveImageTimeout();
+        if ($timeout !== null) {
+            $pending->timeout($timeout);
+        }
 
-            ['provider' => $provider, 'model' => $model] = $this->resolveImageProviderAndModel();
+        ['provider' => $provider, 'model' => $model] = $this->resolveImageProviderAndModel();
 
-            SolarisPromptLogger::logImagePrompt($prompt, $size, $quality, $provider, $model);
+        SolarisPromptLogger::logImagePrompt($prompt, $size, $quality, $provider, $model);
 
-            $response = $pending->generate($provider, $model);
+        /** @var ImageResponse|null $response */
+        $response = $this->executeAiCall(
+            fn () => $pending->generate($provider, $model),
+            $provider,
+            $model,
+            fn (AiException $e) => SolarisNotification::sendImageGenerationErrorNotification($e),
+        );
 
-            SolarisPromptLogger::logImageResponse(
-                $response->count(),
-                $response->firstImage()->mime,
-            );
-
-            return $response;
-        } catch (AiException $e) {
-            SolarisNotification::sendImageGenerationErrorNotification($e);
-
+        if ($response === null) {
             return null;
         }
+
+        SolarisPromptLogger::logImageResponse(
+            $response->count(),
+            $response->firstImage()->mime,
+        );
+
+        return $response;
     }
 
     /**
@@ -445,46 +393,16 @@ trait HasImageGenerationPipeline
     }
 
     /**
-     * Resolve a form schema component for the target field.
+     * Implement {@see HasFormPipeline::getFieldNamesForSchemaResolution()} —
+     * image actions only have a single target field.
+     *
+     * @return array<string>
      */
-    protected function resolveImageFormSchemaComponent(): ?Component
+    protected function getFieldNamesForSchemaResolution(): array
     {
-        $schemaComponent = $this->getSchemaComponent();
+        $field = $this->getTargetField();
 
-        if ($schemaComponent !== null) {
-            return $schemaComponent;
-        }
-
-        $livewire = $this->getLivewire();
-        $targetField = $this->getTargetField();
-
-        if ($targetField === null) {
-            return null;
-        }
-
-        $component = $livewire->getSchemaComponent("form.{$targetField}");
-
-        return $component instanceof Component ? $component : null;
-    }
-
-    /**
-     * Resolve a human-readable label for a field name from the form schema.
-     */
-    protected function resolveFieldLabel(string $fieldName): string
-    {
-        try {
-            $label = $this->getLivewire()
-                ->getSchemaComponent("form.{$fieldName}")
-                ?->getLabel();
-
-            if (filled($label)) {
-                return (string) $label;
-            }
-        } catch (\Throwable) {
-            // Component not resolvable
-        }
-
-        return str($fieldName)->headline()->toString();
+        return $field === null ? [] : [$field];
     }
 
     /**
@@ -514,6 +432,8 @@ trait HasImageGenerationPipeline
             $this->resolveStorageDirectory(),
             $attachments,
         );
+
+        $this->dispatchFakeResponseReceived($provider, $model);
 
         if ($this->shouldPreview()) {
             $this->storeFakeImagePreviewData($prompt, $sourceData, $userInput);
@@ -559,7 +479,7 @@ trait HasImageGenerationPipeline
      */
     protected function writeFakeImageToField(string $storedPath): void
     {
-        $schemaComponent = $this->resolveImageFormSchemaComponent();
+        $schemaComponent = $this->resolveFormSchemaComponent();
 
         if ($schemaComponent === null) {
             throw new \RuntimeException('ImageGenerationAction could not resolve a form schema component.');
@@ -587,39 +507,14 @@ trait HasImageGenerationPipeline
         array $userInput,
     ): void {
         $image = $response->firstImage();
-        $mime = $image->mime ?? 'image/png';
-        $dataUri = 'data:'.$mime.';base64,'.$image->image;
 
-        $targetField = $this->getTargetField();
-        $label = $this->resolveFieldLabel($targetField);
-
-        $data = [
-            'values' => [$targetField => null],
-            'displays' => [
-                $targetField => [
-                    'label' => $label,
-                    'display' => $dataUri,
-                    'type' => 'image',
-                ],
-            ],
-            'filledLabels' => [$label],
-            'failedLabels' => [],
-            'actionName' => $this->getName(),
-            'imageBase64' => $image->image,
-            'imageMime' => $mime,
-            'originalPrompt' => $prompt,
-            'sourceData' => $sourceData,
-            'userInput' => $userInput,
-        ];
-
-        if ($this->isConversational()) {
-            $data['isConversational'] = true;
-            $data['messages'] = [
-                ['role' => 'assistant', 'content' => filament_solaris_trans('conversation.initial_message')],
-            ];
-        }
-
-        $this->getLivewire()->solarisPreviewData = $data;
+        $this->putImagePreviewData(
+            base64: $image->image,
+            mime: $image->mime ?? 'image/png',
+            prompt: $prompt,
+            sourceData: $sourceData,
+            userInput: $userInput,
+        );
     }
 
     /**
@@ -630,6 +525,29 @@ trait HasImageGenerationPipeline
      */
     protected function storeFakeImagePreviewData(string $prompt, array $sourceData, array $userInput): void
     {
+        $this->putImagePreviewData(
+            base64: 'fake',
+            mime: 'image/png',
+            prompt: $prompt,
+            sourceData: $sourceData,
+            userInput: $userInput,
+        );
+    }
+
+    /**
+     * Build the preview-modal payload for a generated image (real or fake) and
+     * write it onto the Livewire component.
+     *
+     * @param  array<string, mixed>  $sourceData
+     * @param  array<string, mixed>  $userInput
+     */
+    private function putImagePreviewData(
+        string $base64,
+        string $mime,
+        string $prompt,
+        array $sourceData,
+        array $userInput,
+    ): void {
         $targetField = $this->getTargetField();
         $label = $this->resolveFieldLabel($targetField);
 
@@ -638,15 +556,15 @@ trait HasImageGenerationPipeline
             'displays' => [
                 $targetField => [
                     'label' => $label,
-                    'display' => 'data:image/png;base64,fake',
+                    'display' => 'data:'.$mime.';base64,'.$base64,
                     'type' => 'image',
                 ],
             ],
             'filledLabels' => [$label],
             'failedLabels' => [],
             'actionName' => $this->getName(),
-            'imageBase64' => 'fake',
-            'imageMime' => 'image/png',
+            'imageBase64' => $base64,
+            'imageMime' => $mime,
             'originalPrompt' => $prompt,
             'sourceData' => $sourceData,
             'userInput' => $userInput,

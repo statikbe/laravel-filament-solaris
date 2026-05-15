@@ -3,7 +3,6 @@
 namespace Statikbe\FilamentSolaris\Actions;
 
 use Closure;
-use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Illuminate\Http\UploadedFile;
 use Laravel\Ai\Enums\Lab;
@@ -11,17 +10,15 @@ use Laravel\Ai\Exceptions\AiException;
 use Laravel\Ai\Exceptions\RateLimitedException;
 use Laravel\Ai\Transcription;
 use RuntimeException;
-use Statikbe\FilamentSolaris\Concerns\HasConversational;
-use Statikbe\FilamentSolaris\Concerns\HasPreviewModal;
+use Statikbe\FilamentSolaris\Concerns\HasFormPipeline;
 use Statikbe\FilamentSolaris\Concerns\HasPromptPipeline;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\Testing\AiActionFake;
 use Statikbe\FilamentSolaris\Testing\DictationActionFake;
 
-class DictationAction extends Action
+class DictationAction extends SolarisAction
 {
-    use HasConversational;
-    use HasPreviewModal;
+    use HasFormPipeline;
     use HasPromptPipeline;
 
     protected bool|Closure $append = false;
@@ -219,37 +216,39 @@ class DictationAction extends Action
      */
     protected function transcribe(UploadedFile $audioFile): ?string
     {
-        try {
-            ['provider' => $provider, 'model' => $model] = $this->resolveTranscriptionProviderAndModel();
-            $timeout = $this->resolveTranscriptionTimeout();
+        ['provider' => $provider, 'model' => $model] = $this->resolveTranscriptionProviderAndModel();
+        $timeout = $this->resolveTranscriptionTimeout();
 
-            $pending = Transcription::fromUpload($audioFile)
-                ->language($this->getTranscriptionLang());
+        $pending = Transcription::fromUpload($audioFile)
+            ->language($this->getTranscriptionLang());
 
-            if ($timeout !== null) {
-                $pending->timeout($timeout);
-            }
+        if ($timeout !== null) {
+            $pending->timeout($timeout);
+        }
 
-            $response = $pending->generate($provider, $model);
+        $response = $this->executeAiCall(
+            fn () => $pending->generate($provider, $model),
+            $provider,
+            $model,
+            function (AiException $e): void {
+                report($e);
 
-            $text = (string) $response;
-        } catch (RateLimitedException $e) {
-            report($e);
-            Notification::make()
-                ->title(filament_solaris_trans('notifications.transcription_rate_limited'))
-                ->danger()
-                ->send();
+                $title = $e instanceof RateLimitedException
+                    ? filament_solaris_trans('notifications.transcription_rate_limited')
+                    : filament_solaris_trans('notifications.transcription_error');
 
-            return null;
-        } catch (AiException $e) {
-            report($e);
-            Notification::make()
-                ->title(filament_solaris_trans('notifications.transcription_error'))
-                ->danger()
-                ->send();
+                Notification::make()
+                    ->title($title)
+                    ->danger()
+                    ->send();
+            },
+        );
 
+        if ($response === null) {
             return null;
         }
+
+        $text = (string) $response;
 
         if (blank($text)) {
             Notification::make()
@@ -335,6 +334,9 @@ class DictationAction extends Action
         $transcript = $fake->getTranscript();
 
         $fake->recordCall($this->getName(), $transcript);
+
+        ['provider' => $provider, 'model' => $model] = $this->resolveTranscriptionProviderAndModel();
+        $this->dispatchFakeResponseReceived($provider, $model);
 
         $this->processTranscript($transcript, $data);
     }

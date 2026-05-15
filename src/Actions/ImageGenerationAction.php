@@ -2,21 +2,16 @@
 
 namespace Statikbe\FilamentSolaris\Actions;
 
-use Filament\Actions\Action;
-use Filament\Notifications\Notification;
-use Statikbe\FilamentSolaris\Concerns\HasConversational;
+use Statikbe\FilamentSolaris\Concerns\HasFormPipeline;
 use Statikbe\FilamentSolaris\Concerns\HasImageGenerationPipeline;
-use Statikbe\FilamentSolaris\Concerns\HasPreviewModal;
 use Statikbe\FilamentSolaris\Concerns\HasSourceFields;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
-use Statikbe\FilamentSolaris\Support\SolarisNotification;
 use Statikbe\FilamentSolaris\Testing\ImageGenerationActionFake;
 
-class ImageGenerationAction extends Action
+class ImageGenerationAction extends SolarisAction
 {
-    use HasConversational;
+    use HasFormPipeline;
     use HasImageGenerationPipeline;
-    use HasPreviewModal;
     use HasSourceFields;
 
     /**
@@ -86,20 +81,7 @@ class ImageGenerationAction extends Action
 
         $sourceData = $this->getSourceFieldValues();
 
-        // Warn if source fields are configured but all empty
-        if (! empty($this->getSourceFields()) && ! collect($sourceData)->contains(fn (mixed $value): bool => filled($value))) {
-            $labels = array_map(
-                fn (string $field): string => $this->resolveFieldLabel($field),
-                $this->getSourceFields(),
-            );
-
-            Notification::make()
-                ->title(filament_solaris_trans_choice('notifications.empty_source_fields', count($labels), [
-                    'fields' => $this->formatFieldList($labels),
-                ]))
-                ->warning()
-                ->send();
-
+        if ($this->warnIfSourceFieldsEmpty($sourceData)) {
             return;
         }
 
@@ -117,7 +99,7 @@ class ImageGenerationAction extends Action
      */
     protected function targetFieldHasValue(): bool
     {
-        $schemaComponent = $this->resolveImageFormSchemaComponent();
+        $schemaComponent = $this->resolveFormSchemaComponent();
 
         if ($schemaComponent === null) {
             return false;
@@ -148,16 +130,6 @@ class ImageGenerationAction extends Action
         if ($this->imagePromptInstruction === null) {
             throw new \RuntimeException('ImageGenerationAction requires a prompt.');
         }
-    }
-
-    /**
-     * Format a list of field labels for display in notifications.
-     *
-     * @param  array<string>  $labels
-     */
-    protected function formatFieldList(array $labels): string
-    {
-        return SolarisNotification::formatFieldList($labels);
     }
 
     // ──────────────────────────────────────────────────────────────

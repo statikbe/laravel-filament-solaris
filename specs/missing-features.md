@@ -130,13 +130,13 @@ The spec describes specific loading states: "Transcribing..." text, different sp
 
 ---
 
-### 9. Cost / usage tracking
+### 9. Cost / usage tracking ✅ Shipped in 0.1.0
 
 `laravel/ai` responses include `Usage` objects with token counts. Could be exposed for logging, budgeting, or UI display.
 
 **TODO:**
-- [ ] Capture `$response->usage` after AI calls
-- [ ] Expose via event (e.g. `SolarisResponseReceived`) for app-level tracking
-- [ ] Optional: log usage alongside prompt logging (`SolarisPromptLogger`)
+- [x] Capture `$response->usage` after AI calls
+- [x] Expose via event (e.g. `SolarisResponseReceived`) for app-level tracking
+- [x] Optional: log usage alongside prompt logging (`SolarisPromptLogger`)
 
-**Target spec file:** new spec or extend `08-prompt-pipeline.md`
+**Shipped:** `SolarisResponseReceived` + `SolarisResponseFailed` events dispatched from `SolarisAction::executeAiCall()` and from all three fakes. `SolarisPromptLogger::logUsage()` added. See README "Usage Tracking" section and CHANGELOG `[0.1.0]`. Built-in persistence model + migration deferred — likely a companion package or 0.3.

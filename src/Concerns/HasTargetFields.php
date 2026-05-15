@@ -23,8 +23,6 @@ trait HasTargetFields
      */
     protected array $targetHints = [];
 
-    protected bool $preview = false;
-
     /**
      * Add a target field. Can be called multiple times.
      */
@@ -75,28 +73,6 @@ trait HasTargetFields
         $this->targetHints[$field] = $hint;
 
         return $this;
-    }
-
-    /**
-     * Enable or disable the preview modal.
-     */
-    public function withPreview(bool $preview = true): static
-    {
-        $this->preview = $preview;
-
-        if ($preview) {
-            $this->modal(true);
-        }
-
-        return $this;
-    }
-
-    /**
-     * Check if the action should show a preview modal.
-     */
-    public function shouldPreview(): bool
-    {
-        return $this->preview;
     }
 
     /**

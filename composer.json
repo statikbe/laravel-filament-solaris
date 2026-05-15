@@ -2,9 +2,26 @@
     "name": "statikbe/laravel-filament-solaris",
     "description": "AI actions for Filament v4 & v5 — auto-detect form fields, compose prompts, and write structured AI responses back. Powered by laravel-ai.",
     "keywords": [
-        "statikbe",
         "laravel",
-        "laravel-filament-solaris"
+        "filament",
+        "ai",
+        "llm",
+        "agent",
+        "prompt",
+        "openai",
+        "anthropic",
+        "gemini",
+        "conversation",
+        "chat",
+        "transcription",
+        "dictation",
+        "whisper",
+        "image-generation",
+        "dall-e",
+        "gpt-image-1",
+        "statikbe",
+        "laravel-filament-solaris",
+        "laravel-ai"
     ],
     "homepage": "https://github.com/statikbe/laravel-filament-solaris",
     "license": "MIT",
@@ -19,8 +36,8 @@
         "php": "^8.3",
         "filament/filament": "^4.2||^5.0",
         "laravel/ai": "^0.6",
-        "spatie/laravel-package-tools": "^1.16",
-        "illuminate/contracts": "^11.0||^12.0",
+        "spatie/laravel-package-tools": "^1.93",
+        "illuminate/contracts": "^12.0||^13.0",
         "ext-intl": "*"
     },
     "require-dev": {
@@ -76,6 +93,6 @@
             }
         }
     },
-    "minimum-stability": "dev",
+    "minimum-stability": "stable",
     "prefer-stable": true
 }

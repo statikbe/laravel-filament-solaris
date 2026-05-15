@@ -7,7 +7,9 @@ use Illuminate\JsonSchema\Types\Type;
 use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\HasStructuredOutput;
+use Laravel\Ai\Responses\Data\Usage;
 use Psr\Log\LoggerInterface;
+use Statikbe\FilamentSolaris\Actions\SolarisAction;
 use Statikbe\FilamentSolaris\Contracts\ComponentFactory;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 
@@ -126,6 +128,28 @@ class SolarisPromptLogger
             'handler' => $handler,
             'targetField' => $targetField,
         ]);
+    }
+
+    /**
+     * Log the token usage + duration for an AI call.
+     *
+     * Called from {@see SolarisAction::executeAiCall()}
+     * after a successful response. Same gating as the other log methods —
+     * silent unless `prompt_logging.enabled` is true.
+     */
+    public static function logUsage(string $actionName, Usage $usage, mixed $provider, ?string $model, int $durationMs): void
+    {
+        if (! FilamentSolaris::config()->isPromptLoggingEnabled()) {
+            return;
+        }
+
+        static::logger()->debug('Filament Solaris — Usage', array_filter([
+            'action' => $actionName,
+            'provider' => $provider instanceof \BackedEnum ? $provider->value : $provider,
+            'model' => $model,
+            'duration_ms' => $durationMs,
+            'usage' => $usage->toArray(),
+        ], fn ($value): bool => $value !== null));
     }
 
     /**

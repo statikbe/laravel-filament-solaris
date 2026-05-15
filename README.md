@@ -16,6 +16,7 @@ AI actions for Filament v4 & v5 — auto-detect form fields, compose prompts, wr
 - [How It Works](#how-it-works)
 - [Requirements](#requirements)
 - [Installation](#installation)
+  - [Tailwind CSS](#tailwind-css)
 - [Quick Start](#quick-start)
 - [Architecture](#architecture)
 - [AiAction API](#aiaction-api)
@@ -56,8 +57,10 @@ AI actions for Filament v4 & v5 — auto-detect form fields, compose prompts, wr
   - [Pure Transcription](#pure-transcription)
   - [Transcription + AI Processing](#transcription--ai-processing)
   - [Transcription Provider](#transcription-provider)
+- [Usage Tracking](#usage-tracking)
 - [Testing](#testing)
 - [Configuration](#configuration)
+- [Versioning](#versioning)
 - [Changelog](#changelog)
 - [License](#license)
 
@@ -94,6 +97,19 @@ Optionally publish the views (prompt templates) and translations:
 php artisan vendor:publish --tag="filament-solaris-views"
 php artisan vendor:publish --tag="filament-solaris-translations"
 ```
+
+### Tailwind CSS
+
+Solaris ships Blade views (preview modal, conversational refinement modal, dictation modal, loading state, etc.) that use Tailwind utility classes. Without telling Tailwind to scan the package's views, those classes are purged and the modals render unstyled.
+
+Add a `@source` directive to your [Filament theme CSS](https://filamentphp.com/docs/4.x/styling/overview):
+
+```css
+/* resources/css/filament/admin/theme.css */
+@source "../../vendor/statikbe/laravel-filament-solaris/resources/views";
+```
+
+Then rebuild your Filament theme (`npm run build` or `php artisan filament:assets`). This is required for every consumer — not optional and not specific to any single action.
 
 ## Quick Start
 
@@ -919,15 +935,6 @@ When the user clicks the dictation button, a modal opens with a recording UI. Th
 
 The recording UI shows clear visual states: a pulsing red button with elapsed timer while recording, a green checkmark when the upload completes, and inline error messages for microphone permission issues.
 
-### Tailwind CSS
-
-The modal view uses Tailwind classes. Add a `@source` directive to your Filament theme CSS so the classes are compiled:
-
-```css
-/* resources/css/filament/admin/theme.css */
-@source "../../vendor/statikbe/laravel-filament-solaris/resources/views";
-```
-
 ### Browser Support
 
 DictationAction uses the MediaRecorder API and works in all modern browsers (Chrome 49+, Edge 79+, Firefox 25+, Safari 14.1+). The button is automatically hidden in unsupported browsers.
@@ -935,6 +942,48 @@ DictationAction uses the MediaRecorder API and works in all modern browsers (Chr
 ### Testing DictationAction
 
 See [Testing documentation](documentation/testing.md#testing-dictationaction).
+
+## Usage Tracking
+
+Every Solaris AI call dispatches one of two events you can listen to for metering, budgeting, or audit purposes:
+
+- **`Statikbe\FilamentSolaris\Events\SolarisResponseReceived`** — fired after each successful call (text, image, or transcription). Carries the laravel/ai `Usage` object (prompt/completion/cache/reasoning token counts) plus Solaris-specific context: action name, action class, resolved provider/model, call duration, the authenticated user (if any), and the Livewire component that owns the form.
+- **`Statikbe\FilamentSolaris\Events\SolarisResponseFailed`** — fired when an `AiException` is caught (rate limit, provider outage, configuration error). Same shape, but carries the exception instead of usage.
+
+Solaris does **not** persist anything — apps decide what to do with the data. A typical listener:
+
+```php
+use Statikbe\FilamentSolaris\Events\SolarisResponseReceived;
+
+class TrackAiUsage
+{
+    public function handle(SolarisResponseReceived $event): void
+    {
+        AiCall::create([
+            'action_name'             => $event->actionName,
+            'action_class'            => $event->actionClass,
+            'user_id'                 => $event->user?->getAuthIdentifier(),
+            'provider'                => is_array($event->provider)
+                ? ($event->provider[0] ?? null)
+                : (is_object($event->provider) ? $event->provider->value : $event->provider),
+            'model'                   => $event->model,
+            'prompt_tokens'           => $event->usage->promptTokens,
+            'completion_tokens'       => $event->usage->completionTokens,
+            'cache_read_input_tokens' => $event->usage->cacheReadInputTokens,
+            'cache_write_input_tokens'=> $event->usage->cacheWriteInputTokens,
+            'reasoning_tokens'        => $event->usage->reasoningTokens,
+            'duration_ms'             => $event->durationMs,
+            'created_at'              => now(),
+        ]);
+    }
+}
+```
+
+Register it in `EventServiceProvider` the usual Laravel way. The event also fires from the Solaris fakes (`AiAction::fake()`, `ImageGenerationAction::fake()`, `DictationAction::fake()`) so you can test your listener without hitting a real provider — the fake dispatches with a zero-token `Usage`.
+
+**What the event deliberately does NOT carry:** the prompt text, the source field values, or the AI response. These can be large, may contain PII, and would bloat any listener's storage. Use `SolarisPromptLogger` (gate it on `prompt_logging_enabled`) if you need that level of detail for development.
+
+**Versioning note:** these events ship in `0.1.0`. Apps that adopt Solaris on `0.1.x` and don't register a listener can opt into tracking later by registering one — but only future calls will be captured. Plan accordingly.
 
 ## Testing
 
@@ -1043,13 +1092,24 @@ public function form(Form $form): Form
 }
 ```
 
+## Versioning
+
+Solaris ships as `0.x` while [`laravel/ai`](https://github.com/laravel/ai) is pre-1.0. The upstream SDK is itself `0.x` and doesn't promise SemVer guarantees, so every `laravel/ai` minor bump (`0.6` → `0.7`) is expected to require a Solaris release. Solaris will tag `1.0.0` once `laravel/ai` reaches `1.0` and its public surface settles.
+
+While on `0.x`:
+
+- **Minor** (`0.1` → `0.2`) — breaking changes are possible.
+- **Patch** (`0.1.0` → `0.1.1`) — bugfixes, backwards-compatible additions.
+
+Pin a minor in your `composer.json` if you want to avoid surprises:
+
+```json
+"statikbe/laravel-filament-solaris": "~0.1.0"
+```
+
 ## Changelog
 
 Please see [CHANGELOG](CHANGELOG.md) for more information on what has changed recently.
-
-## Contributing
-
-Please see [CONTRIBUTING](CONTRIBUTING.md) for details.
 
 ## Security Vulnerabilities
 
