@@ -4,7 +4,7 @@ use Statikbe\FilamentSolaris\FilamentSolarisConfig;
 use Statikbe\FilamentSolaris\Prompts\Presets\SummaryPreset;
 
 it('returns null for default provider when not configured', function () {
-    config()->set('filament-solaris.default_provider', null);
+    config()->set('filament-solaris.ai.default_provider', null);
 
     $config = app(FilamentSolarisConfig::class);
 
@@ -12,7 +12,7 @@ it('returns null for default provider when not configured', function () {
 });
 
 it('returns string provider from config', function () {
-    config()->set('filament-solaris.default_provider', 'openai');
+    config()->set('filament-solaris.ai.default_provider', 'openai');
 
     $config = app(FilamentSolarisConfig::class);
 
@@ -21,7 +21,7 @@ it('returns string provider from config', function () {
 
 it('returns failover array provider from config', function () {
     $failover = ['openai' => 'gpt-4o', 'anthropic' => 'claude-sonnet-4-5-20250514'];
-    config()->set('filament-solaris.default_provider', $failover);
+    config()->set('filament-solaris.ai.default_provider', $failover);
 
     $config = app(FilamentSolarisConfig::class);
 
@@ -29,7 +29,7 @@ it('returns failover array provider from config', function () {
 });
 
 it('returns null for default model when not configured', function () {
-    config()->set('filament-solaris.default_model', null);
+    config()->set('filament-solaris.ai.default_model', null);
 
     $config = app(FilamentSolarisConfig::class);
 
@@ -37,7 +37,7 @@ it('returns null for default model when not configured', function () {
 });
 
 it('returns default model from config', function () {
-    config()->set('filament-solaris.default_model', 'gpt-4o');
+    config()->set('filament-solaris.ai.default_model', 'gpt-4o');
 
     $config = app(FilamentSolarisConfig::class);
 
@@ -45,7 +45,7 @@ it('returns default model from config', function () {
 });
 
 it('returns transcription provider from config', function () {
-    config()->set('filament-solaris.default_transcription_provider', 'openai');
+    config()->set('filament-solaris.transcription.default_provider', 'openai');
 
     $config = app(FilamentSolarisConfig::class);
 
@@ -53,7 +53,7 @@ it('returns transcription provider from config', function () {
 });
 
 it('returns transcription model from config', function () {
-    config()->set('filament-solaris.default_transcription_model', 'whisper-1');
+    config()->set('filament-solaris.transcription.default_model', 'whisper-1');
 
     $config = app(FilamentSolarisConfig::class);
 
@@ -101,7 +101,7 @@ it('returns preset timeout from config', function () {
 });
 
 it('returns default timeout from config', function () {
-    config()->set('filament-solaris.default_timeout', 90);
+    config()->set('filament-solaris.ai.default_timeout', 90);
 
     $config = app(FilamentSolarisConfig::class);
 
@@ -109,7 +109,7 @@ it('returns default timeout from config', function () {
 });
 
 it('returns null default timeout when not configured', function () {
-    config()->set('filament-solaris.default_timeout', null);
+    config()->set('filament-solaris.ai.default_timeout', null);
 
     $config = app(FilamentSolarisConfig::class);
 
@@ -117,31 +117,31 @@ it('returns null default timeout when not configured', function () {
 });
 
 it('returns default temperature from config', function () {
-    config()->set('filament-solaris.default_temperature', 0.7);
+    config()->set('filament-solaris.ai.default_temperature', 0.7);
 
     expect(app(FilamentSolarisConfig::class)->getDefaultTemperature())->toBe(0.7);
 });
 
 it('returns null default temperature when not configured', function () {
-    config()->set('filament-solaris.default_temperature', null);
+    config()->set('filament-solaris.ai.default_temperature', null);
 
     expect(app(FilamentSolarisConfig::class)->getDefaultTemperature())->toBeNull();
 });
 
 it('returns default maxTokens from config', function () {
-    config()->set('filament-solaris.default_max_tokens', 4096);
+    config()->set('filament-solaris.ai.default_max_tokens', 4096);
 
     expect(app(FilamentSolarisConfig::class)->getDefaultMaxTokens())->toBe(4096);
 });
 
 it('returns default maxSteps from config', function () {
-    config()->set('filament-solaris.default_max_steps', 5);
+    config()->set('filament-solaris.ai.default_max_steps', 5);
 
     expect(app(FilamentSolarisConfig::class)->getDefaultMaxSteps())->toBe(5);
 });
 
 it('returns default topP from config', function () {
-    config()->set('filament-solaris.default_top_p', 0.9);
+    config()->set('filament-solaris.ai.default_top_p', 0.9);
 
     expect(app(FilamentSolarisConfig::class)->getDefaultTopP())->toBe(0.9);
 });

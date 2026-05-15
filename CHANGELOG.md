@@ -23,6 +23,22 @@ Initial public release. Solaris ships as `0.x` while [`laravel/ai`](https://gith
 - **Testing fakes** — `AiAction::fake()`, `DictationAction::fake()`, `ImageGenerationAction::fake()` with assertion helpers (`assertCalled`, `assertCalledWith`, `assertCalledTimes`).
 - **Abstract `SolarisAction` base** — form-agnostic AI core (provider/timeout/executeAiCall/preview state) so future non-form actions can build on the same foundation without inheriting form-field assumptions.
 - **Usage-tracking events** — `SolarisResponseReceived` and `SolarisResponseFailed` fire after every AI call (text, image, transcription) with the laravel/ai `Usage` payload plus Solaris context (action name, provider, model, duration, user, Livewire component). No built-in persistence; apps wire a listener. The fakes dispatch synthetic events so listeners can be tested without a real provider. Sample listener in [Usage Tracking](README.md#usage-tracking).
+- **`FilamentSolarisPlugin`** — per-panel configuration via the idiomatic `$panel->plugin(...)` pattern. Every Tier-1/2 config key (provider, model, timeout, text-gen options, transcription, image generation, logging, locales, icons, tone, preset overrides) has a fluent setter. Panel-level visibility gate via `->visible(bool|Closure)` / `->disabled()` is registered as `->hidden(...)` on every Solaris action — hard-AND with the action's own visibility so consumers can't accidentally bypass it. Falls through to `config/filament-solaris.php` outside panel context (CLI, queued jobs). See [Per-Panel Configuration](README.md#per-panel-configuration-plugin).
+
+### Config-file shape
+
+The published `config/filament-solaris.php` groups related keys into nested arrays — `icons`, `locale`, `prompt_logging`, `ai`, `transcription`, `image_generation` — plus standalone `factories`, `max_options`, `default_tone`, `preset_providers`. If you held onto a previous unreleased copy of the config, the dot-notation mapping is:
+
+| Old (flat) | New (nested) |
+|---|---|
+| `action_icon`, `dictation_icon`, `image_generation_icon`, `conversation_send_icon`, `conversation_attachment_icon` | `icons.action`, `icons.dictation`, `icons.image_generation`, `icons.conversation_send`, `icons.conversation_attachment` |
+| `default_locale`, `supported_locales` | `locale.default`, `locale.supported` |
+| `prompt_logging_enabled`, `prompt_logging_channel` | `prompt_logging.enabled`, `prompt_logging.channel` |
+| `default_provider`, `default_model`, `default_timeout`, `default_temperature`, `default_max_tokens`, `default_max_steps`, `default_top_p` | `ai.default_provider`, `ai.default_model`, `ai.default_timeout`, `ai.default_temperature`, `ai.default_max_tokens`, `ai.default_max_steps`, `ai.default_top_p` |
+| `default_transcription_provider`, `default_transcription_model`, `default_transcription_timeout` | `transcription.default_provider`, `transcription.default_model`, `transcription.default_timeout` |
+| `default_image_*` | `image_generation.default_*` (drops the `image_` prefix on the leaf) |
+
+Public PHP setters (`->defaultProvider()`, `->actionIcon()`, etc.) are unchanged.
 
 ### Notes
 

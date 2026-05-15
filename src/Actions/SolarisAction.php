@@ -15,6 +15,7 @@ use Statikbe\FilamentSolaris\Concerns\HasConversational;
 use Statikbe\FilamentSolaris\Concerns\HasPreviewModal;
 use Statikbe\FilamentSolaris\Events\SolarisResponseFailed;
 use Statikbe\FilamentSolaris\Events\SolarisResponseReceived;
+use Statikbe\FilamentSolaris\FilamentSolarisPlugin;
 use Statikbe\FilamentSolaris\Support\SolarisNotification;
 use Statikbe\FilamentSolaris\Support\SolarisPromptLogger;
 
@@ -49,6 +50,35 @@ abstract class SolarisAction extends Action
      * Whether the preview modal is enabled for this action.
      */
     protected bool $preview = false;
+
+    /**
+     * Register the panel-level visibility gate.
+     *
+     * Filament evaluates `hidden` and `visible` independently — an action
+     * is shown only when neither says hide — so using `->hidden(...)` here
+     * makes the panel gate a hard AND with whatever the consumer sets via
+     * `->visible(...)` on their action. Consumers can't accidentally
+     * bypass {@see FilamentSolarisPlugin::disabled()}.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->hidden(static fn (): bool => ! static::isAllowedInCurrentPanel());
+    }
+
+    /**
+     * Whether Solaris actions are allowed on the current Filament panel.
+     *
+     * Returns true (allow) when no panel context, no plugin registered, or
+     * the plugin's visibility predicate evaluates true. Returns false only
+     * when a plugin is registered AND its `->visible(...)` predicate
+     * resolves false (e.g. via `->disabled()`).
+     */
+    public static function isAllowedInCurrentPanel(): bool
+    {
+        return FilamentSolarisPlugin::current()?->isVisible() ?? true;
+    }
 
     /**
      * Set the AI provider (and optionally model) for this action.

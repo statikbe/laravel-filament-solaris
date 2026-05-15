@@ -17,6 +17,26 @@ class FilamentSolarisConfig
     }
 
     /**
+     * Resolve a config value, consulting the current Filament panel's
+     * {@see FilamentSolarisPlugin} (if registered + overriding this key)
+     * before falling back to global `config/filament-solaris.php`.
+     *
+     * Using an explicit `hasOverride()` check rather than `??` so a plugin
+     * that explicitly overrides a key to `null` (e.g. clearing a default)
+     * is honoured, not silently bypassed.
+     */
+    private function resolveConfig(string $key, mixed $default = null): mixed
+    {
+        $plugin = FilamentSolarisPlugin::current();
+
+        if ($plugin !== null && $plugin->hasOverride($key)) {
+            return $plugin->getOverride($key);
+        }
+
+        return $this->packageConfig($key, $default);
+    }
+
+    /**
      * Get the factory map from config.
      *
      * @return array<class-string, class-string>
@@ -39,7 +59,7 @@ class FilamentSolarisConfig
      */
     public function getDefaultLocale(): ?string
     {
-        return $this->packageConfig('default_locale');
+        return $this->resolveConfig('locale.default');
     }
 
     /**
@@ -47,7 +67,7 @@ class FilamentSolarisConfig
      */
     public function getActionIcon(): string|\BackedEnum
     {
-        return $this->packageConfig('action_icon', Heroicon::OutlinedSparkles);
+        return $this->resolveConfig('icons.action', Heroicon::OutlinedSparkles);
     }
 
     /**
@@ -55,7 +75,7 @@ class FilamentSolarisConfig
      */
     public function getDictationIcon(): string|\BackedEnum
     {
-        return $this->packageConfig('dictation_icon', Heroicon::OutlinedMicrophone);
+        return $this->resolveConfig('icons.dictation', Heroicon::OutlinedMicrophone);
     }
 
     /**
@@ -63,7 +83,7 @@ class FilamentSolarisConfig
      */
     public function getConversationSendIcon(): string|\BackedEnum
     {
-        return $this->packageConfig('conversation_send_icon', Heroicon::OutlinedPaperAirplane);
+        return $this->resolveConfig('icons.conversation_send', Heroicon::OutlinedPaperAirplane);
     }
 
     /**
@@ -71,7 +91,7 @@ class FilamentSolarisConfig
      */
     public function getConversationAttachmentIcon(): string|\BackedEnum
     {
-        return $this->packageConfig('conversation_attachment_icon', Heroicon::OutlinedPaperClip);
+        return $this->resolveConfig('icons.conversation_attachment', Heroicon::OutlinedPaperClip);
     }
 
     /**
@@ -79,7 +99,7 @@ class FilamentSolarisConfig
      */
     public function getDefaultTone(): string
     {
-        return (string) $this->packageConfig('default_tone', 'neutral');
+        return (string) $this->resolveConfig('default_tone', 'neutral');
     }
 
     /**
@@ -166,7 +186,7 @@ class FilamentSolarisConfig
     private function resolveRawLocales(): array
     {
         return FilamentSolaris::getLocales()
-            ?? $this->packageConfig('supported_locales')
+            ?? $this->resolveConfig('locale.supported')
             ?? config('app.supported_locales')
             ?? [config('app.locale', 'en')];
     }
@@ -176,12 +196,12 @@ class FilamentSolarisConfig
      */
     public function isPromptLoggingEnabled(): bool
     {
-        return (bool) $this->packageConfig('prompt_logging_enabled', false);
+        return (bool) $this->resolveConfig('prompt_logging.enabled', false);
     }
 
     public function getPromptLoggingChannel(): ?string
     {
-        return $this->packageConfig('prompt_logging_channel');
+        return $this->resolveConfig('prompt_logging.channel');
     }
 
     /**
@@ -191,7 +211,7 @@ class FilamentSolarisConfig
      */
     public function getDefaultProvider(): Lab|array|string|null
     {
-        return $this->packageConfig('default_provider');
+        return $this->resolveConfig('ai.default_provider');
     }
 
     /**
@@ -199,7 +219,7 @@ class FilamentSolarisConfig
      */
     public function getDefaultModel(): ?string
     {
-        return $this->packageConfig('default_model');
+        return $this->resolveConfig('ai.default_model');
     }
 
     /**
@@ -207,35 +227,35 @@ class FilamentSolarisConfig
      */
     public function getDefaultTimeout(): ?int
     {
-        $value = $this->packageConfig('default_timeout');
+        $value = $this->resolveConfig('ai.default_timeout');
 
         return $value !== null ? (int) $value : null;
     }
 
     public function getDefaultTemperature(): ?float
     {
-        $value = $this->packageConfig('default_temperature');
+        $value = $this->resolveConfig('ai.default_temperature');
 
         return $value !== null ? (float) $value : null;
     }
 
     public function getDefaultMaxTokens(): ?int
     {
-        $value = $this->packageConfig('default_max_tokens');
+        $value = $this->resolveConfig('ai.default_max_tokens');
 
         return $value !== null ? (int) $value : null;
     }
 
     public function getDefaultMaxSteps(): ?int
     {
-        $value = $this->packageConfig('default_max_steps');
+        $value = $this->resolveConfig('ai.default_max_steps');
 
         return $value !== null ? (int) $value : null;
     }
 
     public function getDefaultTopP(): ?float
     {
-        $value = $this->packageConfig('default_top_p');
+        $value = $this->resolveConfig('ai.default_top_p');
 
         return $value !== null ? (float) $value : null;
     }
@@ -247,7 +267,7 @@ class FilamentSolarisConfig
      */
     public function getDefaultTranscriptionProvider(): Lab|array|string|null
     {
-        return $this->packageConfig('default_transcription_provider');
+        return $this->resolveConfig('transcription.default_provider');
     }
 
     /**
@@ -255,7 +275,7 @@ class FilamentSolarisConfig
      */
     public function getDefaultTranscriptionModel(): ?string
     {
-        return $this->packageConfig('default_transcription_model');
+        return $this->resolveConfig('transcription.default_model');
     }
 
     /**
@@ -263,7 +283,7 @@ class FilamentSolarisConfig
      */
     public function getDefaultTranscriptionTimeout(): ?int
     {
-        $value = $this->packageConfig('default_transcription_timeout');
+        $value = $this->resolveConfig('transcription.default_timeout');
 
         return $value !== null ? (int) $value : null;
     }
@@ -273,7 +293,7 @@ class FilamentSolarisConfig
      */
     public function getImageGenerationIcon(): string|\BackedEnum
     {
-        return $this->packageConfig('image_generation_icon', Heroicon::OutlinedPhoto);
+        return $this->resolveConfig('icons.image_generation', Heroicon::OutlinedPhoto);
     }
 
     /**
@@ -283,7 +303,7 @@ class FilamentSolarisConfig
      */
     public function getDefaultImageProvider(): Lab|array|string|null
     {
-        return $this->packageConfig('default_image_provider');
+        return $this->resolveConfig('image_generation.default_provider');
     }
 
     /**
@@ -291,7 +311,7 @@ class FilamentSolarisConfig
      */
     public function getDefaultImageModel(): ?string
     {
-        return $this->packageConfig('default_image_model');
+        return $this->resolveConfig('image_generation.default_model');
     }
 
     /**
@@ -299,7 +319,7 @@ class FilamentSolarisConfig
      */
     public function getDefaultImageTimeout(): ?int
     {
-        $value = $this->packageConfig('default_image_timeout');
+        $value = $this->resolveConfig('image_generation.default_timeout');
 
         return $value !== null ? (int) $value : null;
     }
@@ -309,7 +329,7 @@ class FilamentSolarisConfig
      */
     public function getDefaultImageSize(): ?string
     {
-        return $this->packageConfig('default_image_size');
+        return $this->resolveConfig('image_generation.default_size');
     }
 
     /**
@@ -317,7 +337,7 @@ class FilamentSolarisConfig
      */
     public function getDefaultImageQuality(): ?string
     {
-        return $this->packageConfig('default_image_quality');
+        return $this->resolveConfig('image_generation.default_quality');
     }
 
     /**
@@ -325,7 +345,7 @@ class FilamentSolarisConfig
      */
     public function getDefaultImageDisk(): ?string
     {
-        return $this->packageConfig('default_image_disk');
+        return $this->resolveConfig('image_generation.default_disk');
     }
 
     /**
@@ -333,7 +353,7 @@ class FilamentSolarisConfig
      */
     public function getDefaultImageDirectory(): string
     {
-        return (string) $this->packageConfig('default_image_directory', 'ai-images');
+        return (string) $this->resolveConfig('image_generation.default_directory', 'ai-images');
     }
 
     /**
@@ -341,34 +361,51 @@ class FilamentSolarisConfig
      */
     public function getDefaultImageVisibility(): ?string
     {
-        return $this->packageConfig('default_image_visibility');
+        return $this->resolveConfig('image_generation.default_visibility');
     }
 
     /**
      * Get the per-preset overrides for a specific preset class.
      *
+     * Merges the current panel's plugin preset entry (if any) on top of the
+     * global config entry so an app can supplement, not just replace.
+     *
      * @return array{provider: Lab|array|string|null, model: ?string, timeout: ?int, temperature: ?float, max_tokens: ?int, max_steps: ?int, top_p: ?float}
      */
     public function getPresetProvider(string $presetClass): array
     {
-        $presets = $this->packageConfig('preset_providers', []);
-        $config = $presets[$presetClass] ?? [];
+        $globalEntry = $this->packageConfig('preset_providers', [])[$presetClass] ?? [];
+        $pluginEntry = $this->pluginPresetEntry($presetClass);
 
-        $timeout = $config['timeout'] ?? null;
-        $temperature = $config['temperature'] ?? null;
-        $maxTokens = $config['max_tokens'] ?? null;
-        $maxSteps = $config['max_steps'] ?? null;
-        $topP = $config['top_p'] ?? null;
+        $config = array_merge($globalEntry, $pluginEntry);
 
         return [
             'provider' => $config['provider'] ?? null,
             'model' => $config['model'] ?? null,
-            'timeout' => $timeout !== null ? (int) $timeout : null,
-            'temperature' => $temperature !== null ? (float) $temperature : null,
-            'max_tokens' => $maxTokens !== null ? (int) $maxTokens : null,
-            'max_steps' => $maxSteps !== null ? (int) $maxSteps : null,
-            'top_p' => $topP !== null ? (float) $topP : null,
+            'timeout' => isset($config['timeout']) ? (int) $config['timeout'] : null,
+            'temperature' => isset($config['temperature']) ? (float) $config['temperature'] : null,
+            'max_tokens' => isset($config['max_tokens']) ? (int) $config['max_tokens'] : null,
+            'max_steps' => isset($config['max_steps']) ? (int) $config['max_steps'] : null,
+            'top_p' => isset($config['top_p']) ? (float) $config['top_p'] : null,
         ];
+    }
+
+    /**
+     * Look up the current panel plugin's preset entry for a given preset class.
+     *
+     * @return array<string, mixed>
+     */
+    private function pluginPresetEntry(string $presetClass): array
+    {
+        $plugin = FilamentSolarisPlugin::current();
+
+        if ($plugin === null) {
+            return [];
+        }
+
+        $presetProviders = $plugin->getOverride('preset_providers') ?? [];
+
+        return $presetProviders[$presetClass] ?? [];
     }
 
     /**

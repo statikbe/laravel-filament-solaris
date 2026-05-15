@@ -149,8 +149,8 @@ it('tracks call count correctly', function () {
 // ──────────────────────────────────────────────────────────────
 
 it('resolves provider from config when not set on action', function () {
-    config()->set('filament-solaris.default_image_provider', 'gemini');
-    config()->set('filament-solaris.default_image_model', 'gemini-image-1');
+    config()->set('filament-solaris.image_generation.default_provider', 'gemini');
+    config()->set('filament-solaris.image_generation.default_model', 'gemini-image-1');
 
     ImageGenerationAction::fake();
 
@@ -164,7 +164,7 @@ it('resolves provider from config when not set on action', function () {
 });
 
 it('resolves size from config when not set on action', function () {
-    config()->set('filament-solaris.default_image_size', '1:1');
+    config()->set('filament-solaris.image_generation.default_size', '1:1');
 
     ImageGenerationAction::fake();
 
@@ -177,7 +177,7 @@ it('resolves size from config when not set on action', function () {
 });
 
 it('action-level provider overrides config', function () {
-    config()->set('filament-solaris.default_image_provider', 'gemini');
+    config()->set('filament-solaris.image_generation.default_provider', 'gemini');
 
     ImageGenerationAction::fake();
 

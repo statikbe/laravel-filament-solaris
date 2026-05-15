@@ -6,7 +6,9 @@ Publish the config file:
 php artisan vendor:publish --tag="filament-solaris-config"
 ```
 
-This creates `config/filament-solaris.php` with all available options.
+This creates `config/filament-solaris.php` with all available options. The file is organised into semantic groups: `icons`, `locale`, `prompt_logging`, `ai`, `transcription`, `image_generation`, plus standalone top-level keys (`factories`, `max_options`, `default_tone`, `preset_providers`).
+
+For per-panel overrides see [Per-Panel Configuration](../README.md#per-panel-configuration-plugin) — every key documented below has a matching plugin setter.
 
 ## Factory Map
 
@@ -29,36 +31,44 @@ The threshold above which `SelectFactory` and `CheckboxListFactory` switch from 
 'max_options' => 100,
 ```
 
-## Default Locale
+## Icons
 
-Override the locale used in prompts. When `null`, `app()->getLocale()` is used. Individual actions can override this with `->locale()`.
+Default icons for the Solaris action buttons. Each entry accepts a Heroicon name string or a `BackedEnum` that resolves to an icon name.
 
 ```php
-'default_locale' => null,
+'icons' => [
+    'action' => Heroicon::OutlinedSparkles,
+    'dictation' => Heroicon::OutlinedMicrophone,
+    'image_generation' => Heroicon::OutlinedPhoto,
+    'conversation_send' => Heroicon::OutlinedPaperAirplane,
+    'conversation_attachment' => Heroicon::OutlinedPaperClip,
+],
 ```
 
-## Action Icon
+## Locale
 
-The default icon for AI action buttons.
+`default` overrides the locale used in prompts. When `null`, `app()->getLocale()` is used. Individual actions can override this with `->locale()`.
 
-```php
-'action_icon' => Heroicon::OutlinedSparkles,
-```
+`supported` lists the locales available for the `TranslationPreset` language selector.
 
-## Dictation Icon
+**Fallback chain** (first non-null wins):
+1. Runtime: `FilamentSolaris::setLocales([...])` in a service provider
+2. `locale.supported` config key
+3. `config('app.supported_locales')`
+4. `[config('app.locale')]` (single-locale fallback)
 
-The default icon for dictation action buttons.
-
-```php
-'dictation_icon' => Heroicon::OutlinedMicrophone,
-```
-
-## Conversation Send Icon
-
-The default icon for the send button in conversational refinement.
+Accepts a flat array or key-value array:
 
 ```php
-'conversation_send_icon' => Heroicon::OutlinedPaperAirplane,
+'locale' => [
+    'default' => null,
+
+    // Flat — display names resolved automatically via intl extension
+    'supported' => ['en', 'nl', 'fr'],
+
+    // Or key-value — display names used as-is
+    // 'supported' => ['en' => 'English', 'nl' => 'Dutch', 'fr' => 'French'],
+],
 ```
 
 ## Default Tone
@@ -69,59 +79,51 @@ The default tone used by presets like `SummaryPreset` and `GenerationPreset`. In
 'default_tone' => 'neutral',
 ```
 
-## Supported Locales
-
-The locales available for the `TranslationPreset` language selector.
-
-**Fallback chain** (first non-null wins):
-1. Runtime: `FilamentSolaris::setLocales([...])` in a service provider
-2. This config key
-3. `config('app.supported_locales')`
-4. `[config('app.locale')]` (single-locale fallback)
-
-Accepts a flat array or key-value array:
-
-```php
-// Flat — display names resolved automatically via intl extension
-'supported_locales' => ['en', 'nl', 'fr'],
-
-// Key-value — display names used as-is
-'supported_locales' => ['en' => 'English', 'nl' => 'Dutch', 'fr' => 'French'],
-```
-
 ## Prompt Logging
 
-Log the composed prompt and JSON schema before each AI call. Useful for debugging during development.
+Log the composed prompt, JSON schema, and per-call `Usage` via Laravel's logger. Useful for debugging during development. Should be disabled in production.
 
 ```php
-'prompt_logging_enabled' => (bool) env('FILAMENT_SOLARIS_PROMPT_LOGGING', false),
-'prompt_logging_channel' => null, // null = default Laravel log channel
+'prompt_logging' => [
+    'enabled' => (bool) env('FILAMENT_SOLARIS_PROMPT_LOGGING', false),
+    'channel' => null, // null = default Laravel log channel
+],
 ```
 
 Custom loggers can also be registered via `FilamentSolaris::registerLogger()` in a service provider.
 
-## AI Provider & Model
+## AI Defaults
 
-Override which AI provider and model are used for all actions. When `null`, the `laravel/ai` default (`config('ai.default')`) is used.
+Defaults for text-generation AI calls. When a value is `null`, the `laravel/ai` default (`config('ai.default')`) is used — or the agent's PHP attributes for the generation options.
 
 ```php
-'default_provider' => null,
-'default_model' => null,
-'default_timeout' => null, // timeout in seconds, null = laravel/ai default (60s)
+'ai' => [
+    'default_provider' => null,
+    'default_model' => null,
+    'default_timeout' => null,       // seconds; null = laravel/ai default (60s)
+    'default_temperature' => null,   // float, e.g. 0.7
+    'default_max_tokens' => null,    // int, hard cap on output tokens
+    'default_max_steps' => null,     // int, max tool-call steps
+    'default_top_p' => null,         // float, nucleus sampling
+],
 ```
 
-Supports all provider types accepted by `laravel/ai`:
+Supports all provider shapes accepted by `laravel/ai`:
 
 ```php
 // Single provider string
-'default_provider' => 'openai',
+'ai' => ['default_provider' => 'openai'],
 
 // Provider + model
-'default_provider' => 'anthropic',
-'default_model' => 'claude-sonnet-4-5-20250514',
+'ai' => [
+    'default_provider' => 'anthropic',
+    'default_model' => 'claude-sonnet-4-5-20250514',
+],
 
 // Failover array — tries providers in order
-'default_provider' => ['openai' => 'gpt-4o', 'anthropic' => 'claude-sonnet-4-5-20250514'],
+'ai' => [
+    'default_provider' => ['openai' => 'gpt-4o', 'anthropic' => 'claude-sonnet-4-5-20250514'],
+],
 ```
 
 ### Resolution Chain
@@ -132,44 +134,33 @@ Provider, model, and timeout are each resolved with a priority chain (highest wi
 1. Action-level `->provider()`
 2. Preset-level `->provider()` on the preset object
 3. Config `preset_providers[PresetClass]` provider/model
-4. Config `default_provider` / `default_model`
+4. Config `ai.default_provider` / `ai.default_model`
 5. laravel/ai default (`config('ai.default')`)
 
 **Timeout:**
 1. Action-level `->timeout()`
 2. Config `preset_providers[PresetClass]` timeout
-3. Config `default_timeout`
+3. Config `ai.default_timeout`
 4. laravel/ai default (60s)
 
 **Generation options (`temperature`, `max_tokens`, `max_steps`, `top_p`):**
 1. Action-level `->temperature()` / `->maxTokens()` / `->maxSteps()` / `->topP()`
 2. Preset-level method on the preset object (e.g. `SummaryPreset::make()->temperature(0.3)`)
 3. Config `preset_providers[PresetClass]` `temperature` / `max_tokens` / `max_steps` / `top_p`
-4. Config `default_temperature` / `default_max_tokens` / `default_max_steps` / `default_top_p`
+4. Config `ai.default_temperature` / `ai.default_max_tokens` / `ai.default_max_steps` / `ai.default_top_p`
 5. Agent PHP attributes (`#[Temperature]`, `#[MaxTokens]`, `#[MaxSteps]`, `#[TopP]`) — read by laravel/ai
 6. Provider default
 
-## Generation Options
+## Transcription Defaults
 
-Defaults for text-generation parameters resolved by laravel/ai's `TextGenerationOptions`. When `null`, laravel/ai falls back to the agent's PHP attributes and then to the provider's own defaults.
-
-```php
-'default_temperature' => null,  // float, e.g. 0.7
-'default_max_tokens' => null,   // int, hard cap on output tokens
-'default_max_steps' => null,    // int, max tool-call steps
-'default_top_p' => null,        // float, nucleus sampling
-```
-
-These can be overridden per-action (`->temperature()`, `->maxTokens()`, `->maxSteps()`, `->topP()`) or per-preset (`Preset::make()->temperature(...)`). See the [AiAction Generation Options](../README.md#generation-options) section for usage.
-
-## Transcription Provider & Model
-
-Default provider for the transcription step in `DictationAction`. Separate from the AI processing provider.
+Defaults for the transcription step in `DictationAction` — separate from the AI-processing provider.
 
 ```php
-'default_transcription_provider' => null,
-'default_transcription_model' => null,
-'default_transcription_timeout' => null, // timeout in seconds for transcription calls
+'transcription' => [
+    'default_provider' => null,
+    'default_model' => null,
+    'default_timeout' => null, // seconds
+],
 ```
 
 Actions can override these with `->transcriptionProvider()` and `->transcriptionTimeout()`:
@@ -182,34 +173,21 @@ DictationAction::make('voice')
     ->timeout(120)                                   // AI processing timeout
 ```
 
-## Image Generation Icon
-
-The default icon for image generation action buttons.
-
-```php
-'image_generation_icon' => Heroicon::OutlinedPhoto,
-```
-
-## Image Generation Provider & Model
-
-Default provider for image generation. When `null`, the `laravel/ai` default for images (`config('ai.default_for_images')`) is used. Only providers that implement `ImageProvider` are supported: OpenAI, Gemini, xAI.
-
-```php
-'default_image_provider' => null,
-'default_image_model' => null,
-'default_image_timeout' => null,
-```
-
 ## Image Generation Defaults
 
-Default size, quality, and storage settings for `ImageGenerationAction`.
+Defaults for `ImageGenerationAction`. When `null`, the `laravel/ai` default for images (`config('ai.default_for_images')`) is used. Only providers that implement `ImageProvider` are supported: OpenAI, Gemini, xAI.
 
 ```php
-'default_image_size' => null,           // '1:1', '3:2', '2:3'
-'default_image_quality' => null,        // 'low', 'medium', 'high'
-'default_image_disk' => null,           // Storage disk (null = default filesystem disk)
-'default_image_directory' => 'ai-images',
-'default_image_visibility' => null,     // 'public' or null
+'image_generation' => [
+    'default_provider' => null,
+    'default_model' => null,
+    'default_timeout' => null,
+    'default_size' => null,           // '1:1', '3:2', '2:3'
+    'default_quality' => null,        // 'low', 'medium', 'high'
+    'default_disk' => null,           // Storage disk (null = default filesystem disk)
+    'default_directory' => 'ai-images',
+    'default_visibility' => null,     // 'public' or null
+],
 ```
 
 The `disk`, `directory`, and `visibility` settings are only used as fallback when the target field is not a `FileUpload` component (e.g. `TextInput`). For `FileUpload` and `SpatieMediaLibraryFileUpload`, the image is stored as a Livewire temporary upload and the component's own disk/directory configuration is used on save.

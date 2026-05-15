@@ -60,6 +60,7 @@ AI actions for Filament v4 & v5 — auto-detect form fields, compose prompts, wr
 - [Usage Tracking](#usage-tracking)
 - [Testing](#testing)
 - [Configuration](#configuration)
+  - [Per-Panel Configuration (Plugin)](#per-panel-configuration-plugin)
 - [Versioning](#versioning)
 - [Changelog](#changelog)
 - [License](#license)
@@ -1003,6 +1004,53 @@ The configuration is published to `config/filament-solaris.php`. Key options inc
 - **Locales** — supported locales for the translation preset
 
 See the [Configuration Reference](documentation/configuration.md) for all available options.
+
+### Per-Panel Configuration (Plugin)
+
+For apps with multiple Filament panels — typically an admin panel plus customer/partner panels — register `FilamentSolarisPlugin` on each panel to override the global defaults. Every setting in `config/filament-solaris.php` that's worth varying per audience is exposed as a fluent setter:
+
+```php
+use Statikbe\FilamentSolaris\FilamentSolarisPlugin;
+
+// app/Providers/Filament/AdminPanelProvider.php
+$panel->plugin(
+    FilamentSolarisPlugin::make()
+        ->defaultProvider('anthropic', 'claude-sonnet-4-5')
+        ->defaultTemperature(0.3)
+        ->defaultMaxTokens(4096)
+        ->actionIcon('heroicon-o-sparkles')
+        ->locales(['en', 'nl', 'fr'])
+        ->promptLogging(true)
+);
+
+// app/Providers/Filament/CustomerPanelProvider.php
+$panel->plugin(
+    FilamentSolarisPlugin::make()
+        ->defaultProvider('google', 'gemini-2.5-flash')   // cheaper for end-user features
+        ->defaultMaxTokens(1024)                           // tighter token budget
+        ->defaultImageDisk('public')
+        ->visible(fn () => auth()->user()?->plan === 'pro') // hide AI for free-tier users
+);
+```
+
+Available setters (every Tier-1/2 config key has one):
+
+- **Provider/model/timeout:** `defaultProvider()`, `defaultModel()`, `defaultTimeout()`
+- **Text-gen options:** `defaultTemperature()`, `defaultMaxTokens()`, `defaultMaxSteps()`, `defaultTopP()`
+- **Transcription:** `defaultTranscriptionProvider()`, `defaultTranscriptionModel()`, `defaultTranscriptionTimeout()`
+- **Image generation:** `defaultImageProvider()`, `defaultImageModel()`, `defaultImageTimeout()`, `defaultImageSize()`, `defaultImageQuality()`, `defaultImageDisk()`, `defaultImageDirectory()`, `defaultImageVisibility()`
+- **Logging:** `promptLogging()`, `promptLoggingChannel()`
+- **Locales:** `defaultLocale()`, `locales()`
+- **Icons:** `actionIcon()`, `dictationIcon()`, `imageGenerationIcon()`, `conversationSendIcon()`, `conversationAttachmentIcon()`
+- **Tone:** `defaultTone()`
+- **Preset overrides:** `presetProvider()` (single, repeatable) and `presetProviders()` (bulk merge)
+- **Visibility gate:** `visible(bool|Closure)` and `disabled()`
+
+**Visibility gate (`->visible(...)` / `->disabled()`).** Set a single panel-wide predicate; Solaris registers `->hidden(...)` on every Solaris action with the negated check, so it hard-AND's with whatever the consuming action sets via its own `->visible(...)`. Users can't accidentally show an action on a disabled panel.
+
+**preset_providers merge semantics.** `presetProvider()` overrides one entry from `config/filament-solaris.php` at a time; entries you don't override stay live. `presetProviders([...])` merges with any prior `presetProvider()` calls on the same plugin.
+
+**Outside a panel context** (queued jobs, CLI commands, non-panel Livewire components) Solaris falls through to `config/filament-solaris.php` — the plugin only applies when `Filament::getCurrentPanel()` returns a panel that registered it.
 
 ## Full Example
 

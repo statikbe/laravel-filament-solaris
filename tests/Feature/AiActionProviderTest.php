@@ -8,8 +8,8 @@ use Statikbe\FilamentSolaris\Tests\Fixtures\ProviderFormComponent;
 
 beforeEach(function () {
     AiActionFake::reset();
-    config()->set('filament-solaris.default_provider', null);
-    config()->set('filament-solaris.default_model', null);
+    config()->set('filament-solaris.ai.default_provider', null);
+    config()->set('filament-solaris.ai.default_model', null);
     config()->set('filament-solaris.preset_providers', []);
 });
 
@@ -57,8 +57,8 @@ it('records preset-level provider', function () {
 });
 
 it('records config default provider', function () {
-    config()->set('filament-solaris.default_provider', 'openai');
-    config()->set('filament-solaris.default_model', 'gpt-4o-mini');
+    config()->set('filament-solaris.ai.default_provider', 'openai');
+    config()->set('filament-solaris.ai.default_model', 'gpt-4o-mini');
 
     AiAction::fake(['summary' => 'Test']);
 
@@ -87,8 +87,8 @@ it('action provider overrides preset provider', function () {
 });
 
 it('config preset_providers overrides config default', function () {
-    config()->set('filament-solaris.default_provider', 'anthropic');
-    config()->set('filament-solaris.default_model', 'claude-sonnet-4-5-20250514');
+    config()->set('filament-solaris.ai.default_provider', 'anthropic');
+    config()->set('filament-solaris.ai.default_model', 'claude-sonnet-4-5-20250514');
     config()->set('filament-solaris.preset_providers', [
         SummaryPreset::class => [
             'provider' => 'openai',
@@ -134,7 +134,7 @@ it('records action-level timeout', function () {
 });
 
 it('records config default timeout', function () {
-    config()->set('filament-solaris.default_timeout', 90);
+    config()->set('filament-solaris.ai.default_timeout', 90);
 
     AiAction::fake(['summary' => 'Test']);
 

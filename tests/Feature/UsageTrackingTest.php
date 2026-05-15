@@ -132,8 +132,8 @@ it('carries the resolved provider, model, and livewire component on the success 
 // ──────────────────────────────────────────────────────────────
 
 it('logUsage writes a debug log entry when prompt logging is enabled', function () {
-    config()->set('filament-solaris.prompt_logging_enabled', true);
-    config()->set('filament-solaris.prompt_logging_channel', null);
+    config()->set('filament-solaris.prompt_logging.enabled', true);
+    config()->set('filament-solaris.prompt_logging.channel', null);
 
     Log::shouldReceive('channel')
         ->with(null)
@@ -161,7 +161,7 @@ it('logUsage writes a debug log entry when prompt logging is enabled', function 
 });
 
 it('logUsage is silent when prompt logging is disabled', function () {
-    config()->set('filament-solaris.prompt_logging_enabled', false);
+    config()->set('filament-solaris.prompt_logging.enabled', false);
 
     Log::shouldReceive('channel')->never();
     Log::shouldReceive('debug')->never();
