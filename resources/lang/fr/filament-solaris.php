@@ -15,6 +15,7 @@ return [
         'transcription_empty' => "Aucune parole détectée dans l'enregistrement.",
         'transcription_error' => "Impossible de transcrire l'audio. Veuillez réessayer.",
         'transcription_rate_limited' => 'Trop de demandes de transcription. Veuillez patienter un instant.',
+        'transcription_overloaded' => 'Le service de transcription est actuellement surchargé. Veuillez réessayer.',
         'microphone_denied' => 'L\'accès au microphone est requis pour la dictée.',
     ],
 

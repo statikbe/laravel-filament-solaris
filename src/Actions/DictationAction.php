@@ -3,12 +3,15 @@
 namespace Statikbe\FilamentSolaris\Actions;
 
 use Closure;
+use Filament\Forms\Components\FileUpload;
 use Filament\Notifications\Notification;
 use Illuminate\Http\UploadedFile;
 use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Exceptions\AiException;
+use Laravel\Ai\Exceptions\ProviderOverloadedException;
 use Laravel\Ai\Exceptions\RateLimitedException;
 use Laravel\Ai\Transcription;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use RuntimeException;
 use Statikbe\FilamentSolaris\Concerns\HasFormPipeline;
 use Statikbe\FilamentSolaris\Concerns\HasPromptPipeline;
@@ -35,6 +38,14 @@ class DictationAction extends SolarisAction
     protected int|Closure|null $transcriptionTimeout = null;
 
     /**
+     * Schema-state key the recorded audio is uploaded to.
+     *
+     * Lives inside the action modal's data array — addressed as
+     * `mountedActions.{nestingIndex}.data.{KEY}` from the browser side.
+     */
+    public const AUDIO_FIELD = 'solaris_dictation_audio';
+
+    /**
      * {@inheritDoc}
      */
     protected function setUp(): void
@@ -48,7 +59,7 @@ class DictationAction extends SolarisAction
             $viewName = 'filament-solaris::dictation-modal';
 
             return view($viewName, [
-                'statePath' => 'componentFileAttachments.dictation_audio',
+                'statePath' => $this->resolveAudioStatePath(),
             ]);
         });
 
@@ -61,12 +72,45 @@ class DictationAction extends SolarisAction
                 return [];
             }
 
-            return $action->hasPromptBuilder() ? $action->getUserInputFormSchema() : [];
+            return [
+                // Schema-bound FileUpload that receives the Alpine recorder's
+                // upload via Filament's own state-binding machinery. The
+                // dropzone UI is suppressed via `columnSpan('hidden')` (the
+                // same trick {@see \Filament\Forms\Components\Hidden::setUp()}
+                // uses) — the field is registered in the schema so its state
+                // round-trips through the modal's data array, but no UI is
+                // rendered. Storage is disabled so the temp upload is left
+                // for us to read and discard.
+                FileUpload::make(self::AUDIO_FIELD)
+                    ->columnSpan(['default' => 'hidden'])
+                    ->dehydrated()
+                    ->storeFiles(false),
+                ...($action->hasPromptBuilder() ? $action->getUserInputFormSchema() : []),
+            ];
         });
 
         $this->action(function (DictationAction $action, array $data = []) {
             $action->processDictation($data);
         });
+    }
+
+    /**
+     * Compute the full Livewire state path the Alpine recorder uploads to.
+     *
+     * Filament mounts each action's schema at `mountedActions.{N}.data` where
+     * N is the nesting index (0 for the top-most action, 1 if nested inside
+     * another action's modal — e.g. a dictation suffix inside an AiAction's
+     * UserInput modal). Computed at render time so it survives modal stacking.
+     */
+    protected function resolveAudioStatePath(): string
+    {
+        $livewire = $this->getLivewire();
+        $mounted = method_exists($livewire, 'getMountedActions')
+            ? $livewire->getMountedActions()
+            : [];
+        $nestingIndex = max(0, count($mounted) - 1);
+
+        return sprintf('mountedActions.%d.data.%s', $nestingIndex, self::AUDIO_FIELD);
     }
 
     /**
@@ -176,6 +220,7 @@ class DictationAction extends SolarisAction
     public function processDictation(array $data = []): void
     {
         $this->validateDictationConfiguration();
+        $this->validatePreviewConfiguration();
 
         // Check if faked
         if (DictationActionFake::isActive()) {
@@ -184,9 +229,7 @@ class DictationAction extends SolarisAction
             return;
         }
 
-        // Get the uploaded audio file
-        $livewire = $this->getLivewire();
-        $audioFile = data_get($livewire, 'componentFileAttachments.dictation_audio');
+        $audioFile = $this->extractAudioFile($data[self::AUDIO_FIELD] ?? null);
 
         if (! $audioFile instanceof UploadedFile) {
             Notification::make()
@@ -197,18 +240,42 @@ class DictationAction extends SolarisAction
             return;
         }
 
-        try {
-            $transcript = $this->transcribe($audioFile);
-        } finally {
-            // Clean up the temporary audio file
-            unset($livewire->componentFileAttachments['dictation_audio']);
-        }
+        $transcript = $this->transcribe($audioFile);
+
+        // Filament's modal lifecycle discards the action's data array on
+        // unmount, so the TemporaryUploadedFile gets garbage-collected
+        // without an explicit cleanup step.
 
         if ($transcript === null) {
             return;
         }
 
         $this->processTranscript($transcript, $data);
+    }
+
+    /**
+     * Normalise the FileUpload state value into a single UploadedFile.
+     *
+     * Filament FileUpload's state is either a `TemporaryUploadedFile`, an
+     * `[uuid => TemporaryUploadedFile]` map, or null. The Alpine recorder
+     * uploads a single file per session, so we accept any of those shapes
+     * and return the first uploaded file (or null when nothing was uploaded).
+     */
+    protected function extractAudioFile(mixed $value): ?UploadedFile
+    {
+        if ($value instanceof UploadedFile) {
+            return $value;
+        }
+
+        if (is_array($value)) {
+            foreach ($value as $entry) {
+                if ($entry instanceof UploadedFile) {
+                    return $entry;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -233,9 +300,11 @@ class DictationAction extends SolarisAction
             function (AiException $e): void {
                 report($e);
 
-                $title = $e instanceof RateLimitedException
-                    ? filament_solaris_trans('notifications.transcription_rate_limited')
-                    : filament_solaris_trans('notifications.transcription_error');
+                $title = match (true) {
+                    $e instanceof RateLimitedException => filament_solaris_trans('notifications.transcription_rate_limited'),
+                    $e instanceof ProviderOverloadedException => filament_solaris_trans('notifications.transcription_overloaded'),
+                    default => filament_solaris_trans('notifications.transcription_error'),
+                };
 
                 Notification::make()
                     ->title($title)

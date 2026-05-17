@@ -78,6 +78,7 @@ class ImageGenerationAction extends SolarisAction
         }
 
         $this->validateConfiguration();
+        $this->validatePreviewConfiguration();
 
         $sourceData = $this->getSourceFieldValues();
 

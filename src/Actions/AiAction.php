@@ -74,6 +74,7 @@ class AiAction extends SolarisAction
         }
 
         $this->validateConfiguration();
+        $this->validatePreviewConfiguration();
 
         $userInput = $data;
         $sourceData = $this->getSourceFieldValues();

@@ -13,6 +13,7 @@ use Laravel\Ai\Responses\TranscriptionResponse;
 use Statikbe\FilamentSolaris\Concerns\HasAttachments;
 use Statikbe\FilamentSolaris\Concerns\HasConversational;
 use Statikbe\FilamentSolaris\Concerns\HasPreviewModal;
+use Statikbe\FilamentSolaris\Concerns\InteractsWithSolarisPreview;
 use Statikbe\FilamentSolaris\Events\SolarisResponseFailed;
 use Statikbe\FilamentSolaris\Events\SolarisResponseReceived;
 use Statikbe\FilamentSolaris\FilamentSolarisPlugin;
@@ -126,6 +127,41 @@ abstract class SolarisAction extends Action
     public function shouldPreview(): bool
     {
         return $this->preview;
+    }
+
+    /**
+     * Verify the host Livewire component is wired for preview mode.
+     *
+     * `->withPreview()` (and `->conversational()`, which implies it) needs
+     * the {@see InteractsWithSolarisPreview}
+     * trait on the owning Livewire component — the trait provides the
+     * `solarisPreviewData` property + the `acceptSolarisPreview()` /
+     * `refineSolaris()` Livewire methods that the preview modal and
+     * conversational chat UI dispatch to.
+     *
+     * Called by each concrete action's execute path **before** any AI side
+     * effect, so misconfiguration fails loud at the first action invocation
+     * rather than silently no-op'ing.
+     *
+     * @throws \RuntimeException when the trait is missing.
+     */
+    protected function validatePreviewConfiguration(): void
+    {
+        if (! $this->shouldPreview()) {
+            return;
+        }
+
+        $livewire = $this->getLivewire();
+
+        if (in_array(InteractsWithSolarisPreview::class, class_uses_recursive($livewire), true)) {
+            return;
+        }
+
+        throw new \RuntimeException(sprintf(
+            'Solaris action "%s" has withPreview() (or conversational()) enabled, but its Livewire component (%s) is missing the InteractsWithSolarisPreview trait. Add `use \\Statikbe\\FilamentSolaris\\Concerns\\InteractsWithSolarisPreview;` to the component class — the trait provides the `solarisPreviewData` property and the `acceptSolarisPreview()` / `refineSolaris()` methods the preview modal dispatches to.',
+            $this->getName(),
+            $livewire::class,
+        ));
     }
 
     /**

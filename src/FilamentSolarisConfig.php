@@ -5,6 +5,7 @@ namespace Statikbe\FilamentSolaris;
 use Filament\Support\Icons\Heroicon;
 use Laravel\Ai\Enums\Lab;
 use Locale;
+use Statikbe\FilamentSolaris\Facades\FilamentSolaris as FilamentSolarisFacade;
 
 class FilamentSolarisConfig
 {
@@ -185,7 +186,7 @@ class FilamentSolarisConfig
      */
     private function resolveRawLocales(): array
     {
-        return FilamentSolaris::getLocales()
+        return FilamentSolarisFacade::getLocales()
             ?? $this->resolveConfig('locale.supported')
             ?? config('app.supported_locales')
             ?? [config('app.locale', 'en')];
@@ -417,7 +418,7 @@ class FilamentSolarisConfig
     {
         return array_merge(
             $this->getFactoryMap(),
-            FilamentSolaris::getRuntimeFactories(),
+            FilamentSolarisFacade::getRuntimeFactories(),
         );
     }
 }

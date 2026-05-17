@@ -8,7 +8,7 @@ use Filament\Support\Facades\FilamentAsset;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
-use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
+use Statikbe\FilamentSolaris\Facades\FilamentSolaris as FilamentSolarisFacade;
 use Statikbe\FilamentSolaris\Factories\SpatieMediaLibraryFileUploadFactory;
 
 class FilamentSolarisServiceProvider extends PackageServiceProvider
@@ -27,6 +27,7 @@ class FilamentSolarisServiceProvider extends PackageServiceProvider
     public function packageRegistered(): void
     {
         $this->app->singleton(FilamentSolarisConfig::class);
+        $this->app->singleton(FilamentSolaris::class);
     }
 
     public function packageBooted(): void
@@ -41,7 +42,7 @@ class FilamentSolarisServiceProvider extends PackageServiceProvider
         if (class_exists(SpatieMediaLibraryFileUpload::class)
             && class_exists(Media::class)
         ) {
-            FilamentSolaris::registerFactory(
+            FilamentSolarisFacade::registerFactory(
                 SpatieMediaLibraryFileUpload::class,
                 SpatieMediaLibraryFileUploadFactory::class,
             );

@@ -140,3 +140,64 @@ The spec describes specific loading states: "Transcribing..." text, different sp
 - [x] Optional: log usage alongside prompt logging (`SolarisPromptLogger`)
 
 **Shipped:** `SolarisResponseReceived` + `SolarisResponseFailed` events dispatched from `SolarisAction::executeAiCall()` and from all three fakes. `SolarisPromptLogger::logUsage()` added. See README "Usage Tracking" section and CHANGELOG `[0.1.0]`. Built-in persistence model + migration deferred — likely a companion package or 0.3.
+
+---
+
+### 10. Split `ComponentFactory` file/attachment methods into opt-in interfaces
+
+The `ComponentFactory` contract currently exposes 7 methods. Three are core (every factory implements them); four have safe defaults on the abstract base. Two of the four are file-shaped — `toFormValueFromFile()` and static `toAttachments()` — only meaningful for `FileUpload` / `SpatieMediaLibraryFileUpload` / `Text` (file output to a path).
+
+**Proposal:** split the file-shaped methods out into opt-in interfaces:
+
+- `SupportsFileOutput` — owns `toFormValueFromFile(string $content, string $mimeType): mixed`.
+- `SupportsAttachments` — owns the attachment-resolution method (whether kept static or refactored to instance-level is part of the design).
+
+**Why defer to post-1.0:** the change is **strictly additive** — adding the interfaces later doesn't break existing custom factories because they're not required to declare them. Existing factories continue to work through the abstract base's defaults. The actual user-facing pain ("forced to implement all 7") is already solved by those defaults. The interface split mostly helps type-safe dispatch in `HasImageGenerationPipeline::applyImageToTarget()` and `HasAttachments::resolveAttachments()` — currently those rely on the base throwing `UnsupportedFactoryOperationException` / returning `[]`.
+
+**When to revisit:**
+- A third file-shaped capability appears (e.g. streaming output, drag-drop targets, audio preview). At that point the pattern's payoff scales.
+- A user-reported issue identifies friction authoring a custom factory.
+
+**TODO (when picked up):**
+- [ ] Introduce `Contracts/SupportsFileOutput` and `Contracts/SupportsAttachments`.
+- [ ] Decide whether `toAttachments()` stays static (awkward on an interface but lets `HasAttachments` dispatch by class without instantiating) or becomes instance-level (cleaner interface, more invasive at call sites).
+- [ ] Add `instanceof` checks in `HasImageGenerationPipeline::applyImageToTarget()` and `HasAttachments::resolveAttachments()`.
+- [ ] Keep the abstract base's safe defaults so existing factories continue to work without declaring the interfaces.
+- [ ] Update README "Custom Factories" section.
+
+**Light touch in 0.1.0:** added a docblock at the top of `Contracts/ComponentFactory` clarifying which 3 methods are core (must implement) vs the 4 optional ones with safe defaults — so anyone authoring a custom factory sees the small set they actually need without reading the abstract base.
+
+---
+
+### 11. Cross-session conversation persistence
+
+In `0.1.0`, conversational refinement persists messages within a single open modal session only. When the user closes the modal and re-opens the action, a fresh conversation starts; the previous one stays in `agent_conversation_messages` (laravel/ai's table) but Solaris never queries it again. From the user's perspective the chat is ephemeral.
+
+**Why deferred:** the design isn't trivial — needs a Solaris-owned morph table to map `(morphable_type, morphable_id, action_name, user_id) → conversation_id`, plus decisions about lifetime (auto-resume? "Resume previous?" prompt? stale-data invalidation?) that benefit from real-use feedback. There's also an upstream gap: `laravel/ai`'s `Message::attachments` field doesn't rehydrate into `File[]` on read, so attachment-heavy conversations can't fully round-trip without a Solaris-side attachment index.
+
+**Schema sketch** (when picked up):
+
+```php
+Schema::create('solaris_conversations', function (Blueprint $table) {
+    $table->id();
+    $table->morphs('morphable');           // (Resource model record, Page, etc.) — nullable for global actions
+    $table->string('action_name');         // e.g. 'summarize', 'classify'
+    $table->foreignId('user_id')->nullable();
+    $table->string('conversation_id', 36); // FK-shape to agent_conversations.id
+    $table->timestamps();
+
+    $table->unique(['morphable_type', 'morphable_id', 'action_name', 'user_id']);
+});
+```
+
+**TODO (when picked up):**
+- [ ] Migration + Eloquent model (`SolarisConversation`).
+- [ ] Config flag (`conversational.persistence_enabled`, default `true`) for opt-out.
+- [ ] Hook in `HasPromptPipeline::runPipeline()`: look up existing conversation; call `$agent->continue($conversationId, $user)` if found, `$agent->forUser($user)` otherwise; upsert the row after the call returns `$response->conversationId`.
+- [ ] Hydrate prior messages into `$livewire->solarisPreviewData['messages']` so the modal opens with the chat history visible.
+- [ ] Decide on "stale conversation" handling: if source data has changed dramatically since the last turn, invalidate the conversation (vs. let the AI handle context drift).
+- [ ] Image-pipeline equivalent (image refinement is stateless re-generation, but the prompt + per-turn images could still be persisted for UX restore).
+- [ ] Sync with upstream `laravel/ai` on `Message::attachments` rehydration, or build a Solaris-side attachment index as a workaround.
+- [ ] README "Conversational Refinement" section documenting the resume flow when shipped.
+
+Existing roadmap note: [memory/project_continue_conversation_todo.md] (private).

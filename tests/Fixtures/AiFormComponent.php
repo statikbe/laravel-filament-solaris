@@ -117,6 +117,45 @@ class AiFormComponent extends FormsComponent
     }
 
     /**
+     * AI action with a per-action sanitizer (strips HTML tags from every value).
+     */
+    public function generateWithSanitizerAction(): AiAction
+    {
+        return AiAction::make('generateWithSanitizer')
+            ->sourceFields(['title', 'body'])
+            ->targetFields(['summary', 'category'])
+            ->prompt('Fill the fields.')
+            ->sanitize(fn (mixed $value) => is_string($value) ? strip_tags($value) : $value);
+    }
+
+    /**
+     * AI action with a per-field sanitizer overriding the per-action one.
+     */
+    public function generateWithFieldSanitizerAction(): AiAction
+    {
+        return AiAction::make('generateWithFieldSanitizer')
+            ->sourceFields(['title', 'body'])
+            ->targetFields(['summary', 'category'])
+            ->prompt('Fill the fields.')
+            ->sanitize(fn (mixed $value) => is_string($value) ? strip_tags($value) : $value)
+            ->sanitizeField('summary', fn (mixed $value) => is_string($value) ? mb_strtoupper($value) : $value);
+    }
+
+    /**
+     * AI action with a sanitizer that throws — verifies failure routing.
+     */
+    public function generateWithThrowingSanitizerAction(): AiAction
+    {
+        return AiAction::make('generateWithThrowingSanitizer')
+            ->sourceFields(['title', 'body'])
+            ->targetField('summary')
+            ->prompt('Summarize.')
+            ->sanitize(function (mixed $value): mixed {
+                throw new \RuntimeException('sanitizer-failed');
+            });
+    }
+
+    /**
      * Render the component.
      */
     public function render(): string

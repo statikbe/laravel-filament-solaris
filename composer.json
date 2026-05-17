@@ -37,8 +37,10 @@
         "filament/filament": "^4.2||^5.0",
         "laravel/ai": "^0.6",
         "spatie/laravel-package-tools": "^1.93",
-        "illuminate/contracts": "^12.0||^13.0",
-        "ext-intl": "*"
+        "illuminate/contracts": "^12.0||^13.0"
+    },
+    "suggest": {
+        "ext-intl": "Required for human-readable locale display names in TranslationPreset. Without it, locale codes (e.g. 'nl') are shown instead of names (e.g. 'Dutch') unless a translation entry is published."
     },
     "require-dev": {
         "filament/spatie-laravel-media-library-plugin": "^4.2||^5.0",

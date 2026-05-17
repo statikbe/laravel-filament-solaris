@@ -42,5 +42,6 @@ Public PHP setters (`->defaultProvider()`, `->actionIcon()`, etc.) are unchanged
 
 ### Notes
 
-- Requires `php ^8.3`, `filament/filament ^4.2 || ^5.0`, `laravel/ai ^0.6`, `ext-intl`.
+- Requires `php ^8.3`, `filament/filament ^4.2 || ^5.0`, `laravel/ai ^0.6`.
+- Suggests `ext-intl` (for human-readable locale display names in `TranslationPreset`; without it, raw locale codes are shown unless a translation entry is published).
 - Tagged `0.1.0` rather than `1.0.0` because `laravel/ai` is still pre-1.0; see [Versioning](README.md#versioning).

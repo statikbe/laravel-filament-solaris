@@ -58,6 +58,22 @@ trait HasPromptPipeline
     protected float|int|Closure|null $pipelineTopP = null;
 
     /**
+     * Per-action sanitizer applied to every AI value before it's written to
+     * form state. Receives the value returned by the factory's
+     * {@see ComponentFactory::toFormValue()}; whatever it returns replaces
+     * that value. Default: not set (identity).
+     */
+    protected ?Closure $sanitizer = null;
+
+    /**
+     * Per-field sanitizers, keyed by field name. Override the per-action
+     * {@see $sanitizer} for that specific field.
+     *
+     * @var array<string, Closure>
+     */
+    protected array $fieldSanitizers = [];
+
+    /**
      * Set an inline prompt instruction or a Blade view.
      */
     public function prompt(string|View $instruction): static
@@ -157,6 +173,52 @@ trait HasPromptPipeline
     public function topP(float|int|Closure|null $topP): static
     {
         $this->pipelineTopP = $topP;
+
+        return $this;
+    }
+
+    /**
+     * Sanitize every AI value before it's written to form state.
+     *
+     * The closure receives the value returned by the factory's
+     * `toFormValue()` and must return the sanitized value. Applied to
+     * every target field unless overridden per-field via
+     * {@see sanitizeField()}.
+     *
+     * Use this when the form is public-facing or AI-populated values
+     * may later be rendered as raw HTML, included in emails, etc. — see
+     * the "Security Considerations" section in the README.
+     *
+     * Example with HTML Purifier:
+     *
+     * ```php
+     * AiAction::make('summarize')
+     *     ->targetField('summary')
+     *     ->sanitize(fn (string $value) => \Mews\Purifier\Facades\Purifier::clean($value));
+     * ```
+     *
+     * @param  Closure(mixed): mixed  $closure
+     */
+    public function sanitize(Closure $closure): static
+    {
+        $this->sanitizer = $closure;
+
+        return $this;
+    }
+
+    /**
+     * Sanitize a single target field's AI value.
+     *
+     * Overrides any per-action {@see sanitize()} closure for this field
+     * only. Use when different target fields need different sanitization
+     * (e.g. `summary` stripped to plain text, `body_html` passed through
+     * an HTML purifier).
+     *
+     * @param  Closure(mixed): mixed  $closure
+     */
+    public function sanitizeField(string $field, Closure $closure): static
+    {
+        $this->fieldSanitizers[$field] = $closure;
 
         return $this;
     }
@@ -528,15 +590,38 @@ trait HasPromptPipeline
             }
 
             try {
-                $values[$fieldName] = $factory->toFormValue($aiValue);
+                $formValue = $factory->toFormValue($aiValue);
+                $values[$fieldName] = $this->applySanitizer($fieldName, $formValue);
                 $filledLabels[] = $this->resolveFieldLabel($fieldName);
             } catch (\Throwable $e) {
-                info($e);
+                // Route via report() so the app's exception tracker
+                // (Sentry, Bugsnag, Flare, …) picks it up — info-level
+                // logs are silently dropped by most production setups.
+                report($e);
                 $failedLabels[] = $this->resolveFieldLabel($fieldName);
             }
         }
 
         return compact('values', 'filledLabels', 'failedLabels');
+    }
+
+    /**
+     * Apply the per-field or per-action sanitizer (if any) to a form value.
+     *
+     * Field-level closures registered via {@see sanitizeField()} take
+     * precedence over the action-level {@see sanitize()} closure.
+     */
+    protected function applySanitizer(string $fieldName, mixed $formValue): mixed
+    {
+        if (isset($this->fieldSanitizers[$fieldName])) {
+            return ($this->fieldSanitizers[$fieldName])($formValue);
+        }
+
+        if ($this->sanitizer !== null) {
+            return ($this->sanitizer)($formValue);
+        }
+
+        return $formValue;
     }
 
     /**

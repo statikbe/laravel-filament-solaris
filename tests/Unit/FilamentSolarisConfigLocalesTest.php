@@ -1,6 +1,6 @@
 <?php
 
-use Statikbe\FilamentSolaris\FilamentSolaris;
+use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\FilamentSolarisConfig;
 
 beforeEach(function () {

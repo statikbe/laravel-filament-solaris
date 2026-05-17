@@ -32,6 +32,7 @@ AI actions for Filament v4 & v5 — auto-detect form fields, compose prompts, wr
   - [Generation Options](#generation-options)
   - [Attachments](#attachments)
   - [Preview](#preview)
+  - [Conversational Refinement](#conversational-refinement)
 - [Component Factories](#component-factories)
   - [Supported Components](#supported-components)
   - [Custom Factories](#custom-factories)
@@ -58,6 +59,8 @@ AI actions for Filament v4 & v5 — auto-detect form fields, compose prompts, wr
   - [Transcription + AI Processing](#transcription--ai-processing)
   - [Transcription Provider](#transcription-provider)
 - [Usage Tracking](#usage-tracking)
+  - [Rate Limiting & Retry](#rate-limiting--retry)
+- [Security Considerations](#security-considerations)
 - [Testing](#testing)
 - [Configuration](#configuration)
   - [Per-Panel Configuration (Plugin)](#per-panel-configuration-plugin)
@@ -279,6 +282,18 @@ AiAction::make('classify')
     ->targetScope('category_id', fn ($query) => $query->where('active', true))
 ```
 
+Use `targetHint()` to append a behavioural nudge to a specific field's JSON-schema description — the hint is sent to the AI alongside the auto-generated schema, so it shapes how the field gets filled without rewriting the whole prompt:
+
+```php
+AiAction::make('fill')
+    ->targetFields(['summary', 'tags'])
+    ->prompt('Read the body and fill the fields.')
+    ->targetHint('summary', 'Keep it under 80 words. No marketing language.')
+    ->targetHint('tags', 'Pick 3–5 short, lowercase, hyphen-separated tags.');
+```
+
+Hints compose with the structural description the factory generates from the component (e.g. for a `Select`, the enum of allowed values). They're particularly useful for narrowing tone, length, or formatting per field without bloating the main prompt.
+
 ### Prompts
 
 There are three ways to provide a prompt:
@@ -495,11 +510,74 @@ Provider behaviour for attachments is delegated entirely to `laravel/ai` — pro
 
 ### Preview
 
-Enable a preview modal that shows the AI result before applying it to the form:
+Show the AI result in a preview modal before applying it to the form, so the user can review and accept (or cancel):
 
 ```php
-->withPreview()
+AiAction::make('summarize')
+    ->sourceFields(['title', 'body'])
+    ->targetField('summary')
+    ->prompt('Summarise the body.')
+    ->withPreview();
 ```
+
+**Required: `InteractsWithSolarisPreview` trait on the owning Livewire component.**
+
+The trait provides the `solarisPreviewData` public property the modal binds to, plus the `acceptSolarisPreview()` and `refineSolaris()` Livewire methods the modal's Accept / chat-refine buttons dispatch to. Add it to whatever Livewire component hosts the form — typically a Filament Resource Page, a custom Page, or a Livewire component:
+
+```php
+use Filament\Resources\Pages\EditRecord;
+use Statikbe\FilamentSolaris\Concerns\InteractsWithSolarisPreview;
+
+class EditPost extends EditRecord
+{
+    use InteractsWithSolarisPreview;
+
+    // ... your form, mount, etc.
+}
+```
+
+For a plain Livewire component:
+
+```php
+use Livewire\Component;
+use Statikbe\FilamentSolaris\Concerns\InteractsWithSolarisPreview;
+
+class GenerateArticle extends Component
+{
+    use InteractsWithSolarisPreview;
+
+    // ... form, mount, render, etc.
+}
+```
+
+**Fail-loud check.** If `->withPreview()` (or `->conversational()`, which implies it) is configured but the trait is missing, the action throws a `RuntimeException` on first invocation with an actionable message — no silent no-op, no wasted AI tokens. The check fires after configuration validation and before the AI call.
+
+### Conversational Refinement
+
+Enable a chat interface inside the preview modal so the user can iteratively refine the AI's response with follow-up messages:
+
+```php
+AiAction::make('summarize')
+    ->sourceFields(['title', 'body'])
+    ->targetField('summary')
+    ->preset(SummaryPreset::make())
+    ->conversational()  // implies ->withPreview()
+```
+
+Each refinement turn re-runs the AI with the new message appended to the conversation history; the structured response replaces the preview, and the user can keep refining or accept.
+
+**Requirements:**
+
+1. **`laravel/ai`'s conversation tables must be migrated.** Conversational refinement leans on `RemembersConversations` from `laravel/ai`, which writes to `agent_conversations` and `agent_conversation_messages`. Publish and run those migrations alongside your app's:
+   ```bash
+   php artisan vendor:publish --tag=ai-migrations
+   php artisan migrate
+   ```
+2. **An authenticated user.** Conversation memory is keyed on `auth()->user()`. Without an authenticated user, the chat UI still works visually within the open modal — the AI sees prior turns *in-memory via the modal's `messages` array* — but no row is written to the conversation tables and nothing is persisted across modal opens.
+
+**Conversation lifetime.** Conversational mode persists the conversation **within a single open preview modal** only. When the user accepts (or cancels), the modal closes and the next click of the action starts a fresh conversation — the prior `agent_conversation_messages` rows remain in the DB but Solaris doesn't read them back. From the user's perspective the chat is ephemeral.
+
+This is intentional for `0.1.0`. Cross-session resume (re-opening the action and seeing prior history) is a [planned feature](specs/missing-features.md#11-cross-session-conversation-persistence) — it needs a Solaris-owned morph table to bind conversations to a record + action context, plus an upstream fix on attachment rehydration. Track that item if you need persistence across modal opens.
 
 ## Component Factories
 
@@ -985,6 +1063,125 @@ Register it in `EventServiceProvider` the usual Laravel way. The event also fire
 **What the event deliberately does NOT carry:** the prompt text, the source field values, or the AI response. These can be large, may contain PII, and would bloat any listener's storage. Use `SolarisPromptLogger` (gate it on `prompt_logging_enabled`) if you need that level of detail for development.
 
 **Versioning note:** these events ship in `0.1.0`. Apps that adopt Solaris on `0.1.x` and don't register a listener can opt into tracking later by registering one — but only future calls will be captured. Plan accordingly.
+
+### Rate Limiting & Retry
+
+Solaris distinguishes three failure modes when an `AiException` is caught and renders dedicated user-facing notifications for each, per pipeline:
+
+| Exception | Text (`AiAction`) | Image (`ImageGenerationAction`) | Transcription (`DictationAction`) |
+|---|---|---|---|
+| `RateLimitedException` | `notifications.rate_limited` | `notifications.image_generation_rate_limited` | `notifications.transcription_rate_limited` |
+| `ProviderOverloadedException` | `notifications.overloaded` | `notifications.overloaded` | `notifications.transcription_overloaded` |
+| any other `AiException` | `notifications.error` | `notifications.image_generation_error` | `notifications.transcription_error` |
+
+Translations ship for English, Dutch, and French; override any of these keys in your app's published `lang/vendor/filament-solaris/{locale}/filament-solaris.php` to customise the wording.
+
+**Backoff / retry hook.** The `SolarisResponseFailed` event documented above carries the raw exception — listen for it and `instanceof RateLimitedException` for app-level backoff or queued retry:
+
+```php
+use Laravel\Ai\Exceptions\RateLimitedException;
+use Statikbe\FilamentSolaris\Events\SolarisResponseFailed;
+
+class HandleAiRateLimit
+{
+    public function handle(SolarisResponseFailed $event): void
+    {
+        if (! $event->exception instanceof RateLimitedException) {
+            return;
+        }
+
+        // Examples: enqueue a delayed retry, increment a per-user Redis
+        // counter, page ops, fall back to a cached previous result …
+        RetrySolarisAction::dispatch(
+            actionName: $event->actionName,
+            user: $event->user,
+        )->delay(now()->addSeconds(30));
+    }
+}
+```
+
+Solaris itself does not retry automatically — that decision (when to retry, with what backoff, after how many attempts to give up) is yours to make.
+
+## Security Considerations
+
+Solaris glues two untrusted boundaries together: **user-typed values flow into the prompt**, and **AI-generated output flows back into form fields.** Both deserve explicit handling — particularly when the form is public-facing, or when AI-populated values are later displayed to *other* users.
+
+### Treat AI output as untrusted user input
+
+Anything the AI writes back is, for security purposes, user-generated content. The user typing source values can steer what comes out — current LLMs are not reliably resistant to prompt-injection, and no input-side mitigation Solaris ships will change that. The real defense lives at the **render layer**, in the templates that display AI-populated values.
+
+**Always-safe rendering** (Blade auto-escapes):
+
+```blade
+{{ $post->summary }}  {{-- safe, escaped --}}
+```
+
+**Unsafe unless you sanitize first**:
+
+```blade
+{!! $post->summary !!}  {{-- raw — only OK if you trust the source 100% --}}
+```
+
+The same rule applies to **Mail templates, PDF templates, exported JSON, webhook payloads, and any other place that's not Blade auto-escaping**. If your app routes an AI-populated value through `{!! !!}`, an HTML email body, a PDF library, an SMS, or a CSV export, that path must be sanitized at render time.
+
+### Field-type guidance
+
+| Filament component | AI-injection risk on form display | Notes |
+|---|---|---|
+| `TextInput` / `Textarea` / `MarkdownEditor` / `CodeEditor` | Low **on the form itself** (Blade escapes), high if value is rendered as raw HTML elsewhere | The form is safe; downstream rendering is your responsibility. |
+| `RichEditor` | Low — Filament sanitizes RichEditor output via TipTap on render | Safer field type when AI output may contain markup. |
+| `Select` / `Radio` / `CheckboxList` / `Toggle` | None | The factory constrains the AI to a fixed enum of allowed values — the output is structurally bounded. |
+| `FileUpload` (image generation) | None — binary content with a verified MIME | The image is stored as a Livewire temporary upload; no text-injection vector. |
+
+If you have a free-text field whose value will be rendered as HTML elsewhere, prefer `RichEditor` for that field, or use the sanitization hook below.
+
+### Sanitization hook
+
+Each `AiAction` accepts an optional sanitizer that runs on every AI value before it's written to form state:
+
+```php
+use Mews\Purifier\Facades\Purifier;  // any HTML purifier of your choice
+
+AiAction::make('summarize')
+    ->targetFields(['summary', 'body_html'])
+    ->prompt('…')
+    ->sanitize(fn (mixed $value) => is_string($value) ? Purifier::clean($value) : $value);
+```
+
+For different sanitization per field, use `sanitizeField()` to override per-action:
+
+```php
+AiAction::make('fill')
+    ->targetFields(['plain_summary', 'rich_body'])
+    ->prompt('…')
+    ->sanitizeField('plain_summary', fn (mixed $value) => is_string($value) ? strip_tags($value) : $value)
+    ->sanitizeField('rich_body', fn (mixed $value) => is_string($value) ? Purifier::clean($value) : $value);
+```
+
+Sanitizers run **after** the factory's `toFormValue()` but **before** the value is written. If a sanitizer throws, the value routes to "failed fields" (same as a `toFormValue()` failure) and the exception is `report()`'d so your exception tracker picks it up.
+
+Solaris does not ship a default sanitizer because the right policy is application-specific. The hook is here so you can plug in HTML Purifier, DOMPurify-server, `strip_tags`, your CSP rules, or whatever your security review demands.
+
+### Source-field steering
+
+If a `sourceFields()` entry is user-controlled (TextInput, Textarea, etc.), that user can influence what the AI outputs. This is by design — letting users steer AI is often the whole point — but if your form has multiple actors (e.g. a commenter triggers an action that affects a moderator's view), think about whether the actor of the source field is the same person reading the target.
+
+### Scoping which users can trigger actions
+
+Use Filament's standard `Action::visible()` / `Action::authorize()` and your policy classes to gate AI actions per-user:
+
+```php
+AiAction::make('rewrite-customer-message')
+    ->visible(fn () => auth()->user()->can('moderate', $record))
+    ->sourceFields(['body'])
+    ->targetField('body_clean');
+```
+
+Multi-panel apps can gate AI globally per panel via the [plugin's visibility predicate](#per-panel-configuration-plugin) (`FilamentSolarisPlugin::make()->visible(...)` or `->disabled()`).
+
+### Auditing AI activity
+
+The [Usage Tracking](#usage-tracking) events (`SolarisResponseReceived` / `SolarisResponseFailed`) carry the action name, action class, authenticated user, and Livewire component. Listen for those if you need an audit trail of who triggered which AI call when. (Deliberately doesn't carry prompts/responses — see that section for why and how to log those separately.)
 
 ## Testing
 

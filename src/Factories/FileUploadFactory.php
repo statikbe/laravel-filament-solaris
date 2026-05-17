@@ -2,6 +2,7 @@
 
 namespace Statikbe\FilamentSolaris\Factories;
 
+use Filament\Schemas\Components\Component;
 use Illuminate\Http\UploadedFile;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
@@ -33,6 +34,23 @@ class FileUploadFactory extends ComponentFactory
      * Override this in a custom factory (e.g. for SpatieMediaLibraryFileUpload)
      * when the form-state shape diverges from the default Filament FileUpload.
      *
+     * {@inheritDoc}
+     *
+     * FileUpload's live Livewire state is `[uuid => TemporaryUploadedFile]`
+     * for fresh uploads and `string|array<string>` for persisted paths.
+     * Filament's schema-based `Get` utility normalises this and loses the
+     * `uuid => TempFile` mapping that {@see toAttachments()} relies on, so
+     * we read straight from `$livewire->data`.
+     */
+    public static function readState(
+        LivewireComponent $livewire,
+        string $field,
+        ?Component $schemaComponent = null,
+    ): mixed {
+        return data_get($livewire->data ?? [], $field);
+    }
+
+    /**
      * @return array<int, File>
      */
     public static function toAttachments(mixed $value, ?string $disk): array

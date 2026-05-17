@@ -6,6 +6,8 @@ use Closure;
 use Filament\Schemas\Components\Component;
 use Laravel\Ai\Files\File;
 use Livewire\Component as LivewireComponent;
+use Statikbe\FilamentSolaris\Concerns\HasAttachments;
+use Statikbe\FilamentSolaris\Concerns\HasSourceFields;
 use Statikbe\FilamentSolaris\Contracts\ComponentFactory as ComponentFactoryContract;
 use Statikbe\FilamentSolaris\Exceptions\UnsupportedFactoryOperationException;
 
@@ -90,6 +92,38 @@ abstract class ComponentFactory implements ComponentFactoryContract
     public static function toAttachments(mixed $value, ?string $disk): array
     {
         return [];
+    }
+
+    /**
+     * Read this field's current value from the Livewire component.
+     *
+     * The default goes through Filament's schema-based `Get` utility when a
+     * `$schemaComponent` is provided — that works for every "normal" field
+     * (TextInput, Textarea, Select, Toggle, CheckboxList, RichEditor, etc.)
+     * and is the same path target reads use. Falls back to `$livewire->data`
+     * when no schema is bound (standalone tests, components built without a
+     * Filament schema).
+     *
+     * Factories whose component holds **raw, non-normalised state** override
+     * this — most notably `FileUploadFactory`, where the live Livewire shape
+     * `[uuid => TemporaryUploadedFile]` doesn't survive `Get`'s normalisation
+     * and is what {@see toAttachments()} was designed to interpret.
+     *
+     * Called by both source-field collection ({@see HasSourceFields})
+     * and attachment resolution ({@see HasAttachments})
+     * so the asymmetry between text-shaped and file-shaped state lives in one
+     * factory override rather than as a special case in either trait.
+     */
+    public static function readState(
+        LivewireComponent $livewire,
+        string $field,
+        ?Component $schemaComponent = null,
+    ): mixed {
+        if ($schemaComponent !== null) {
+            return $schemaComponent->makeGetUtility()($field);
+        }
+
+        return data_get($livewire->data ?? [], $field);
     }
 
     /**
