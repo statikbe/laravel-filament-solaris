@@ -27,10 +27,10 @@ use Statikbe\FilamentSolaris\Support\SolarisPromptLogger;
  * their fluent setters, the AiException-aware call wrapper, the preview-modal
  * toggle, and the shared attachments / conversational / modal traits.
  *
- * Concrete actions (AiAction, ImageGenerationAction, DictationAction) extend
- * this and mix in pipeline-specific concerns. Future non-form actions (data
- * importers, report generators) can also extend it without inheriting any
- * form-field assumptions — those live in {@see HasFormPipeline}.
+ * Concrete actions (AiAction, ImageGenerationAction, DictationFieldAction)
+ * extend this and mix in pipeline-specific concerns. Future non-form actions
+ * (data importers, report generators) can also extend it without inheriting
+ * any form-field assumptions — those live in {@see HasFormPipeline}.
  */
 abstract class SolarisAction extends Action
 {
@@ -229,8 +229,21 @@ abstract class SolarisAction extends Action
 
         try {
             $response = $callback();
-        } catch (AiException $e) {
+        } catch (\Throwable $original) {
             $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
+
+            // Catch every Throwable, not just AiException — providers can leak
+            // raw `Illuminate\Http\Client\RequestException` (e.g. Mistral's
+            // 422 on an unsupported language code) past laravel/ai's failover
+            // wrapper. Without this, those bubble up as a generic 500 and the
+            // user-facing notification never fires.
+            //
+            // Non-AiException is wrapped so the dispatched event + $onError
+            // contract stay typed; the original is preserved as previous() so
+            // the exception tracker keeps the real stack trace.
+            $e = $original instanceof AiException
+                ? $original
+                : new AiException($original->getMessage(), $original->getCode(), $original);
 
             $this->dispatchResponseFailed($e, $provider, $model, $durationMs);
 
@@ -259,7 +272,7 @@ abstract class SolarisAction extends Action
      * Used by {@see executeAiCall()} on the real path and called directly
      * by the fake pipelines so consumer-side listeners fire under
      * `AiAction::fake()` / `ImageGenerationAction::fake()` /
-     * `DictationAction::fake()` too. Fakes pass a zero-token Usage by
+     * `DictationFieldAction::fake()` too. Fakes pass a zero-token Usage by
      * default since they bypass the real model.
      *
      * @param  Lab|array<string, string>|array<int, string>|string|null  $provider

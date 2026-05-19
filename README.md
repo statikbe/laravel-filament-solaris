@@ -54,7 +54,7 @@ AI actions for Filament v4 & v5 — auto-detect form fields, compose prompts, wr
   - [Storage](#storage)
   - [Reference Images](#reference-images)
   - [Testing ImageGenerationAction](#testing-imagegenerationaction)
-- [DictationAction](#dictationaction)
+- [DictationFieldAction](#dictationfieldaction)
   - [Pure Transcription](#pure-transcription)
   - [Transcription + AI Processing](#transcription--ai-processing)
   - [Transcription Provider](#transcription-provider)
@@ -949,61 +949,74 @@ Multiple references work too — bind a `->multiple()` FileUpload, or supply an 
 
 See [Testing documentation](documentation/testing.md#testing-imagegenerationaction).
 
-## DictationAction
+## DictationFieldAction
 
-`DictationAction` captures audio via the browser's MediaRecorder API, transcribes it using `laravel/ai`'s Transcription API, and optionally processes the transcript through the AI pipeline. It works in two modes: pure transcription and transcription with AI processing.
+`DictationFieldAction` captures audio via the browser's MediaRecorder API, transcribes it using `laravel/ai`'s Transcription API, and optionally processes the transcript through the AI pipeline. It works in two modes: pure transcription and transcription with AI processing.
+
+Attach it directly to any Filament `Field` via `->hintAction(...)` (works on `Textarea`, `RichEditor`, etc.) or via `->suffixAction(...)` on a `TextInput`. The transcript is written back into the **host field** — no `->targetField()` call needed.
 
 ### Pure Transcription
 
-Records audio and writes the transcript directly to a text field. Use `suffixAction` on components that support it (TextInput, Select, TagsInput), or place the action in a `Forms\Components\Actions` group for Textarea/RichEditor:
-
 ```php
-use Statikbe\FilamentSolaris\Actions\DictationAction;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Statikbe\FilamentSolaris\Actions\DictationFieldAction;
 
-// As a suffix action on TextInput
+// On a TextInput (suffix or hint both work)
 TextInput::make('title')
     ->suffixAction(
-        DictationAction::make('dictate')
-            ->targetField('title')
-            ->lang('en-US')
-    )
+        DictationFieldAction::make()->lang('en')
+    );
 
-// For Textarea/RichEditor, use an Actions group
-Forms\Components\Actions::make([
-    DictationAction::make('dictate-notes')
-        ->targetField('notes')
-        ->lang('en-US')
-        ->append(),     // append to existing content instead of replacing
-]),
-Textarea::make('notes'),
+// On a Textarea / RichEditor via hintAction
+Textarea::make('notes')
+    ->hintAction(
+        DictationFieldAction::make()
+            ->lang('en')
+            ->append()     // append to existing content instead of replacing
+    );
 ```
+
+> **Language tag format is provider-specific.** Most transcription APIs (OpenAI Whisper, Mistral, etc.) want ISO 639-1 alpha-2 (`'en'`, `'nl'`, `'fr'`). Google Speech and Azure Speech accept BCP 47 with a region tag (`'nl-BE'`). Passing `'nl-BE'` to Whisper or Mistral returns a 422 "Invalid language alpha2 code" — strip the region for those.
 
 ### Transcription + AI Processing
 
-Records audio, transcribes it, then feeds the transcript into the AI pipeline as source data. The AI output is written to one or more target fields:
+Add a `->prompt()` or `->preset()` and the transcript flows through the AI pipeline before being written:
 
 ```php
-DictationAction::make('voice-summary')
-    ->targetFields(['summary', 'category_id'])
-    ->preset(SummaryPreset::make()->maxWords(200))
-    ->locale('nl')
-    ->lang('nl-BE')
+Textarea::make('summary')
+    ->hintAction(
+        DictationFieldAction::make('voice-summary')
+            ->preset(SummaryPreset::make()->maxWords(200))
+            ->locale('nl')
+            ->lang('nl')
+    );
 ```
 
-Works with any prompt or preset — the transcript becomes the source data (`['transcription' => $transcript]`).
+To write into multiple fields (or a different field than the host), set `->targetFields()` explicitly:
+
+```php
+Textarea::make('summary')
+    ->hintAction(
+        DictationFieldAction::make('voice-classify')
+            ->targetFields(['summary', 'category_id'])
+            ->prompt('Summarize the transcription and classify it.')
+    );
+```
+
+The transcript becomes the source data (`['transcription' => $transcript]`) for any prompt or preset.
 
 ### Transcription Provider
 
 The transcription step and AI processing step can use different providers:
 
 ```php
-DictationAction::make('voice')
-    ->targetField('notes')
+DictationFieldAction::make('voice')
     ->preset(SummaryPreset::make())
-    ->transcriptionProvider('openai', 'whisper-1')   // transcription
-    ->transcriptionTimeout(30)                        // transcription timeout
+    ->transcriptionProvider('openai', 'whisper-1')         // transcription
+    ->transcriptionTimeout(30)                              // transcription timeout
     ->provider('anthropic', 'claude-sonnet-4-5-20250514')  // AI processing
-    ->timeout(120)                                    // AI processing timeout
+    ->timeout(120)                                          // AI processing timeout
 ```
 
 Package-wide defaults can be set in the config (`default_transcription_provider`, `default_transcription_model`, `default_transcription_timeout`). See [Configuration](documentation/configuration.md).
@@ -1016,11 +1029,11 @@ The recording UI shows clear visual states: a pulsing red button with elapsed ti
 
 ### Browser Support
 
-DictationAction uses the MediaRecorder API and works in all modern browsers (Chrome 49+, Edge 79+, Firefox 25+, Safari 14.1+). The button is automatically hidden in unsupported browsers.
+DictationFieldAction uses the MediaRecorder API and works in all modern browsers (Chrome 49+, Edge 79+, Firefox 25+, Safari 14.1+). The button is automatically hidden in unsupported browsers.
 
-### Testing DictationAction
+### Testing DictationFieldAction
 
-See [Testing documentation](documentation/testing.md#testing-dictationaction).
+See [Testing documentation](documentation/testing.md#testing-dictationfieldaction).
 
 ## Usage Tracking
 
@@ -1058,7 +1071,7 @@ class TrackAiUsage
 }
 ```
 
-Register it in `EventServiceProvider` the usual Laravel way. The event also fires from the Solaris fakes (`AiAction::fake()`, `ImageGenerationAction::fake()`, `DictationAction::fake()`) so you can test your listener without hitting a real provider — the fake dispatches with a zero-token `Usage`.
+Register it in `EventServiceProvider` the usual Laravel way. The event also fires from the Solaris fakes (`AiAction::fake()`, `ImageGenerationAction::fake()`, `DictationFieldAction::fake()`) so you can test your listener without hitting a real provider — the fake dispatches with a zero-token `Usage`.
 
 **What the event deliberately does NOT carry:** the prompt text, the source field values, or the AI response. These can be large, may contain PII, and would bloat any listener's storage. Use `SolarisPromptLogger` (gate it on `prompt_logging_enabled`) if you need that level of detail for development.
 
@@ -1068,7 +1081,7 @@ Register it in `EventServiceProvider` the usual Laravel way. The event also fire
 
 Solaris distinguishes three failure modes when an `AiException` is caught and renders dedicated user-facing notifications for each, per pipeline:
 
-| Exception | Text (`AiAction`) | Image (`ImageGenerationAction`) | Transcription (`DictationAction`) |
+| Exception | Text (`AiAction`) | Image (`ImageGenerationAction`) | Transcription (`DictationFieldAction`) |
 |---|---|---|---|
 | `RateLimitedException` | `notifications.rate_limited` | `notifications.image_generation_rate_limited` | `notifications.transcription_rate_limited` |
 | `ProviderOverloadedException` | `notifications.overloaded` | `notifications.overloaded` | `notifications.transcription_overloaded` |
@@ -1192,10 +1205,10 @@ If you want to write tests, please check [the testing documentation](documentati
 The configuration is published to `config/filament-solaris.php`. Key options include:
 
 - **AI provider & model** — package-wide defaults, per-preset overrides, failover arrays
-- **Transcription provider** — separate provider/model/timeout for `DictationAction`
+- **Transcription provider** — separate provider/model/timeout for `DictationFieldAction`
 - **Image generation** — separate provider/model/timeout/size/quality/storage for `ImageGenerationAction`
 - **Timeout** — default timeout for AI calls
-- **Icons** — `action_icon` for AiAction, `dictation_icon` for DictationAction, `image_generation_icon` for ImageGenerationAction
+- **Icons** — `action_icon` for AiAction, `dictation_icon` for DictationFieldAction, `image_generation_icon` for ImageGenerationAction
 - **Factory map** — custom component-to-factory mappings (includes `FileUploadFactory` for image targets)
 - **Prompt logging** — log composed prompts and image generation calls during development
 - **Locales** — supported locales for the translation preset
@@ -1256,7 +1269,7 @@ A complete resource form with multiple AI actions:
 ```php
 use Filament\Forms;
 use Statikbe\FilamentSolaris\Actions\AiAction;
-use Statikbe\FilamentSolaris\Actions\DictationAction;
+use Statikbe\FilamentSolaris\Actions\DictationFieldAction;
 use Statikbe\FilamentSolaris\Actions\ImageGenerationAction;
 use Statikbe\FilamentSolaris\Enums\ImageSize;
 use Statikbe\FilamentSolaris\Prompts\Presets\ClassificationPreset;
@@ -1274,7 +1287,13 @@ public function form(Form $form): Form
         Forms\Components\RichEditor::make('body')
             ->required(),
 
-        Forms\Components\Textarea::make('summary'),
+        Forms\Components\Textarea::make('summary')
+            ->hintAction(
+                // Voice-to-summary: transcribe audio and run through AI
+                DictationFieldAction::make('voice-summary')
+                    ->preset(SummaryPreset::make()->maxWords(100))
+                    ->lang('en'),
+            ),
 
         Forms\Components\Select::make('category_id')
             ->relationship('category', 'name'),
@@ -1314,12 +1333,6 @@ public function form(Form $form): Form
                 ->sourceFields(['body'])
                 ->targetField('body_nl')
                 ->preset(TranslationPreset::make()->language('nl')->preserveFormatting()),
-
-            // Voice-to-summary: transcribe audio and run through AI
-            DictationAction::make('voice-summary')
-                ->targetField('summary')
-                ->preset(SummaryPreset::make()->maxWords(100))
-                ->lang('en-US'),
 
             // Generate a cover image from the article content
             ImageGenerationAction::make('generate-cover')

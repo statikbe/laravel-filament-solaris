@@ -4,7 +4,7 @@ namespace Statikbe\FilamentSolaris\Testing;
 
 use PHPUnit\Framework\Assert;
 
-class DictationActionFake
+class DictationFieldActionFake
 {
     protected static ?self $instance = null;
 
@@ -100,7 +100,7 @@ class DictationActionFake
     {
         Assert::assertNotEmpty(
             $this->calls,
-            'Expected a DictationAction to be called, but none was.'
+            'Expected a dictation action to be called, but none was.'
         );
     }
 
@@ -111,7 +111,7 @@ class DictationActionFake
     {
         Assert::assertEmpty(
             $this->calls,
-            'Expected no DictationAction to be called, but '.count($this->calls).' were.'
+            'Expected no dictation action to be called, but '.count($this->calls).' were.'
         );
     }
 
@@ -148,7 +148,7 @@ class DictationActionFake
         Assert::assertCount(
             $count,
             $this->calls,
-            "Expected DictationAction to be called {$count} times, but was called ".count($this->calls).' times.'
+            "Expected dictation action to be called {$count} times, but was called ".count($this->calls).' times.'
         );
     }
 }

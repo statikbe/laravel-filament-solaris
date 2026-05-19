@@ -11,7 +11,7 @@ use Statikbe\FilamentSolaris\Support\SolarisNotification;
  * Filament form schema.
  *
  * Used by the three current actions (AiAction, ImageGenerationAction,
- * DictationAction). Future non-form actions (data import, report generation)
+ * DictationFieldAction). Future non-form actions (data import, report generation)
  * should NOT use this trait — their notion of "source" and "target" lives
  * elsewhere (an Eloquent model, a file path, a query).
  */

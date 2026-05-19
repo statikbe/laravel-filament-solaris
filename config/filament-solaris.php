@@ -177,7 +177,7 @@ return [
     | Transcription Defaults
     |--------------------------------------------------------------------------
     |
-    | Defaults for DictationAction's transcription step. When null, the
+    | Defaults for DictationFieldAction's transcription step. When null, the
     | laravel/ai default is used.
     |
     */

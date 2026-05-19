@@ -5,13 +5,13 @@ use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Responses\Data\Usage;
 use Livewire\Livewire;
 use Statikbe\FilamentSolaris\Actions\AiAction;
-use Statikbe\FilamentSolaris\Actions\DictationAction;
+use Statikbe\FilamentSolaris\Actions\DictationFieldAction;
 use Statikbe\FilamentSolaris\Actions\ImageGenerationAction;
 use Statikbe\FilamentSolaris\Events\SolarisResponseFailed;
 use Statikbe\FilamentSolaris\Events\SolarisResponseReceived;
 use Statikbe\FilamentSolaris\Support\SolarisPromptLogger;
 use Statikbe\FilamentSolaris\Testing\AiActionFake;
-use Statikbe\FilamentSolaris\Testing\DictationActionFake;
+use Statikbe\FilamentSolaris\Testing\DictationFieldActionFake;
 use Statikbe\FilamentSolaris\Testing\ImageGenerationActionFake;
 use Statikbe\FilamentSolaris\Tests\Fixtures\AiFormComponent;
 use Statikbe\FilamentSolaris\Tests\Fixtures\DictationFormComponent;
@@ -19,13 +19,13 @@ use Statikbe\FilamentSolaris\Tests\Fixtures\ImageGenerationFormComponent;
 
 beforeEach(function () {
     AiActionFake::reset();
-    DictationActionFake::reset();
+    DictationFieldActionFake::reset();
     ImageGenerationActionFake::reset();
 });
 
 afterEach(function () {
     AiActionFake::reset();
-    DictationActionFake::reset();
+    DictationFieldActionFake::reset();
     ImageGenerationActionFake::reset();
 });
 
@@ -63,16 +63,16 @@ it('dispatches SolarisResponseReceived after a successful ImageGenerationAction 
     });
 });
 
-it('dispatches SolarisResponseReceived after a successful DictationAction call', function () {
+it('dispatches SolarisResponseReceived after a successful DictationFieldAction call', function () {
     Event::fake([SolarisResponseReceived::class]);
-    DictationAction::fake('Hello, this is a test transcription.');
+    DictationFieldAction::fake('Hello, this is a test transcription.');
 
     Livewire::test(DictationFormComponent::class)
-        ->callAction('dictateBody');
+        ->callFormComponentAction('body', 'dictateBody');
 
     Event::assertDispatched(SolarisResponseReceived::class, function (SolarisResponseReceived $event): bool {
         return $event->actionName === 'dictateBody'
-            && $event->actionClass === DictationAction::class
+            && $event->actionClass === DictationFieldAction::class
             && $event->usage instanceof Usage;
     });
 });

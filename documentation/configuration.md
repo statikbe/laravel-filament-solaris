@@ -153,7 +153,7 @@ Provider, model, and timeout are each resolved with a priority chain (highest wi
 
 ## Transcription Defaults
 
-Defaults for the transcription step in `DictationAction` — separate from the AI-processing provider.
+Defaults for the transcription step in `DictationFieldAction` — separate from the AI-processing provider.
 
 ```php
 'transcription' => [
@@ -166,7 +166,7 @@ Defaults for the transcription step in `DictationAction` — separate from the A
 Actions can override these with `->transcriptionProvider()` and `->transcriptionTimeout()`:
 
 ```php
-DictationAction::make('voice')
+DictationFieldAction::make('voice')
     ->transcriptionProvider('openai', 'whisper-1')  // transcription provider
     ->transcriptionTimeout(30)                       // transcription timeout
     ->provider('anthropic')                          // AI processing provider

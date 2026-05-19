@@ -13,6 +13,19 @@ export default function dictationModal(statePath) {
 
         init() {
             this.supported = !!navigator.mediaDevices?.getUserMedia
+            this.dispatchBusyState()
+        },
+
+        // Notify the modal window (an ancestor of both the recorder and the
+        // submit button) that the recorder is busy. The modal window's x-data
+        // captures the flag; its x-bind:disabled on the submit button reads
+        // it. See HandlesDictation::setUpDictationModal() for the listener
+        // side. Without this, a click on submit during recording would fire
+        // the action callback with no audio in `$data`.
+        dispatchBusyState() {
+            this.$dispatch?.('solaris-dictation-busy', {
+                busy: this.recording || this.uploading,
+            })
         },
 
         get formattedDuration() {
@@ -64,6 +77,7 @@ export default function dictationModal(statePath) {
 
                 this.mediaRecorder.start()
                 this.recording = true
+                this.dispatchBusyState()
                 this.durationInterval = setInterval(() => this.duration++, 1000)
             } catch (e) {
                 if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
@@ -78,6 +92,7 @@ export default function dictationModal(statePath) {
             this.mediaRecorder?.stop()
             this.recording = false
             this.uploading = true
+            this.dispatchBusyState()
         },
 
         upload(blob) {
@@ -90,10 +105,12 @@ export default function dictationModal(statePath) {
                 () => {
                     this.uploading = false
                     this.uploaded = true
+                    this.dispatchBusyState()
                 },
                 () => {
                     this.uploading = false
                     this.uploadFailed = true
+                    this.dispatchBusyState()
                 },
             )
         },
