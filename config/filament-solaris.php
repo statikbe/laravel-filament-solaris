@@ -68,6 +68,40 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Option Matching
+    |--------------------------------------------------------------------------
+    |
+    | When a Select/CheckboxList has more options than `max_options`, the schema
+    | becomes free-text and the AI's answer is resolved back to an option key
+    | through a priority chain ending in a Levenshtein fuzzy match. Fuzzy
+    | matching can produce a wrong-but-plausible result, so it's tunable here:
+    |
+    | - `fuzzy`           — master on/off for the fuzzy fallback. Disable it for
+    |                       high-stakes fields where a wrong match is worse than
+    |                       no match (the value then falls through unmatched).
+    | - `fuzzy_threshold` — max edit distance as a fraction of the longer string
+    |                       (0.25 ≈ "up to a quarter of the characters differ").
+    |                       Relative, so short labels need near-exact matches and
+    |                       long labels tolerate proportionally more typos.
+    | - `fuzzy_min_length`— labels/values shorter than this never fuzzy-match
+    |                       (a 1-char edit on a 3-char word usually flips meaning,
+    |                       e.g. "cat" → "car").
+    |
+    | Whenever an inexact match (substring or fuzzy) resolves, a
+    | `SolarisOptionMatched` event fires so you can detect misclassification in
+    | production. Per-field overrides: `->targetFuzzyMatching($field, false)` and
+    | `->targetFuzzyThreshold($field, 0.15)` on the action.
+    |
+    */
+
+    'option_matching' => [
+        'fuzzy' => true,
+        'fuzzy_threshold' => 0.25,
+        'fuzzy_min_length' => 4,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Icons
     |--------------------------------------------------------------------------
     |

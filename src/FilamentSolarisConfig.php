@@ -56,6 +56,31 @@ class FilamentSolarisConfig
     }
 
     /**
+     * Whether the Levenshtein fuzzy fallback is enabled for option matching.
+     */
+    public function isOptionFuzzyMatchingEnabled(): bool
+    {
+        return (bool) $this->resolveConfig('option_matching.fuzzy', true);
+    }
+
+    /**
+     * Max edit distance for a fuzzy option match, as a fraction of the longer
+     * string's length.
+     */
+    public function getOptionFuzzyThreshold(): float
+    {
+        return (float) $this->resolveConfig('option_matching.fuzzy_threshold', 0.25);
+    }
+
+    /**
+     * Minimum value/label length below which fuzzy matching is skipped.
+     */
+    public function getOptionFuzzyMinLength(): int
+    {
+        return (int) $this->resolveConfig('option_matching.fuzzy_min_length', 4);
+    }
+
+    /**
      * Get the default locale override.
      */
     public function getDefaultLocale(): ?string

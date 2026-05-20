@@ -228,6 +228,25 @@ class FilamentSolarisPlugin implements Plugin
     }
 
     // ──────────────────────────────────────────────────────────────
+    //  Option matching
+    // ──────────────────────────────────────────────────────────────
+
+    public function optionFuzzyMatching(bool $enabled = true): static
+    {
+        return $this->override('option_matching.fuzzy', $enabled);
+    }
+
+    public function optionFuzzyThreshold(float $ratio): static
+    {
+        return $this->override('option_matching.fuzzy_threshold', $ratio);
+    }
+
+    public function optionFuzzyMinLength(int $length): static
+    {
+        return $this->override('option_matching.fuzzy_min_length', $length);
+    }
+
+    // ──────────────────────────────────────────────────────────────
     //  Locales
     // ──────────────────────────────────────────────────────────────
 

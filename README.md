@@ -405,6 +405,15 @@ AiAction::make('classify')
 
 A package-wide default can be set in the config (`default_timeout`). See [Configuration](documentation/configuration.md).
 
+> [!NOTE]
+> **AI calls run synchronously inside the Livewire request.** The preview modal's "loading" spinner is still a blocking HTTP request — a long generation holds the connection open until it returns. `default_timeout` only caps the outbound AI call; it does **not** extend the request budget around it. To avoid `max_execution_time` / gateway `504`s on slow generations, tune all three layers together:
+>
+> - **PHP** — `max_execution_time` (and `request_terminate_timeout` for php-fpm)
+> - **Web server** — e.g. nginx `fastcgi_read_timeout`, Apache `Timeout`
+> - **Solaris** — `->timeout()` / `default_timeout` (keep it ≤ the two above so the AI call fails with a clean Solaris notification before the server kills the request)
+>
+> Non-blocking streaming and queued/async execution are on the roadmap — see [`missing-features.md`](specs/missing-features.md) #3 (streaming) and #7 (queued execution).
+
 ### Tools
 
 Pass tools to the underlying `laravel/ai` agent for this action. Tools are provider-specific — refer to your provider's laravel/ai documentation for available tool classes.
@@ -662,16 +671,61 @@ The factory map also supports class inheritance — if a factory is registered f
 
 ### Option Matching
 
-`SelectFactory` and `CheckboxListFactory` use a 6-step fuzzy matching chain to resolve AI responses to valid option keys. This tolerates common AI "near-misses":
+`SelectFactory` and `CheckboxListFactory` use a 6-step matching chain to resolve AI responses to valid option keys. This tolerates common AI "near-misses":
 
 1. **Exact key match** — the AI returned the option key directly
 2. **Exact label match** — the AI returned the option label
 3. **Case-insensitive label** — "Technology" matches "technology"
 4. **Substring** — "tech" matches "Technology & Science"
-5. **Levenshtein ≤ 3** — "technolgy" matches "technology"
+5. **Length-relative Levenshtein** — "technolgy" matches "technology"
 6. **Fallback** — return the raw value
 
-When a Select/CheckboxList has more than `max_options` (default: 100) options, the schema switches from a strict enum to free-text with a sample of 10 options and relies on fuzzy matching to resolve the response.
+When a Select/CheckboxList has more than `max_options` (default: 100) options, the schema switches from a strict enum to free-text with a sample of 10 options and relies on this chain to resolve the response.
+
+#### Fuzzy matching is tunable
+
+The fuzzy step (5) can produce a wrong-but-plausible match — the AI says "Reno", the only close option is "Renault". Three things make that controllable:
+
+**Length-relative threshold.** The allowed edit distance scales with the longer string (`fuzzy_threshold`, default `0.25` — "up to a quarter of the characters differ"). Short labels need near-exact matches; long labels tolerate proportionally more typos. Values/labels shorter than `fuzzy_min_length` (default `4`) skip fuzzy entirely, since a one-character edit on a short word usually flips meaning ("cat" → "car").
+
+**Detection event.** Whenever an *inexact* match resolves (substring or fuzzy — the exact steps are safe), Solaris dispatches `Statikbe\FilamentSolaris\Events\SolarisOptionMatched` carrying the field, the AI value, the matched key/label, the strategy, and the Levenshtein distance. Listen for it to detect misclassification in production without enabling verbose prompt logging:
+
+```php
+use Statikbe\FilamentSolaris\Events\SolarisOptionMatched;
+
+class FlagFuzzyOptionMatches
+{
+    public function handle(SolarisOptionMatched $event): void
+    {
+        if ($event->strategy === 'fuzzy' && ($event->distance ?? 0) >= 2) {
+            Log::warning('Solaris fuzzy option match', [
+                'field' => $event->field,
+                'ai_value' => $event->aiValue,
+                'matched' => $event->matchedLabel,
+                'distance' => $event->distance,
+            ]);
+        }
+    }
+}
+```
+
+**Safety knob.** Disable fuzzy entirely for high-stakes fields (billing codes, medical categories) where a wrong match is worse than no match — the value then falls through unmatched (step 6) instead of being silently mis-assigned. Tune per field or globally:
+
+```php
+// Per field, on the action
+AiAction::make('classify')
+    ->targetFuzzyMatching('billing_code', false)   // off for this field
+    ->targetFuzzyThreshold('city', 0.15);          // stricter for this field
+
+// Globally, in config/filament-solaris.php
+'option_matching' => [
+    'fuzzy' => true,
+    'fuzzy_threshold' => 0.25,
+    'fuzzy_min_length' => 4,
+],
+```
+
+Per-panel overrides are available on the plugin: `->optionFuzzyMatching(false)`, `->optionFuzzyThreshold(0.15)`, `->optionFuzzyMinLength(5)`.
 
 ## Presets Reference
 

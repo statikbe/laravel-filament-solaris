@@ -11,6 +11,7 @@ use Laravel\Ai\Responses\Data\Usage;
 use Psr\Log\LoggerInterface;
 use Statikbe\FilamentSolaris\Actions\SolarisAction;
 use Statikbe\FilamentSolaris\Contracts\ComponentFactory;
+use Statikbe\FilamentSolaris\Events\SolarisOptionMatched;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 
 class SolarisPromptLogger
@@ -149,6 +150,35 @@ class SolarisPromptLogger
             'model' => $model,
             'duration_ms' => $durationMs,
             'usage' => $usage->toArray(),
+        ], fn ($value): bool => $value !== null));
+    }
+
+    /**
+     * Log an inexact option match (substring / fuzzy) for dev visibility.
+     *
+     * The prod-grade signal is the {@see SolarisOptionMatched}
+     * event; this is the dev-time complement, gated behind `prompt_logging.enabled`
+     * like the other log methods.
+     */
+    public static function logOptionMatch(
+        ?string $field,
+        string $aiValue,
+        string|int $matchedKey,
+        string $matchedLabel,
+        string $strategy,
+        ?int $distance,
+    ): void {
+        if (! FilamentSolaris::config()->isPromptLoggingEnabled()) {
+            return;
+        }
+
+        static::logger()->debug('Filament Solaris — Option Match', array_filter([
+            'field' => $field,
+            'ai_value' => $aiValue,
+            'matched_key' => $matchedKey,
+            'matched_label' => $matchedLabel,
+            'strategy' => $strategy,
+            'distance' => $distance,
         ], fn ($value): bool => $value !== null));
     }
 

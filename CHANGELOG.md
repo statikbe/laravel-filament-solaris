@@ -12,6 +12,7 @@ Initial public release. Solaris ships as `0.x` while [`laravel/ai`](https://gith
 - **`ImageGenerationAction`** — generates images via the `laravel/ai` Image API and writes them to a `FileUpload` (or `SpatieMediaLibraryFileUpload`) field; supports OpenAI `gpt-image-1`, DALL·E, and any provider laravel/ai exposes.
 - **`DictationFieldAction`** — modal-based audio recording + transcription, attached to any Filament `Field` via `->hintAction(...)` (universal) or `->suffixAction(...)` (TextInput). Auto-resolves the host field as the write-back target. Optional AI post-processing of the transcript via `->preset()` / `->prompt()`. The recording/transcription mechanics live in a `HandlesDictation` trait so future variants (e.g. a `DictationToolbarAction` for `RichEditor` toolbar buttons) can reuse them.
 - **Component factories** — `Select`, `Radio`, `TextInput`, `Textarea`, `CheckboxList`, `Toggle`, `RichEditor`, `FileUpload`, `SpatieMediaLibraryFileUpload`. Custom factories registerable via facade or config.
+- **Tunable option matching** — the Select/CheckboxList resolution chain's fuzzy step now uses a **length-relative** Levenshtein threshold (`option_matching.fuzzy_threshold`, default `0.25`) instead of an absolute `≤ 3`, with a `fuzzy_min_length` (default `4`) floor so short values can't fuzzy-flip ("cat" → "car"). Fuzzy can be disabled globally or per field (`->targetFuzzyMatching($field, false)`, `->targetFuzzyThreshold($field, 0.15)`, plus plugin `->optionFuzzyMatching()/...`). Every inexact match (substring or fuzzy) dispatches `SolarisOptionMatched` (field, ai value, matched key/label, strategy, distance) so apps can detect misclassification in production. **Behavior change:** some matches the old absolute threshold accepted now fall through unmatched — the correct direction, but worth noting if you relied on loose short-string matching. See [Option Matching](README.md#option-matching).
 - **Presets** — `SummaryPreset`, `ClassificationPreset`, `TranslationPreset`, `GenerationPreset` for common prompt patterns.
 - **Prompt builders** — inline strings, Blade views, or custom `PromptBuilder` classes.
 - **Preview modal** — show AI output before applying via `->withPreview()` + `InteractsWithSolarisPreview` trait on the Livewire component.
@@ -27,7 +28,7 @@ Initial public release. Solaris ships as `0.x` while [`laravel/ai`](https://gith
 
 ### Config-file shape
 
-The published `config/filament-solaris.php` groups related keys into nested arrays — `icons`, `locale`, `prompt_logging`, `ai`, `transcription`, `image_generation` — plus standalone `factories`, `max_options`, `default_tone`, `preset_providers`. If you held onto a previous unreleased copy of the config, the dot-notation mapping is:
+The published `config/filament-solaris.php` groups related keys into nested arrays — `icons`, `locale`, `prompt_logging`, `ai`, `transcription`, `image_generation`, `option_matching` — plus standalone `factories`, `max_options`, `default_tone`, `preset_providers`. If you held onto a previous unreleased copy of the config, the dot-notation mapping is:
 
 | Old (flat) | New (nested) |
 |---|---|
