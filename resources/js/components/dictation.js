@@ -12,7 +12,7 @@ export default function dictationModal(statePath) {
         durationInterval: null,
 
         init() {
-            this.supported = !!navigator.mediaDevices?.getUserMedia
+            this.supported = !!globalThis.navigator?.mediaDevices?.getUserMedia
             this.dispatchBusyState()
         },
 
