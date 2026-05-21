@@ -2,17 +2,34 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import dictationModal from './dictation.js'
 
 /**
- * Helper: creates a dictationModal component instance with mocked $wire.
+ * Helper: creates a dictationModal component instance with mocked $wire and a
+ * spy `$dispatch` capturing every solaris-dictation-busy event the recorder
+ * emits. The real Alpine `$dispatch` walks up the DOM tree; the modal-window
+ * listener (set in HandlesDictation::setUpDictationModal) updates the
+ * `solarisDictationBusy` flag the submit button binds against. This helper
+ * lets us assert on the busy payload without needing the DOM.
  */
 function createComponent(statePath = 'componentFileAttachments.dictation_audio') {
     const wire = {
         upload: vi.fn(),
     }
+    const dispatch = vi.fn()
 
     const component = dictationModal(statePath)
     component.$wire = wire
+    component.$dispatch = dispatch
 
-    return { component, wire }
+    return { component, wire, dispatch }
+}
+
+/**
+ * Reads the busy payload from the most recent solaris-dictation-busy dispatch.
+ * Returns undefined if no such event was dispatched.
+ */
+function lastBusyDispatch(dispatchSpy) {
+    const calls = dispatchSpy.mock.calls.filter(([event]) => event === 'solaris-dictation-busy')
+    if (calls.length === 0) return undefined
+    return calls.at(-1)[1].busy
 }
 
 /**
@@ -78,6 +95,25 @@ describe('dictationModal Alpine component', () => {
             component.init()
 
             expect(component.supported).toBe(true)
+        })
+
+        it('dispatches solaris-dictation-busy with busy=false on init', () => {
+            vi.stubGlobal('navigator', { mediaDevices: { getUserMedia: vi.fn() } })
+
+            const { component, dispatch } = createComponent()
+            component.init()
+
+            expect(lastBusyDispatch(dispatch)).toBe(false)
+        })
+
+        it('skips dispatch when $dispatch is unavailable (defensive guard)', () => {
+            vi.stubGlobal('navigator', { mediaDevices: { getUserMedia: vi.fn() } })
+
+            const { component } = createComponent()
+            // Simulate an Alpine scope where $dispatch wasn't bound yet
+            component.$dispatch = undefined
+
+            expect(() => component.init()).not.toThrow()
         })
 
         it('sets supported to false when mediaDevices is undefined', () => {
@@ -393,6 +429,60 @@ describe('dictationModal Alpine component', () => {
                 expect.any(Function),
                 expect.any(Function),
             )
+        })
+    })
+
+    describe('dispatchBusyState (submit-button disable while recording/uploading)', () => {
+        it('dispatches busy=true when recording starts', async () => {
+            const { stream, MockMediaRecorder } = mockMediaRecorder()
+            mockGetUserMedia(stream)
+            vi.stubGlobal('MediaRecorder', MockMediaRecorder)
+
+            const { component, dispatch } = createComponent()
+            component.init()
+            expect(lastBusyDispatch(dispatch)).toBe(false)
+
+            await component.start()
+
+            expect(lastBusyDispatch(dispatch)).toBe(true)
+        })
+
+        it('keeps busy=true after stop() (upload in progress)', () => {
+            const { component, dispatch } = createComponent()
+            component.init()
+            component.mediaRecorder = { stop: vi.fn() }
+            component.recording = true
+
+            component.stop()
+
+            // recording=false, uploading=true → still busy
+            expect(lastBusyDispatch(dispatch)).toBe(true)
+        })
+
+        it('dispatches busy=false when upload succeeds', () => {
+            const { component, dispatch, wire } = createComponent()
+            component.init()
+            component.uploading = true
+            const blob = new Blob(['data'], { type: 'audio/webm' })
+
+            component.upload(blob)
+            const onSuccess = wire.upload.mock.calls[0][2]
+            onSuccess()
+
+            expect(lastBusyDispatch(dispatch)).toBe(false)
+        })
+
+        it('dispatches busy=false when upload fails', () => {
+            const { component, dispatch, wire } = createComponent()
+            component.init()
+            component.uploading = true
+            const blob = new Blob(['data'], { type: 'audio/webm' })
+
+            component.upload(blob)
+            const onError = wire.upload.mock.calls[0][3]
+            onError()
+
+            expect(lastBusyDispatch(dispatch)).toBe(false)
         })
     })
 

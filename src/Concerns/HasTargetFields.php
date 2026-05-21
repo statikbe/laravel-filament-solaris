@@ -23,7 +23,15 @@ trait HasTargetFields
      */
     protected array $targetHints = [];
 
-    protected bool $preview = false;
+    /**
+     * @var array<string, bool>
+     */
+    protected array $targetFuzzyEnabled = [];
+
+    /**
+     * @var array<string, float>
+     */
+    protected array $targetFuzzyThresholds = [];
 
     /**
      * Add a target field. Can be called multiple times.
@@ -78,25 +86,30 @@ trait HasTargetFields
     }
 
     /**
-     * Enable or disable the preview modal.
+     * Enable or disable the Levenshtein fuzzy fallback for a Select/CheckboxList
+     * target field.
+     *
+     * Disable it on high-stakes fields where a wrong-but-plausible match is
+     * worse than leaving the value unmatched — e.g.
+     * `->targetFuzzyMatching('billing_code', false)`.
      */
-    public function withPreview(bool $preview = true): static
+    public function targetFuzzyMatching(string $field, bool $enabled = true): static
     {
-        $this->preview = $preview;
-
-        if ($preview) {
-            $this->modal(true);
-        }
+        $this->targetFuzzyEnabled[$field] = $enabled;
 
         return $this;
     }
 
     /**
-     * Check if the action should show a preview modal.
+     * Override the fuzzy-match threshold (edit distance as a fraction of the
+     * longer string) for a target field — e.g. `->targetFuzzyThreshold('city', 0.15)`
+     * for stricter matching.
      */
-    public function shouldPreview(): bool
+    public function targetFuzzyThreshold(string $field, float $ratio): static
     {
-        return $this->preview;
+        $this->targetFuzzyThresholds[$field] = $ratio;
+
+        return $this;
     }
 
     /**
@@ -120,6 +133,18 @@ trait HasTargetFields
         foreach ($this->targetHints as $field => $hint) {
             if (isset($factories[$field])) {
                 $factories[$field]->hint($hint);
+            }
+        }
+
+        foreach ($this->targetFuzzyEnabled as $field => $enabled) {
+            if (isset($factories[$field]) && method_exists($factories[$field], 'fuzzyMatching')) {
+                $factories[$field]->fuzzyMatching($enabled);
+            }
+        }
+
+        foreach ($this->targetFuzzyThresholds as $field => $ratio) {
+            if (isset($factories[$field]) && method_exists($factories[$field], 'fuzzyThreshold')) {
+                $factories[$field]->fuzzyThreshold($ratio);
             }
         }
 

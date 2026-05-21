@@ -17,6 +17,19 @@ it('includes target language in prompt', function () {
     expect($prompt)->toContain('French');
 });
 
+it('resolves a locale code to a language name in the prompt', function () {
+    $preset = TranslationPreset::make()->language('fr');
+    $factory = TextFactory::make(Textarea::make('body'));
+
+    $prompt = $preset->build(
+        instruction: '',
+        sourceData: ['body' => 'Hello world'],
+        factories: ['body' => $factory],
+    );
+
+    expect($prompt)->toContain('into French.');
+});
+
 it('throws when language is not set', function () {
     $preset = TranslationPreset::make();
     $factory = TextFactory::make(Textarea::make('body'));

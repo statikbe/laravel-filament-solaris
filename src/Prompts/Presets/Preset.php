@@ -5,6 +5,7 @@ namespace Statikbe\FilamentSolaris\Prompts\Presets;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Model;
 use Laravel\Ai\Enums\Lab;
+use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\Prompts\AbstractPromptBuilder;
 use Statikbe\FilamentSolaris\Support\UserInput;
 
@@ -133,6 +134,24 @@ abstract class Preset extends AbstractPromptBuilder
     public function defaultUserInput(): ?UserInput
     {
         return null;
+    }
+
+    /**
+     * Resolve a configured output language to a human-readable name for the
+     * prompt instruction.
+     *
+     * Accepts a locale code (`fr`, `nl`) — resolved to its English display
+     * name (`French`, `Dutch`) so the instruction reads naturally — or a name
+     * already in display form, which passes through unchanged. Mirrors the
+     * `locale` → `localeName` resolution applied to the action locale.
+     */
+    protected function resolveLanguageName(?string $language): ?string
+    {
+        if ($language === null) {
+            return null;
+        }
+
+        return FilamentSolaris::config()->resolveLocaleName($language, 'en');
     }
 
     /**

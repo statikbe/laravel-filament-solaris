@@ -1,6 +1,6 @@
 <?php
 
-use Statikbe\FilamentSolaris\FilamentSolaris;
+use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\FilamentSolarisConfig;
 
 beforeEach(function () {
@@ -12,7 +12,7 @@ afterEach(function () {
 });
 
 it('falls back to app locale when no locales are configured', function () {
-    config()->set('filament-solaris.supported_locales', null);
+    config()->set('filament-solaris.locale.supported', null);
     config()->set('app.supported_locales', null);
     config()->set('app.locale', 'de');
 
@@ -22,7 +22,7 @@ it('falls back to app locale when no locales are configured', function () {
 });
 
 it('reads locales from app.supported_locales as fallback', function () {
-    config()->set('filament-solaris.supported_locales', null);
+    config()->set('filament-solaris.locale.supported', null);
     config()->set('app.supported_locales', ['en', 'fr']);
 
     $config = app(FilamentSolarisConfig::class);
@@ -31,7 +31,7 @@ it('reads locales from app.supported_locales as fallback', function () {
 });
 
 it('reads locales from package config', function () {
-    config()->set('filament-solaris.supported_locales', ['nl', 'de']);
+    config()->set('filament-solaris.locale.supported', ['nl', 'de']);
     config()->set('app.supported_locales', ['en', 'fr']);
 
     $config = app(FilamentSolarisConfig::class);
@@ -40,7 +40,7 @@ it('reads locales from package config', function () {
 });
 
 it('prefers runtime locales over config', function () {
-    config()->set('filament-solaris.supported_locales', ['nl', 'de']);
+    config()->set('filament-solaris.locale.supported', ['nl', 'de']);
 
     FilamentSolaris::setLocales(['ja', 'ko']);
 
@@ -50,7 +50,7 @@ it('prefers runtime locales over config', function () {
 });
 
 it('extracts locale codes from key-value config array', function () {
-    config()->set('filament-solaris.supported_locales', [
+    config()->set('filament-solaris.locale.supported', [
         'en' => 'English',
         'nl' => 'Dutch',
     ]);
@@ -72,7 +72,7 @@ it('extracts locale codes from key-value runtime array', function () {
 });
 
 it('returns key-value pairs as locale options from key-value config', function () {
-    config()->set('filament-solaris.supported_locales', [
+    config()->set('filament-solaris.locale.supported', [
         'en' => 'English',
         'nl' => 'Dutch',
     ]);
@@ -86,7 +86,7 @@ it('returns key-value pairs as locale options from key-value config', function (
 });
 
 it('resolves display names from translation file for flat array', function () {
-    config()->set('filament-solaris.supported_locales', ['en', 'nl']);
+    config()->set('filament-solaris.locale.supported', ['en', 'nl']);
 
     $config = app(FilamentSolarisConfig::class);
     $options = $config->getSupportedLocaleOptions();
@@ -96,7 +96,7 @@ it('resolves display names from translation file for flat array', function () {
 });
 
 it('resolves display name via intl for untranslated locale', function () {
-    config()->set('filament-solaris.supported_locales', ['uk']);
+    config()->set('filament-solaris.locale.supported', ['uk']);
 
     $config = app(FilamentSolarisConfig::class);
     $name = $config->resolveLocaleName('uk', 'en');
@@ -106,7 +106,7 @@ it('resolves display name via intl for untranslated locale', function () {
 });
 
 it('falls back to locale code when intl cannot resolve', function () {
-    config()->set('filament-solaris.supported_locales', ['xx']);
+    config()->set('filament-solaris.locale.supported', ['xx']);
 
     $config = app(FilamentSolarisConfig::class);
     $name = $config->resolveLocaleName('xx', 'en');

@@ -8,10 +8,10 @@ use Statikbe\FilamentSolaris\Tests\Fixtures\ProviderFormComponent;
 
 beforeEach(function () {
     AiActionFake::reset();
-    config()->set('filament-solaris.default_temperature', null);
-    config()->set('filament-solaris.default_max_tokens', null);
-    config()->set('filament-solaris.default_max_steps', null);
-    config()->set('filament-solaris.default_top_p', null);
+    config()->set('filament-solaris.ai.default_temperature', null);
+    config()->set('filament-solaris.ai.default_max_tokens', null);
+    config()->set('filament-solaris.ai.default_max_steps', null);
+    config()->set('filament-solaris.ai.default_top_p', null);
     config()->set('filament-solaris.preset_providers', []);
 });
 
@@ -98,10 +98,10 @@ it('records preset_providers config options', function () {
 });
 
 it('records config defaults when nothing else set', function () {
-    config()->set('filament-solaris.default_temperature', 0.42);
-    config()->set('filament-solaris.default_max_tokens', 1234);
-    config()->set('filament-solaris.default_max_steps', 7);
-    config()->set('filament-solaris.default_top_p', 0.85);
+    config()->set('filament-solaris.ai.default_temperature', 0.42);
+    config()->set('filament-solaris.ai.default_max_tokens', 1234);
+    config()->set('filament-solaris.ai.default_max_steps', 7);
+    config()->set('filament-solaris.ai.default_top_p', 0.85);
 
     AiAction::fake(['summary' => 'Test']);
 
@@ -118,7 +118,7 @@ it('records config defaults when nothing else set', function () {
 });
 
 it('preset overrides config default', function () {
-    config()->set('filament-solaris.default_temperature', 0.1);
+    config()->set('filament-solaris.ai.default_temperature', 0.1);
 
     AiAction::fake(['summary' => 'Test']);
 
@@ -132,7 +132,7 @@ it('preset overrides config default', function () {
 });
 
 it('preset_providers config overrides config default but loses to preset method', function () {
-    config()->set('filament-solaris.default_temperature', 0.1);
+    config()->set('filament-solaris.ai.default_temperature', 0.1);
     config()->set('filament-solaris.preset_providers', [
         SummaryPreset::class => ['temperature' => 0.2],
     ]);
@@ -150,7 +150,7 @@ it('preset_providers config overrides config default but loses to preset method'
 });
 
 it('preset_providers config wins over config default', function () {
-    config()->set('filament-solaris.default_temperature', 0.1);
+    config()->set('filament-solaris.ai.default_temperature', 0.1);
     config()->set('filament-solaris.preset_providers', [
         SummaryPreset::class => ['temperature' => 0.2],
     ]);

@@ -7,9 +7,19 @@
 [![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/statikbe/laravel-filament-solaris/fix-php-code-style-issues.yml?branch=main&label=code%20style&style=flat-square)](https://github.com/statikbe/laravel-filament-solaris/actions?query=workflow%3A"Fix+PHP+code+style+issues"+branch%3Amain)
 [![Total Downloads](https://img.shields.io/packagist/dt/statikbe/laravel-filament-solaris.svg?style=flat-square)](https://packagist.org/packages/statikbe/laravel-filament-solaris)
 
-AI actions for Filament v4 & v5 — auto-detect form fields, compose prompts, write structured AI responses back, generate images, and transcribe audio. Powered by [laravel/ai](https://github.com/laravel/ai).
+AI actions for Filament v4 & v5 — drop a button on any form to summarize, classify, translate, generate, transcribe, or create images, with the result written straight back into your fields. Powered by [laravel/ai](https://github.com/laravel/ai).
 
-> “There are no answers, only choices.” ― Stanislav Lem, Solaris
+> “There are no answers, only choices.” ― Stanisław Lem, Solaris
+
+## What you get
+
+- **`AiAction`** — read source fields, send them to an AI provider, write a structured response back into one or more target fields. Filament component types are auto-detected (Select, Toggle, RichEditor, …) and the AI is constrained to a matching JSON schema, so a `Select` only ever gets a valid option.
+- **`ImageGenerationAction`** — generate (or edit/reskin) images and store them straight into a `FileUpload` / Spatie media field.
+- **`DictationFieldAction`** — record audio, transcribe it, and drop the text into a field — optionally piped through the AI pipeline first.
+- **Presets** for the common jobs (summary, classification, translation, generation) and a prompt API (inline string, Blade view, or custom builder) for everything else.
+- **Extra input modal and attachments** to add extra user input to the prompt.
+- **Preview & conversational refinement** — let users review and chat-refine the result before it touches the form.
+- **Production-minded** — per-action/preset/panel provider config, usage-tracking events, rate-limit handling, a security model for AI output, and full test fakes.
 
 ## Table of Contents
 
@@ -17,48 +27,11 @@ AI actions for Filament v4 & v5 — auto-detect form fields, compose prompts, wr
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
-- [Architecture](#architecture)
-- [AiAction API](#aiaction-api)
-  - [Source Fields](#source-fields)
-  - [Target Fields](#target-fields)
-  - [Prompts](#prompts)
-  - [Presets](#presets)
-  - [User Input](#user-input)
-  - [Locale](#locale)
-  - [Provider & Model](#provider--model)
-  - [Timeout](#timeout)
-  - [Tools](#tools)
-  - [Generation Options](#generation-options)
-  - [Attachments](#attachments)
-  - [Preview](#preview)
-- [Component Factories](#component-factories)
-  - [Supported Components](#supported-components)
-  - [Custom Factories](#custom-factories)
-  - [Option Matching](#option-matching)
-- [Presets Reference](#presets-reference)
-  - [SummaryPreset](#summarypreset)
-  - [ClassificationPreset](#classificationpreset)
-  - [TranslationPreset](#translationpreset)
-  - [GenerationPreset](#generationpreset)
-  - [Custom Presets](#custom-presets)
-- [Prompt Builders](#prompt-builders)
-  - [Inline Prompts](#inline-prompts)
-  - [View Prompts](#view-prompts)
-  - [Custom Prompt Builders](#custom-prompt-builders)
-- [ImageGenerationAction](#imagegenerationaction)
-  - [Basic Usage](#basic-usage-1)
-  - [Size & Quality](#size--quality)
-  - [Provider & Model](#provider--model-1)
-  - [Storage](#storage)
-  - [Reference Images](#reference-images)
-  - [Testing ImageGenerationAction](#testing-imagegenerationaction)
-- [DictationAction](#dictationaction)
-  - [Pure Transcription](#pure-transcription)
-  - [Transcription + AI Processing](#transcription--ai-processing)
-  - [Transcription Provider](#transcription-provider)
-- [Testing](#testing)
-- [Configuration](#configuration)
-- [Changelog](#changelog)
+- [Recipes](#recipes)
+- [Core Concepts](#core-concepts)
+- [Security](#security)
+- [Documentation](#documentation)
+- [Versioning](#versioning)
 - [License](#license)
 
 ## How It Works
@@ -67,14 +40,36 @@ AI actions for Filament v4 & v5 — auto-detect form fields, compose prompts, wr
 
 ```mermaid
 flowchart LR
-    A[Source Fields] -->|read values| B[AiAction]
-    G[UserInput] -->|modal form data| B
-    P[Prompt] -->|extra prompt| B
-    B -->|compose prompt| C[PromptBuilder]
-    C -->|structured request| D[SolarisAgent]
-    D -->|JSON response| E[ComponentFactory]
-    E -->|transform & write| F[Target Fields]
+      A([Source Fields]) -->|read form values| B[AiAction]
+      G([UserInput]) -->|extra modal form| B
+      P([Prompt]) -->|extra prompt| B
+      N([Config]) -->|provider, model, options| B
+      T([Attachments]) -->|extra files| B
+
+      B -->|compose prompt| C[PromptBuilder]
+      C -->|structured request| D[SolarisAgent]
+      D -->|prompt + JSON schema| AI([AI Provider])
+      AI -->|JSON response| E[ComponentFactory]
+      E -->|transform & write| F([Target Fields])
+
+      E -.->|withPreview| R[Preview]
+      R -->|accept| F
+      subgraph Conversational refinement
+          R -->|chat| O[Conversation]
+          CT([Attachments]) -->|extra files| O
+          CP([Prompt]) -->|extra prompt| O
+          O -->|refine| AI
+      end
 ```
+
+For the full execution-pipeline and class-hierarchy diagrams, see [Architecture](documentation/architecture.md).
+
+## Requirements
+
+- PHP `^8.3`
+- Filament `^4.2 || ^5.0`
+- [`laravel/ai`](https://github.com/laravel/ai) `^0.6` (configure at least one provider there first)
+- Laravel `^12.0 || ^13.0`
 
 ## Installation
 
@@ -95,23 +90,54 @@ php artisan vendor:publish --tag="filament-solaris-views"
 php artisan vendor:publish --tag="filament-solaris-translations"
 ```
 
+### Tailwind CSS (required)
+
+Solaris ships Blade views (preview modal, conversational refinement modal, dictation modal, loading state, etc.) that use Tailwind utility classes. Without telling Tailwind to scan the package's views, those classes are purged and the modals render unstyled.
+
+Add a `@source` directive to your [Filament theme CSS](https://filamentphp.com/docs/4.x/styling/overview):
+
+```css
+/* resources/css/filament/admin/theme.css */
+@source "../../vendor/statikbe/laravel-filament-solaris/resources/views";
+```
+
+Then rebuild your Filament theme (`npm run build` or `php artisan filament:assets`). This is required for every consumer — not optional and not specific to any single action.
+
 ## Quick Start
 
-Add an `AiAction` to a Filament form. This example reads `title` and `body`, then writes a summary into the `summary` field:
+The smallest useful `AiAction` reads one field, asks the AI to rewrite it, and writes the result straight back into the *same* field — a one-click "improve writing" button, no preset, no second field:
 
 ```php
 use Statikbe\FilamentSolaris\Actions\AiAction;
-use Statikbe\FilamentSolaris\Prompts\Presets\SummaryPreset;
 
 Forms\Components\Actions::make([
-    AiAction::make('summarize')
-        ->sourceFields(['title', 'body'])
-        ->targetField('summary')
-        ->preset(SummaryPreset::make()->maxWords(100)),
+    AiAction::make('improve-writing')
+        ->sourceFields(['description'])
+        ->targetField('description')
+        ->prompt('Rewrite this text: fix grammar and spelling, tighten the phrasing, keep the meaning and tone.'),
 ]),
 ```
 
-Classify content into a Select field:
+That's the whole loop: choose what to read, what to write, and how to instruct the AI. Here it's a one-line `->prompt()`; for the common jobs, [presets](#recipes) like `SummaryPreset`, `ClassificationPreset`, and `TranslationPreset` collapse the instruction into a tuned one-liner — and the AI is constrained to a schema that matches the target component, so a `Select` only ever receives a valid option. The next section has a recipe for each.
+
+## Recipes
+
+Self-contained snippets for the things you'll actually want to do. Each links to the full reference under [Documentation](#documentation).
+
+### Summarize or rewrite text
+
+```php
+use Statikbe\FilamentSolaris\Prompts\Presets\SummaryPreset;
+
+AiAction::make('summarize')
+    ->sourceFields(['title', 'body'])
+    ->targetField('summary')
+    ->preset(SummaryPreset::make()->maxWords(100)->tone('professional'));
+```
+
+### Classify into a Select
+
+The factory constrains the AI to the Select's actual options, so it can only return a valid key — even for relationship-backed selects.
 
 ```php
 use Statikbe\FilamentSolaris\Prompts\Presets\ClassificationPreset;
@@ -119,178 +145,48 @@ use Statikbe\FilamentSolaris\Prompts\Presets\ClassificationPreset;
 AiAction::make('classify')
     ->sourceFields(['title', 'body'])
     ->targetField('category_id')
-    ->preset(ClassificationPreset::make()->context('tech blog'))
-```
-
-Use a plain prompt string:
-
-```php
-AiAction::make('generate-slug')
-    ->sourceFields(['title'])
-    ->targetField('slug')
-    ->prompt('Generate a URL-friendly slug from the title. Lowercase, hyphens only, no special characters.')
-```
-
-## Architecture
-
-### Execution Pipeline
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant AiAction
-    participant PromptBuilder
-    participant SolarisAgent
-    participant AI as laravel/ai Provider
-    participant Factory as ComponentFactory
-
-    User->>AiAction: clicks action button
-    Note over AiAction: if UserInput configured
-    AiAction->>User: show modal form
-    User->>AiAction: submit user input
-
-    AiAction->>AiAction: validate config
-    AiAction->>AiAction: collect source field values
-    AiAction->>AiAction: resolve target factories
-
-    AiAction->>PromptBuilder: build(instruction, sourceData, factories, record, locale, userInput)
-    PromptBuilder-->>AiAction: composed prompt string
-
-    AiAction->>SolarisAgent: configure(prompt, factories)
-    SolarisAgent->>AI: prompt() with JSON schema
-    AI-->>SolarisAgent: structured JSON response
-
-    loop for each target field
-        AiAction->>Factory: toFormValue(aiValue)
-        Factory-->>AiAction: transformed value
-        AiAction->>AiAction: $set(field, value)
-    end
-
-    AiAction->>User: success/partial/error notification
-```
-
-### Component Hierarchy
-
-```mermaid
-classDiagram
-    class ComponentFactory {
-        <<interface>>
-        +responseSchema(JsonSchema): Type
-        +toFormValue(mixed): mixed
-        +toPromptContext(mixed): mixed
-    }
-
-    class AbstractComponentFactory {
-        <<abstract>>
-        #component: Component
-        #scope: Closure|null
-        +make(Component, Closure|null): static
-    }
-
-    ComponentFactory <|.. AbstractComponentFactory
-    AbstractComponentFactory <|-- SelectFactory
-    AbstractComponentFactory <|-- TextFactory
-    AbstractComponentFactory <|-- BooleanFactory
-    AbstractComponentFactory <|-- CheckboxListFactory
-    AbstractComponentFactory <|-- RichEditorFactory
-    AbstractComponentFactory <|-- FileUploadFactory
-    SelectFactory <|-- RadioFactory
-
-    class PromptBuilder {
-        <<interface>>
-        +build(): string
-        +defaultUserInput(): UserInput|null
-    }
-
-    class AbstractPromptBuilder {
-        <<abstract>>
-        #buildViewData(): array
-        #resolveLocaleName(): string
-    }
-
-    PromptBuilder <|.. AbstractPromptBuilder
-    AbstractPromptBuilder <|-- InlinePromptBuilder
-    AbstractPromptBuilder <|-- ViewPromptBuilder
-    AbstractPromptBuilder <|-- Preset
-
-    Preset <|-- SummaryPreset
-    Preset <|-- ClassificationPreset
-    Preset <|-- TranslationPreset
-    Preset <|-- GenerationPreset
-```
-
-## AiAction API
-
-`AiAction` extends Filament's `Action` class and adds three concerns via traits: `HasSourceFields`, `HasTargetFields`, and `HasUserInput`.
-
-### Source Fields
-
-Source fields are the form fields whose values are read and sent to the AI as context.
-
-```php
-AiAction::make('summarize')
-    ->sourceFields(['title', 'body', 'author'])
-```
-
-Use `sourceScope()` to transform a source value before it reaches the prompt. This is useful for truncating long content or formatting values:
-
-```php
-AiAction::make('summarize')
-    ->sourceFields(['title', 'body'])
-    ->sourceScope('body', fn (string $value) => str($value)->limit(3000)->toString())
-```
-
-### Target Fields
-
-Target fields are the form fields that receive the AI response. The package auto-detects the Filament component type for each target field and instantiates the appropriate `ComponentFactory`.
-
-```php
-// Single target
-AiAction::make('classify')
-    ->targetField('category_id')
-
-// Multiple targets
-AiAction::make('fill')
-    ->targetFields(['summary', 'category_id', 'is_featured'])
-```
-
-Use `targetScope()` to constrain relationship-based options (e.g., filter a Select's relationship query):
-
-```php
-AiAction::make('classify')
-    ->targetField('category_id')
     ->targetScope('category_id', fn ($query) => $query->where('active', true))
+    ->preset(ClassificationPreset::make()->context('tech blog'));
 ```
 
-### Prompts
+For Selects with hundreds of options the schema becomes free-text and the answer is matched back to a key — tunable, with a misclassification event. See [Option Matching](documentation/factories.md#option-matching).
 
-There are three ways to provide a prompt:
-
-**Inline string** — wrapped in the base prompt template with source data and JSON schema automatically appended:
+### Translate a field
 
 ```php
-->prompt('Classify the content into the most appropriate category.')
+use Statikbe\FilamentSolaris\Prompts\Presets\TranslationPreset;
+
+AiAction::make('translate')
+    ->sourceFields(['body'])
+    ->targetField('body_nl')
+    ->preset(TranslationPreset::make()->language('nl')->preserveFormatting());
 ```
 
-**Blade view** — full control over the prompt template. Receives all standard variables (`$sourceData`, `$factories`, `$responseSchema`, `$record`, `$locale`, `$localeName`, `$userInput`):
+### Fill several fields at once
+
+One call writes a summary, picks a category, and extracts a set of tags — three different field types from a single response:
 
 ```php
-->prompt(view('prompts.my-custom-prompt'))
+AiAction::make('auto-fill')
+    ->sourceFields(['title', 'body'])
+    ->targetFields(['summary', 'category_id', 'tags'])
+    ->prompt('Analyze the article. Summarize it, pick the best category, and suggest a few relevant tags.');
 ```
 
-**Preset** — a pre-built prompt builder for common tasks:
+### Use a plain prompt (no preset)
+
+For one-off jobs that don't warrant a preset, write the instruction inline — here, turning an article into a ready-to-post social blurb:
 
 ```php
-->preset(SummaryPreset::make()->maxWords(150)->tone('professional'))
+AiAction::make('social-post')
+    ->sourceFields(['title', 'body'])
+    ->targetField('social_post')
+    ->prompt('Write a short, upbeat social media post promoting this article. Max 280 characters, add 2-3 relevant hashtags.');
 ```
 
-### Presets
+### Ask the user for guidance first
 
-Presets are reusable prompt builders for common AI tasks. Each preset renders its own Blade template with configurable parameters. See [Presets Reference](#presets-reference) for the full API.
-
-### User Input
-
-User input opens a modal before the AI executes, allowing the end user to provide additional instructions or make selections. The user's input is included in the prompt.
+Open a modal before the AI runs and feed the answer into the prompt:
 
 ```php
 use Statikbe\FilamentSolaris\Support\UserInput;
@@ -303,731 +199,152 @@ AiAction::make('generate')
         UserInput::make()
             ->prompt('What should the AI write about?')
             ->placeholder('Describe the content you want...')
-    )
+    );
 ```
 
-`UserInput` defaults to a single textarea with the name `user_instructions`. For custom form fields:
+Presets that ship their own default modal (e.g. `TranslationPreset`'s language picker) just need `->withDefaultUserInput()`. See [User Input](documentation/ai-action.md#user-input).
 
-```php
-->userInput(
-    UserInput::make()->fields([
-        Select::make('tone')
-            ->options(['formal' => 'Formal', 'casual' => 'Casual'])
-            ->required(),
-        TextInput::make('keywords')
-            ->placeholder('comma-separated keywords'),
-    ])
-)
-```
-
-Some presets define their own default user input (e.g., `GenerationPreset` adds a "What should the AI write?" textarea, `TranslationPreset` adds a language selector). Use `withDefaultUserInput()` to enable it:
-
-```php
-AiAction::make('translate')
-    ->sourceFields(['body'])
-    ->targetField('body_nl')
-    ->preset(TranslationPreset::make()->language('nl'))
-    ->withDefaultUserInput()
-```
-
-### Locale
-
-By default the application locale (`app()->getLocale()`) is used as a hint in the prompt. Override per-action:
-
-```php
-->locale('nl')
-```
-
-### Provider & Model
-
-Override which AI provider and model are used per-action. When not set, the package falls through a resolution chain: action → preset → config `preset_providers` → config `default_provider` → `laravel/ai` default. See [Configuration](documentation/configuration.md) for details.
-
-```php
-// Single provider + model
-AiAction::make('summarize')
-    ->provider('anthropic', 'claude-sonnet-4-5-20250514')
-
-// Failover array — tries providers in order on failure
-AiAction::make('summarize')
-    ->provider(['openai' => 'gpt-4o', 'anthropic'])
-
-// Closure (Filament convention)
-AiAction::make('classify')
-    ->provider(fn () => config('my-app.ai_provider'))
-
-// On a preset
-->preset(SummaryPreset::make()->provider('openai', 'gpt-4o-mini'))
-```
-
-### Timeout
-
-Set the HTTP timeout in seconds for the AI call. Defaults to the `laravel/ai` default (60s) when not configured.
-
-```php
-AiAction::make('summarize')
-    ->timeout(120)  // 2 minutes for long content
-
-AiAction::make('classify')
-    ->timeout(30)   // quick classification
-```
-
-A package-wide default can be set in the config (`default_timeout`). See [Configuration](documentation/configuration.md).
-
-### Tools
-
-Pass tools to the underlying `laravel/ai` agent for this action. Tools are provider-specific — refer to your provider's laravel/ai documentation for available tool classes.
-
-```php
-use OpenAI\Laravel\Facades\OpenAI;
-
-AiAction::make('research')
-    ->sourceFields(['query'])
-    ->targetField('result')
-    ->tools([new WebSearchTool()])
-
-// Closure form
-AiAction::make('research')
-    ->tools(fn () => auth()->user()->can('web-search') ? [new WebSearchTool()] : [])
-```
-
-### Generation Options
-
-Tune the underlying text generation. All four options are optional — when not set, `laravel/ai` falls back to the agent's PHP attributes (`#[Temperature]`, `#[MaxTokens]`, `#[MaxSteps]`, `#[TopP]`) and then to the provider's own defaults.
-
-```php
-AiAction::make('summarize')
-    ->temperature(0.7)   // sampling temperature (float)
-    ->maxTokens(2048)    // hard cap on output tokens
-    ->maxSteps(5)        // max tool-call steps in an agent loop
-    ->topP(0.95)         // nucleus sampling
-```
-
-Setters accept `Closure` for runtime values (user preferences, feature flags, per-record tuning):
-
-```php
-AiAction::make('summarize')
-    ->temperature(fn () => auth()->user()->ai_creativity)
-    ->maxTokens(fn () => $this->record->is_premium ? 4096 : 1024)
-```
-
-On a preset:
-
-```php
-->preset(SummaryPreset::make()->temperature(0.3)->maxTokens(512))
-```
-
-Resolution chain per option (highest wins): action → preset → config `preset_providers[class]` → config `default_*` → `laravel/ai` default. See [Configuration](documentation/configuration.md) for the package-wide `default_temperature` / `default_max_tokens` / `default_max_steps` / `default_top_p` keys.
-
-### Closure Support
-
-Most setters accept a `Closure` alongside their static type, following Filament's own pattern. The closure is resolved at execution time via Laravel's `value()` helper, enabling dynamic configuration based on the current record or application state:
-
-```php
-AiAction::make('translate')
-    ->sourceFields(fn () => ['title', "body_{$sourceLocale}"])
-    ->targetFields(fn () => ["body_{$targetLocale}"])
-    ->locale(fn () => auth()->user()->locale)
-    ->preset(
-        TranslationPreset::make()
-            ->language(fn () => $this->record->target_language)
-    )
-```
-
-Closures are supported on: `sourceFields()`, `targetFields()`, `locale()`, `provider()`, `timeout()`, `tools()`, `temperature()`, `maxTokens()`, `maxSteps()`, `topP()`, `userInput()`, `attachmentField()`, `attachmentFromUserInput()`, `attachments()`, and all preset setters (e.g., `maxWords()`, `tone()`, `language()`, `style()`, etc.). Static values continue to work unchanged.
-
-### Attachments
-
-Send files to the underlying `laravel/ai` agent alongside the prompt — images for vision-capable models, PDFs/text for document understanding, audio for multimodal voice models. Three explicit channels feed into the same attachment slot, all of which accumulate:
-
-```php
-use Laravel\Ai\Files\Image;
-use Laravel\Ai\Files\Audio;
-use Laravel\Ai\Files\Document;
-
-AiAction::make('analyse')
-    ->sourceFields(['title'])
-    ->targetField('analysis')
-    ->prompt('Analyse this content.')
-
-    // Channel 1: a FileUpload field on the parent form
-    ->attachmentField('reference_image')
-
-    // Channel 2: a FileUpload inside the UserInput modal
-    ->userInput(UserInput::make()->fields([
-        FileUpload::make('extra_doc'),
-    ]))
-    ->attachmentFromUserInput('extra_doc')
-
-    // Channel 3: hardcoded / programmatic — pass anything reasonable
-    ->attachments(Image::fromUrl('https://example.com/logo.png'))   // single Files\File
-    ->attachments(Audio::fromPath('intro.mp3'))                       // any Files\* type
-    ->attachments($request->file('upload'))                           // Laravel UploadedFile, auto-converted
-    ->attachments([Image::fromUrl('...'), $request->file('extra')])  // mixed array
-    ->attachments(fn ($livewire) => Image::fromStorage(               // Closure (Filament-style)
-        $livewire->record->logo_path, 'public',
-    ))
-```
-
-Type detection is automatic: MIME-sniffed first, extension fallback. Image MIMEs / extensions (jpg, png, webp, heic, …) become `Files\Image`; audio MIMEs / extensions (mp3, wav, m4a, …) become `Files\Audio`; everything else becomes `Files\Document` (PDFs, text, anything unknown).
-
-`attachmentField()` and `attachmentFromUserInput()` accept a single field name, an array, or a Closure resolving to either. `attachments()` accepts a single `Files\File`, a single `UploadedFile` (auto-converted via the same MIME detection), an array mixing both, or a Closure returning any of the above — multiple `attachments()` calls accumulate. Multiple uploads via Filament's `->multiple()` modifier flow through unchanged. Persisted paths fall back to the action's resolved storage disk (image-gen reuses `->disk()`).
-
-Provider behaviour for attachments is delegated entirely to `laravel/ai` — providers that don't accept the file type silently drop it.
-
-**Spatie media-library**: when `filament/spatie-laravel-media-library-plugin` is installed, `SpatieMediaLibraryFileUpload` fields are auto-detected — `->attachmentField('reference_image')` resolves both fresh uploads and existing media records (looked up by UUID through the package's own `Media` model) without any extra wiring.
-
-### Preview
-
-Enable a preview modal that shows the AI result before applying it to the form:
-
-```php
-->withPreview()
-```
-
-## Component Factories
-
-Factories are the bridge between Filament components and AI. Each factory implements three methods:
-
-| Method | Purpose |
-|---|---|
-| `responseSchema(JsonSchema $schema): Type` | Returns the JSON schema fragment for this field, constraining the AI's output format |
-| `toFormValue(mixed $aiValue): mixed` | Transforms the AI's raw JSON response into valid Filament form state |
-| `toFormValueFromFile(string $content, string $mimeType): mixed` | Transforms generated file content (e.g. from `ImageGenerationAction`) into valid form state |
-| `toPromptContext(mixed $formValue): mixed` | Transforms the current form state into a human-readable string for the prompt |
-
-### Supported Components
-
-| Filament Component | Factory | AI Schema | Notes |
-|---|---|---|---|
-| `Select` | `SelectFactory` | `string` enum or free-text | Enum mode for ≤100 options, free-text with fuzzy matching for >100 |
-| `Radio` | `RadioFactory` | `string` enum or free-text | Extends `SelectFactory` |
-| `ToggleButtons` | `SelectFactory` | `string` enum or free-text | Same as Select, supports `multiple()` |
-| `CheckboxList` | `CheckboxListFactory` | `array` of `string` | Multi-select, same matching as Select |
-| `TextInput` | `TextFactory` | `string` | Respects `maxLength` if set on the component |
-| `Textarea` | `TextFactory` | `string` | Same as TextInput |
-| `MarkdownEditor` | `MarkdownFactory` | `string` (Markdown) | AI prompted to output Markdown syntax |
-| `RichEditor` | `RichEditorFactory` | `string` (HTML) | AI returns HTML, factory converts to TipTap JSON for form state |
-| `CodeEditor` | `TextFactory` | `string` | Plain text |
-| `Toggle` | `BooleanFactory` | `boolean` | Handles string/int coercion ("true", "yes", 1 → true) |
-| `Checkbox` | `BooleanFactory` | `boolean` | Same as Toggle |
-| `TagsInput` | `TagsFactory` | `array` of `string` | Includes suggestions in schema, handles comma-separated strings |
-| `FileUpload` | `FileUploadFactory` | — | Supports `toFormValueFromFile()` for image generation output |
-| `SpatieMediaLibraryFileUpload` | `FileUploadFactory` | — | Same as FileUpload — creates Livewire temp upload, Spatie handles Media record on save |
-
-### Custom Factories
-
-Register a factory for a custom or unsupported component:
-
-```php
-use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
-
-// In a service provider
-FilamentSolaris::registerFactory(MyComponent::class, MyComponentFactory::class);
-```
-
-Or add it to the `factories` array in `config/filament-solaris.php`:
-
-```php
-'factories' => [
-    // ...defaults...
-    \App\Filament\Components\ColorPicker::class => \App\Factories\ColorFactory::class,
-],
-```
-
-Implement the factory by extending the abstract base class:
-
-```php
-use Illuminate\JsonSchema\JsonSchemaTypeFactory;
-use Illuminate\JsonSchema\Types\Type;
-use Statikbe\FilamentSolaris\Factories\ComponentFactory;
-
-class ColorFactory extends ComponentFactory
-{
-    public function responseSchema(JsonSchemaTypeFactory $schema): Type
-    {
-        return $schema->string()
-            ->description('A hex color code, e.g. #ff5733')
-            ->required();
-    }
-
-    public function toFormValue(mixed $aiValue): mixed
-    {
-        // Ensure the value starts with #
-        return str_starts_with($aiValue, '#') ? $aiValue : "#{$aiValue}";
-    }
-
-    public function toPromptContext(mixed $formValue): mixed
-    {
-        return $formValue ?? 'No color selected';
-    }
-}
-```
-
-The factory map also supports class inheritance — if a factory is registered for a parent class, subclasses will match it automatically.
-
-### Option Matching
-
-`SelectFactory` and `CheckboxListFactory` use a 6-step fuzzy matching chain to resolve AI responses to valid option keys. This tolerates common AI "near-misses":
-
-1. **Exact key match** — the AI returned the option key directly
-2. **Exact label match** — the AI returned the option label
-3. **Case-insensitive label** — "Technology" matches "technology"
-4. **Substring** — "tech" matches "Technology & Science"
-5. **Levenshtein ≤ 3** — "technolgy" matches "technology"
-6. **Fallback** — return the raw value
-
-When a Select/CheckboxList has more than `max_options` (default: 100) options, the schema switches from a strict enum to free-text with a sample of 10 options and relies on fuzzy matching to resolve the response.
-
-## Presets Reference
-
-### SummaryPreset
-
-Generates a summary of the source content.
-
-```php
-SummaryPreset::make()
-    ->maxWords(200)       // default: 200
-    ->tone('professional') // default: config('filament-solaris.default_tone')
-    ->language('French')   // overrides locale for output language
-```
-
-### ClassificationPreset
-
-Classifies content into the target field's options.
-
-```php
-ClassificationPreset::make()
-    ->allowMultiple()           // allow selecting multiple categories (for CheckboxList targets)
-    ->context('tech blog')      // additional context about the classification domain
-```
-
-### TranslationPreset
-
-Translates source content into a target language.
-
-```php
-TranslationPreset::make()
-    ->language('fr')                // required — target language
-    ->preserveFormatting()          // default: true — preserve HTML/Markdown structure
-    ->glossary('API = API (never translate), Laravel = Laravel')
-```
-
-The `TranslationPreset` defines a `defaultUserInput()` that renders a language selector populated from `supported_locales`. Use `->withDefaultUserInput()` on the action to enable it.
-
-### GenerationPreset
-
-Generates new content based on source data and user instructions.
-
-```php
-GenerationPreset::make()
-    ->tone('casual')
-    ->style('blog post')
-    ->audience('developers')
-    ->maxLength(500)
-```
-
-Defines a `defaultUserInput()` with a "What would you like to generate?" textarea.
-
-### Custom Presets
-
-Extend the `Preset` base class to create reusable prompt patterns:
-
-```php
-use Statikbe\FilamentSolaris\Prompts\Presets\Preset;
-use Statikbe\FilamentSolaris\Support\UserInput;
-
-class SeoPreset extends Preset
-{
-    protected ?string $keyword = null;
-
-    public function keyword(string $keyword): static
-    {
-        $this->keyword = $keyword;
-        return $this;
-    }
-
-    protected function promptView(): string
-    {
-        // A Blade view in your application
-        return 'prompts.seo';
-    }
-
-    protected function viewData(): array
-    {
-        return [
-            'keyword' => $this->keyword,
-        ];
-    }
-
-    // Optional: provide a default user input modal
-    public function defaultUserInput(): ?UserInput
-    {
-        return UserInput::make()
-            ->prompt('Target keyword')
-            ->placeholder('Enter the primary SEO keyword');
-    }
-}
-```
-
-The Blade view receives all standard prompt variables (`$sourceData`, `$factories`, `$responseSchema`, `$record`, `$locale`, `$localeName`, `$userInput`) plus the preset's `viewData()`.
-
-## Prompt Builders
-
-The `PromptBuilder` interface has one method:
-
-```php
-public function build(
-    string|View $instruction,
-    array $sourceData,
-    array $factories,
-    ?Model $record = null,
-    ?string $locale = null,
-    array $userInput = [],
-): string;
-```
-
-### Inline Prompts
-
-Used when you call `->prompt('...')` with a string. Renders the `base-wrapper.blade.php` template which includes:
-- A system preamble
-- Your instruction
-- User input section (if present)
-- Locale hint (for non-English locales)
-- Source data formatted as key-value pairs
-- JSON response schema block
-
-### View Prompts
-
-Used when you call `->prompt(view('...'))`. The provided Blade view is rendered with all standard variables. You control the full prompt structure.
-
-### Custom Prompt Builders
-
-Implement `PromptBuilder` directly for full control:
-
-```php
-use Statikbe\FilamentSolaris\Contracts\PromptBuilder;
-
-class MyPromptBuilder implements PromptBuilder
-{
-    public function build(
-        string|View $instruction,
-        array $sourceData,
-        array $factories,
-        ?Model $record = null,
-        ?string $locale = null,
-        array $userInput = [],
-    ): string {
-        // Build the prompt however you want
-        return "...";
-    }
-
-    public function defaultUserInput(): ?UserInput
-    {
-        return null;
-    }
-}
-```
-
-Use it on an action:
-
-```php
-AiAction::make('custom')
-    ->sourceFields(['title'])
-    ->targetField('body')
-    ->promptBuilder(new MyPromptBuilder())
-```
-
-## ImageGenerationAction
-
-`ImageGenerationAction` generates images via `laravel/ai`'s Image API and writes them to `FileUpload` or `SpatieMediaLibraryFileUpload` fields. It composes a text prompt from an instruction, source field values, and optional user input.
-
-### Basic Usage
+### Generate an image
 
 ```php
 use Statikbe\FilamentSolaris\Actions\ImageGenerationAction;
-
-Forms\Components\Actions::make([
-    ImageGenerationAction::make('generate-poster')
-        ->prompt('Generate a movie poster based on the story')
-        ->sourceFields(['title', 'description'])
-        ->targetField('poster'),
-]),
-
-SpatieMediaLibraryFileUpload::make('poster')
-    ->collection('poster')
-    ->disk('public')
-    ->image(),
-```
-
-### Size & Quality
-
-Control the image dimensions and quality using enums or strings:
-
-```php
 use Statikbe\FilamentSolaris\Enums\ImageSize;
-use Statikbe\FilamentSolaris\Enums\ImageQuality;
 
-ImageGenerationAction::make('generate')
-    ->prompt('A hero banner image')
-    ->targetField('hero_image')
-    ->imageSize(ImageSize::Landscape)       // or 'landscape', '3:2'
-    ->imageQuality(ImageQuality::High)      // or 'high'
+ImageGenerationAction::make('generate-cover')
+    ->prompt('Generate a cover image for this article')
+    ->sourceFields(['title', 'body'])
+    ->targetField('cover_image')
+    ->imageSize(ImageSize::Landscape);
 ```
 
-Available sizes: `Square` (`1:1`), `Portrait` (`2:3`), `Landscape` (`3:2`) — or pass any ratio string directly.
+Reference images (image-to-image / edits) and storage options are covered in [ImageGenerationAction](documentation/image-generation.md).
 
-Available qualities: `Low`, `Medium`, `High`.
+### Dictate into a field
 
-### Provider & Model
-
-Image generation has its own provider resolution chain, separate from the structured output pipeline:
+Attach to any field via `->hintAction(...)` (or `->suffixAction(...)` on a TextInput). The transcript is written into the host field — no `->targetField()` needed.
 
 ```php
-ImageGenerationAction::make('generate')
-    ->prompt('A product photo')
-    ->targetField('image')
-    ->provider('openai', 'gpt-image-1.5')
-    ->timeout(120)
+use Filament\Forms\Components\Textarea;
+use Statikbe\FilamentSolaris\Actions\DictationFieldAction;
+
+Textarea::make('notes')
+    ->hintAction(
+        DictationFieldAction::make()->lang('en')->append()
+    );
 ```
 
-**Resolution chain** (highest wins):
-1. Action-level `->provider()`
-2. Config `default_image_provider` / `default_image_model`
-3. laravel/ai default (`config('ai.default_for_images')`)
+Add a `->preset()` / `->prompt()` to pipe the transcript through the AI first (e.g. dictate rough notes → store a clean summary). See [DictationFieldAction](documentation/dictation.md).
 
-Supported image providers in laravel/ai: **OpenAI**, **Gemini**, **xAI (Grok)**.
+### Preview before applying
 
-### Storage
-
-For `FileUpload` and `SpatieMediaLibraryFileUpload` targets, the generated image is stored as a Livewire temporary upload. Filament's save pipeline handles the rest — including creating Spatie Media records. The image is stored to the disk/directory configured on the component itself.
-
-For other component types (e.g. `TextInput`), the image is stored to the disk/directory from the package config and the path is set as the field value:
+Let the user review the result in a modal and accept or cancel:
 
 ```php
-// In config/filament-solaris.php
-'default_image_disk' => null,           // null = default filesystem disk
-'default_image_directory' => 'ai-images',
-'default_image_visibility' => null,     // 'public' or null
+AiAction::make('summarize')
+    ->sourceFields(['title', 'body'])
+    ->targetField('summary')
+    ->prompt('Summarise the body.')
+    ->withPreview();
 ```
 
-### User Input
+**Requires** the `InteractsWithSolarisPreview` trait on the Livewire component hosting the form (it fails loud if missing). Full setup in [Preview](documentation/ai-action.md#preview).
 
-Add a modal for the user to provide additional instructions:
+### Refine conversationally
 
-```php
-use Statikbe\FilamentSolaris\Support\UserInput;
-
-ImageGenerationAction::make('generate')
-    ->prompt('Generate an image based on the product')
-    ->sourceFields(['name', 'description'])
-    ->targetField('image')
-    ->userInput(UserInput::make()
-        ->prompt('Any specific instructions?')
-        ->placeholder('e.g. bright colors, minimalist style...')
-    )
-```
-
-### Reference Images
-
-Pass an input image (or several) to the image-generation provider for image-to-image, edit, or reference-based generation. OpenAI switches to its `images/edits` endpoint; Gemini sends the input as native multi-modal parts. Same three-channel API as [`AiAction` Attachments](#attachments) — only `Files\Image` instances reach the gateway (other types are silently dropped):
+Turn the preview into a chat so the user can iterate ("shorter", "more formal") before accepting:
 
 ```php
-use Laravel\Ai\Files\Image;
-
-ImageGenerationAction::make('reskin')
-    ->prompt('Reskin in studio-photography style')
-    ->targetField('featured_image')
-    ->attachmentField('reference_image')   // FileUpload on the parent form
-```
-
-Closure form (e.g. for a brand logo from a record relationship):
-
-```php
-->attachments(fn ($livewire) => [
-    Image::fromStorage($livewire->record->logo_path, 'public'),
-])
-```
-
-Multiple references work too — bind a `->multiple()` FileUpload, or supply an array from a closure. Conversational refinement re-attaches the input image on every turn, so "now make it warmer" follow-ups still see the original reference.
-
-### Testing ImageGenerationAction
-
-See [Testing documentation](documentation/testing.md#testing-imagegenerationaction).
-
-## DictationAction
-
-`DictationAction` captures audio via the browser's MediaRecorder API, transcribes it using `laravel/ai`'s Transcription API, and optionally processes the transcript through the AI pipeline. It works in two modes: pure transcription and transcription with AI processing.
-
-### Pure Transcription
-
-Records audio and writes the transcript directly to a text field. Use `suffixAction` on components that support it (TextInput, Select, TagsInput), or place the action in a `Forms\Components\Actions` group for Textarea/RichEditor:
-
-```php
-use Statikbe\FilamentSolaris\Actions\DictationAction;
-
-// As a suffix action on TextInput
-TextInput::make('title')
-    ->suffixAction(
-        DictationAction::make('dictate')
-            ->targetField('title')
-            ->lang('en-US')
-    )
-
-// For Textarea/RichEditor, use an Actions group
-Forms\Components\Actions::make([
-    DictationAction::make('dictate-notes')
-        ->targetField('notes')
-        ->lang('en-US')
-        ->append(),     // append to existing content instead of replacing
-]),
-Textarea::make('notes'),
-```
-
-### Transcription + AI Processing
-
-Records audio, transcribes it, then feeds the transcript into the AI pipeline as source data. The AI output is written to one or more target fields:
-
-```php
-DictationAction::make('voice-summary')
-    ->targetFields(['summary', 'category_id'])
-    ->preset(SummaryPreset::make()->maxWords(200))
-    ->locale('nl')
-    ->lang('nl-BE')
-```
-
-Works with any prompt or preset — the transcript becomes the source data (`['transcription' => $transcript]`).
-
-### Transcription Provider
-
-The transcription step and AI processing step can use different providers:
-
-```php
-DictationAction::make('voice')
-    ->targetField('notes')
+AiAction::make('summarize')
+    ->sourceFields(['title', 'body'])
+    ->targetField('summary')
     ->preset(SummaryPreset::make())
-    ->transcriptionProvider('openai', 'whisper-1')   // transcription
-    ->transcriptionTimeout(30)                        // transcription timeout
-    ->provider('anthropic', 'claude-sonnet-4-5-20250514')  // AI processing
-    ->timeout(120)                                    // AI processing timeout
+    ->conversational();  // implies ->withPreview()
 ```
 
-Package-wide defaults can be set in the config (`default_transcription_provider`, `default_transcription_model`, `default_transcription_timeout`). See [Configuration](documentation/configuration.md).
+Requires `laravel/ai`'s conversation migrations and an authenticated user — see [Conversational Refinement](documentation/ai-action.md#conversational-refinement).
 
-### How It Works
+### Track usage & cost
 
-When the user clicks the dictation button, a modal opens with a recording UI. The user clicks to start recording, speaks, then clicks to stop. The audio is uploaded and transcribed server-side. In AI processing mode, the transcript is then fed into the prompt pipeline.
+Every AI call dispatches an event. Listen for it to meter tokens, enforce budgets, or build an audit trail — Solaris persists nothing itself:
 
-The recording UI shows clear visual states: a pulsing red button with elapsed timer while recording, a green checkmark when the upload completes, and inline error messages for microphone permission issues.
+```php
+use Statikbe\FilamentSolaris\Events\SolarisResponseReceived;
 
-### Tailwind CSS
-
-The modal view uses Tailwind classes. Add a `@source` directive to your Filament theme CSS so the classes are compiled:
-
-```css
-/* resources/css/filament/admin/theme.css */
-@source "../../vendor/statikbe/laravel-filament-solaris/resources/views";
+class TrackAiUsage
+{
+    public function handle(SolarisResponseReceived $event): void
+    {
+        AiCall::create([
+            'action_name'     => $event->actionName,
+            'user_id'         => $event->user?->getAuthIdentifier(),
+            'model'           => $event->model,
+            'prompt_tokens'   => $event->usage->promptTokens,
+            'completion_tokens' => $event->usage->completionTokens,
+            'duration_ms'     => $event->durationMs,
+        ]);
+    }
+}
 ```
 
-### Browser Support
+Full payload, the failure event, and rate-limit handling: [Usage Tracking](documentation/usage-tracking.md).
 
-DictationAction uses the MediaRecorder API and works in all modern browsers (Chrome 49+, Edge 79+, Firefox 25+, Safari 14.1+). The button is automatically hidden in unsupported browsers.
+### Putting it together
 
-### Testing DictationAction
-
-See [Testing documentation](documentation/testing.md#testing-dictationaction).
-
-## Testing
-
-If you want to write tests, please check [the testing documentation](documentation/testing.md).
-
-## Configuration
-
-The configuration is published to `config/filament-solaris.php`. Key options include:
-
-- **AI provider & model** — package-wide defaults, per-preset overrides, failover arrays
-- **Transcription provider** — separate provider/model/timeout for `DictationAction`
-- **Image generation** — separate provider/model/timeout/size/quality/storage for `ImageGenerationAction`
-- **Timeout** — default timeout for AI calls
-- **Icons** — `action_icon` for AiAction, `dictation_icon` for DictationAction, `image_generation_icon` for ImageGenerationAction
-- **Factory map** — custom component-to-factory mappings (includes `FileUploadFactory` for image targets)
-- **Prompt logging** — log composed prompts and image generation calls during development
-- **Locales** — supported locales for the translation preset
-
-See the [Configuration Reference](documentation/configuration.md) for all available options.
-
-## Full Example
-
-A complete resource form with multiple AI actions:
+A complete resource form combining several actions:
 
 ```php
 use Filament\Forms;
 use Statikbe\FilamentSolaris\Actions\AiAction;
-use Statikbe\FilamentSolaris\Actions\DictationAction;
+use Statikbe\FilamentSolaris\Actions\DictationFieldAction;
 use Statikbe\FilamentSolaris\Actions\ImageGenerationAction;
 use Statikbe\FilamentSolaris\Enums\ImageSize;
 use Statikbe\FilamentSolaris\Prompts\Presets\ClassificationPreset;
 use Statikbe\FilamentSolaris\Prompts\Presets\GenerationPreset;
 use Statikbe\FilamentSolaris\Prompts\Presets\SummaryPreset;
 use Statikbe\FilamentSolaris\Prompts\Presets\TranslationPreset;
-use Statikbe\FilamentSolaris\Support\UserInput;
 
 public function form(Form $form): Form
 {
     return $form->schema([
-        Forms\Components\TextInput::make('title')
-            ->required(),
+        Forms\Components\TextInput::make('title')->required(),
 
-        Forms\Components\RichEditor::make('body')
-            ->required(),
+        Forms\Components\RichEditor::make('body')->required(),
 
-        Forms\Components\Textarea::make('summary'),
+        Forms\Components\Textarea::make('summary')
+            ->hintAction(
+                // Voice-to-summary: transcribe audio, run through AI
+                DictationFieldAction::make('voice-summary')
+                    ->preset(SummaryPreset::make()->maxWords(100))
+                    ->lang('en'),
+            ),
 
         Forms\Components\Select::make('category_id')
             ->relationship('category', 'name'),
 
-        Forms\Components\Toggle::make('is_featured'),
+        Forms\Components\TagsInput::make('tags'),
 
         Forms\Components\Actions::make([
-            // Summarize the article
             AiAction::make('summarize')
                 ->sourceFields(['title', 'body'])
                 ->targetField('summary')
                 ->preset(SummaryPreset::make()->maxWords(100)->tone('professional')),
 
-            // Classify into a category (using a cheaper model)
             AiAction::make('classify')
                 ->sourceFields(['title', 'body'])
                 ->targetField('category_id')
-                ->targetScope('category_id', fn ($q) => $q->where('active', true))
                 ->preset(ClassificationPreset::make())
-                ->provider('openai', 'gpt-4o-mini'),
+                ->provider('openai', 'gpt-4o-mini'),   // cheaper model for a simple job
 
-            // Fill multiple fields at once
             AiAction::make('auto-fill')
                 ->sourceFields(['title', 'body'])
-                ->targetFields(['summary', 'category_id', 'is_featured'])
-                ->prompt('Analyze the article. Summarize it, pick the best category, and decide if it should be featured.'),
+                ->targetFields(['summary', 'category_id', 'tags'])
+                ->prompt('Summarize, pick the best category, and suggest a few relevant tags.'),
 
-            // Generate content with user guidance
-            AiAction::make('generate')
-                ->sourceFields(['title'])
-                ->targetField('body')
-                ->preset(GenerationPreset::make()->tone('casual')->audience('developers'))
-                ->withDefaultUserInput(),
-
-            // Translate into Dutch
             AiAction::make('translate')
                 ->sourceFields(['body'])
                 ->targetField('body_nl')
                 ->preset(TranslationPreset::make()->language('nl')->preserveFormatting()),
 
-            // Voice-to-summary: transcribe audio and run through AI
-            DictationAction::make('voice-summary')
-                ->targetField('summary')
-                ->preset(SummaryPreset::make()->maxWords(100))
-                ->lang('en-US'),
-
-            // Generate a cover image from the article content
             ImageGenerationAction::make('generate-cover')
                 ->prompt('Generate a cover image for this article')
                 ->sourceFields(['title', 'body'])
@@ -1036,20 +353,58 @@ public function form(Form $form): Form
         ]),
 
         Forms\Components\SpatieMediaLibraryFileUpload::make('cover_image')
-            ->collection('cover')
-            ->disk('public')
-            ->image(),
+            ->collection('cover')->disk('public')->image(),
     ]);
 }
+```
+
+## Core Concepts
+
+- **Component factories** translate between Filament components and AI — each one builds the JSON-schema fragment that constrains the AI's output and transforms the response back into valid form state. They're auto-resolved per target field, and you can register your own. Most form fields are supported (structural data fields like repeater and builder are future work). → [Component Factories](documentation/factories.md)
+- **Presets** are reusable prompt builders for common jobs (`SummaryPreset`, `ClassificationPreset`, `TranslationPreset`, `GenerationPreset`). → [Presets Reference](documentation/presets.md)
+- **Prompt builders** decide how a prompt is composed — inline string, Blade view, or a custom `PromptBuilder`. → [Prompt Builders](documentation/prompt-builders.md)
+- **Configuration** spans package config, per-preset overrides, and per-panel plugin setters. → [Configuration](documentation/configuration.md)
+
+## Security
+
+Solaris connects two untrusted boundaries: user-typed values flow into the prompt, and AI-generated output flows back into form fields. Treat AI output as user-generated content — it's safe on the form itself (Blade escapes, Selects are enum-bounded), but **any place you render it as raw HTML** (`{!! !!}`, mail, PDF, CSV, webhooks) must be sanitized at render time. A per-action `->sanitize()` / `->sanitizeField()` hook is provided, and actions can be gated per-user or per-panel.
+
+Read the full threat model and field-by-field guidance in [Security Considerations](documentation/security.md) before shipping a public-facing form.
+
+## Documentation
+
+| Topic | What's inside |
+|---|---|
+| [AiAction API](documentation/ai-action.md) | Source/target fields, prompts, user input, locale, provider, timeout, tools, generation options, attachments, preview, conversational refinement |
+| [Component Factories](documentation/factories.md) | Supported components, custom factories, option matching & fuzzy tuning |
+| [Presets Reference](documentation/presets.md) | Summary / Classification / Translation / Generation + custom presets |
+| [Prompt Builders](documentation/prompt-builders.md) | Inline, view, and custom prompt builders |
+| [ImageGenerationAction](documentation/image-generation.md) | Sizes, quality, providers, storage, reference images |
+| [DictationFieldAction](documentation/dictation.md) | Transcription, AI chaining, providers, RichEditor support |
+| [Usage Tracking](documentation/usage-tracking.md) | Events, metering, rate-limit handling & retry |
+| [Security Considerations](documentation/security.md) | Threat model, render-layer guidance, sanitization hook |
+| [Configuration](documentation/configuration.md) | All config keys + per-panel plugin |
+| [Architecture](documentation/architecture.md) | Execution pipeline & class-hierarchy diagrams |
+| [Testing](documentation/testing.md) | Fakes & assertions for all three actions |
+
+## Versioning
+
+Solaris ships as `0.x` while [`laravel/ai`](https://github.com/laravel/ai) is pre-1.0. The upstream SDK is itself `0.x` and doesn't promise SemVer guarantees, so every `laravel/ai` minor bump (`0.6` → `0.7`) is expected to require a Solaris release. Solaris will tag `1.0.0` once `laravel/ai` reaches `1.0` and its public surface settles.
+
+While on `0.x`:
+
+- **Minor** (`0.1` → `0.2`) — breaking changes are possible.
+- **Patch** (`0.1.0` → `0.1.1`) — bugfixes, backwards-compatible additions.
+
+Pin a minor in your `composer.json` if you want to avoid surprises:
+
+```json
+"statikbe/laravel-filament-solaris": "~0.1.0"
 ```
 
 ## Changelog
 
 Please see [CHANGELOG](CHANGELOG.md) for more information on what has changed recently.
-
-## Contributing
-
-Please see [CONTRIBUTING](CONTRIBUTING.md) for details.
 
 ## Security Vulnerabilities
 

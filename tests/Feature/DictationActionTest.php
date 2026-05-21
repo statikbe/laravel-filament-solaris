@@ -2,80 +2,80 @@
 
 use Livewire\Livewire;
 use Statikbe\FilamentSolaris\Actions\AiAction;
-use Statikbe\FilamentSolaris\Actions\DictationAction;
+use Statikbe\FilamentSolaris\Actions\DictationFieldAction;
 use Statikbe\FilamentSolaris\Testing\AiActionFake;
-use Statikbe\FilamentSolaris\Testing\DictationActionFake;
+use Statikbe\FilamentSolaris\Testing\DictationFieldActionFake;
 use Statikbe\FilamentSolaris\Tests\Fixtures\DictationFormComponent;
 
 beforeEach(function () {
-    DictationActionFake::reset();
+    DictationFieldActionFake::reset();
     AiActionFake::reset();
 });
 
 afterEach(function () {
-    DictationActionFake::reset();
+    DictationFieldActionFake::reset();
     AiActionFake::reset();
 });
 
 // ──────────────────────────────────────────────────────────────
-//  Pure transcription mode
+//  Pure transcription mode (suffix attached to a Textarea)
 // ──────────────────────────────────────────────────────────────
 
-it('writes transcript to target field in pure transcription mode', function () {
-    DictationAction::fake('Hello, this is a test transcription.');
+it('writes transcript to the host field when configured as a suffix action', function () {
+    DictationFieldAction::fake('Hello, this is a test transcription.');
 
     Livewire::test(DictationFormComponent::class)
-        ->callAction('dictateBody')
-        ->assertHasNoActionErrors()
+        ->callFormComponentAction('body', 'dictateBody')
+        ->assertHasNoFormComponentActionErrors()
         ->assertFormSet([
             'body' => 'Hello, this is a test transcription.',
         ]);
 
-    DictationAction::assertCalled();
-    DictationAction::assertTranscribed();
+    DictationFieldAction::assertCalled();
+    DictationFieldAction::assertTranscribed();
 });
 
-it('appends transcript to existing field content in append mode', function () {
-    DictationAction::fake('Second paragraph.');
+it('appends transcript to existing host field content in append mode', function () {
+    DictationFieldAction::fake('Second paragraph.');
 
     Livewire::test(DictationFormComponent::class)
         ->fillForm([
             'body' => 'First paragraph.',
         ])
-        ->callAction('dictateBodyAppend')
+        ->callFormComponentAction('body', 'dictateBodyAppend')
         ->assertFormSet([
             'body' => "First paragraph.\nSecond paragraph.",
         ]);
 });
 
 it('replaces content when append mode is disabled', function () {
-    DictationAction::fake('New content.');
+    DictationFieldAction::fake('New content.');
 
     Livewire::test(DictationFormComponent::class)
         ->fillForm([
             'body' => 'Old content.',
         ])
-        ->callAction('dictateBody')
+        ->callFormComponentAction('body', 'dictateBody')
         ->assertFormSet([
             'body' => 'New content.',
         ]);
 });
 
 it('appends to empty field without leading newline', function () {
-    DictationAction::fake('First dictation.');
+    DictationFieldAction::fake('First dictation.');
 
     Livewire::test(DictationFormComponent::class)
-        ->callAction('dictateBodyAppend')
+        ->callFormComponentAction('body', 'dictateBodyAppend')
         ->assertFormSet([
             'body' => 'First dictation.',
         ]);
 });
 
 it('shows success notification after transcription', function () {
-    DictationAction::fake('Transcribed text.');
+    DictationFieldAction::fake('Transcribed text.');
 
     Livewire::test(DictationFormComponent::class)
-        ->callAction('dictateBody')
+        ->callFormComponentAction('body', 'dictateBody')
         ->assertNotified();
 });
 
@@ -84,30 +84,29 @@ it('shows success notification after transcription', function () {
 // ──────────────────────────────────────────────────────────────
 
 it('chains transcript through AI pipeline when prompt is configured', function () {
-    DictationAction::fake(
+    DictationFieldAction::fake(
         transcript: 'This is a long article about quantum computing and its impact on cryptography.',
         aiResponse: ['summary' => 'Quantum computing threatens current cryptographic methods.'],
     );
 
     Livewire::test(DictationFormComponent::class)
-        ->callAction('dictateAndSummarize')
-        ->assertHasNoActionErrors()
+        ->callFormComponentAction('summary', 'dictateAndSummarize')
         ->assertFormSet([
             'summary' => 'Quantum computing threatens current cryptographic methods.',
         ]);
 
-    DictationAction::assertCalled();
-    DictationAction::assertTranscribed();
+    DictationFieldAction::assertCalled();
+    DictationFieldAction::assertTranscribed();
 });
 
 it('passes transcript as source data to AI pipeline', function () {
-    DictationAction::fake(
+    DictationFieldAction::fake(
         transcript: 'My transcribed audio content.',
         aiResponse: ['summary' => 'A summary.'],
     );
 
     Livewire::test(DictationFormComponent::class)
-        ->callAction('dictateAndSummarize');
+        ->callFormComponentAction('summary', 'dictateAndSummarize');
 
     AiAction::assertCalledWith(function (array $sourceData, string $prompt) {
         expect($sourceData)->toHaveKey('transcription')
@@ -116,7 +115,7 @@ it('passes transcript as source data to AI pipeline', function () {
 });
 
 it('fills multiple target fields through AI pipeline', function () {
-    DictationAction::fake(
+    DictationFieldAction::fake(
         transcript: 'Breaking news about a new scientific discovery.',
         aiResponse: [
             'summary' => 'New scientific discovery announced.',
@@ -125,7 +124,7 @@ it('fills multiple target fields through AI pipeline', function () {
     );
 
     Livewire::test(DictationFormComponent::class)
-        ->callAction('dictateAndClassify')
+        ->callFormComponentAction('summary', 'dictateAndClassify')
         ->assertFormSet([
             'summary' => 'New scientific discovery announced.',
             'category' => 'science',
@@ -133,55 +132,44 @@ it('fills multiple target fields through AI pipeline', function () {
 });
 
 it('shows error notification when AI pipeline returns empty response', function () {
-    DictationAction::fake(
+    DictationFieldAction::fake(
         transcript: 'Some audio content.',
         aiResponse: [],
     );
 
     Livewire::test(DictationFormComponent::class)
-        ->callAction('dictateAndSummarize')
+        ->callFormComponentAction('summary', 'dictateAndSummarize')
         ->assertNotified();
 });
-
-// ──────────────────────────────────────────────────────────────
-//  Error handling
-// ──────────────────────────────────────────────────────────────
-
-it('throws when no target fields are configured', function () {
-    DictationAction::fake('Test');
-
-    Livewire::test(DictationFormComponent::class)
-        ->callAction('dictateInvalid');
-})->throws(RuntimeException::class, 'requires at least one target field');
 
 // ──────────────────────────────────────────────────────────────
 //  Assertion methods
 // ──────────────────────────────────────────────────────────────
 
 it('asserts transcript content with callback', function () {
-    DictationAction::fake('Expected transcript.');
+    DictationFieldAction::fake('Expected transcript.');
 
     Livewire::test(DictationFormComponent::class)
-        ->callAction('dictateBody');
+        ->callFormComponentAction('body', 'dictateBody');
 
-    DictationAction::assertTranscribedWith(function (string $transcript) {
+    DictationFieldAction::assertTranscribedWith(function (string $transcript) {
         expect($transcript)->toBe('Expected transcript.');
     });
 });
 
 it('tracks call count correctly', function () {
-    DictationAction::fake('Dictation text.');
+    DictationFieldAction::fake('Dictation text.');
 
     $component = Livewire::test(DictationFormComponent::class);
 
-    $component->callAction('dictateBody');
-    $component->callAction('dictateBody');
+    $component->callFormComponentAction('body', 'dictateBody');
+    $component->callFormComponentAction('body', 'dictateBody');
 
-    DictationAction::assertCalledTimes(2);
+    DictationFieldAction::assertCalledTimes(2);
 });
 
 it('preserves existing form data for non-target fields', function () {
-    DictationAction::fake('Transcribed text.');
+    DictationFieldAction::fake('Transcribed text.');
 
     Livewire::test(DictationFormComponent::class)
         ->fillForm([
@@ -190,7 +178,7 @@ it('preserves existing form data for non-target fields', function () {
             'summary' => 'Existing summary',
             'category' => 'tech',
         ])
-        ->callAction('dictateBody')
+        ->callFormComponentAction('body', 'dictateBody')
         ->assertFormSet([
             'title' => 'My Title',
             'body' => 'Transcribed text.',

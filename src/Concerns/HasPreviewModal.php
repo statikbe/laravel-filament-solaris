@@ -24,7 +24,7 @@ trait HasPreviewModal
     /**
      * Check if the Livewire component has pending preview data.
      */
-    private function hasPreviewData(): bool
+    protected function hasPreviewData(): bool
     {
         $livewire = $this->getLivewire();
 
@@ -35,7 +35,7 @@ trait HasPreviewModal
      * Whether the modal is in the loading state — preview enabled, no user
      * input form to gate execution, and no preview data yet.
      */
-    private function isPreviewLoading(): bool
+    protected function isPreviewLoading(): bool
     {
         return $this->shouldPreview() && ! $this->hasUserInput() && ! $this->hasPreviewData();
     }
@@ -43,7 +43,7 @@ trait HasPreviewModal
     /**
      * Whether the active preview is in conversational refinement mode.
      */
-    private function isConversationalPreview(): bool
+    protected function isConversationalPreview(): bool
     {
         if (! $this->hasPreviewData()) {
             return false;
@@ -57,7 +57,7 @@ trait HasPreviewModal
      *
      * @param  array<string, mixed>  $data
      */
-    private function previewView(string $name, array $data = []): View
+    protected function previewView(string $name, array $data = []): View
     {
         /** @var view-string $viewName */
         $viewName = "filament-solaris::{$name}";

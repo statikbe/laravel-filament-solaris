@@ -93,7 +93,9 @@ trait HasAttachments
         $attachments = [];
 
         $livewire = $this->getLivewire();
-        $formData = $livewire->data ?? [];
+        $schemaComponent = method_exists($this, 'resolveFormSchemaComponent')
+            ? $this->resolveFormSchemaComponent()
+            : null;
 
         $components = collect($livewire->getCachedSchemas())
             ->filter()
@@ -103,9 +105,13 @@ trait HasAttachments
 
         foreach ($this->resolveFieldList($this->attachmentFieldList) as $field) {
             $factoryClass = $resolver->resolveFactoryClassForField($components, $field) ?? FileUploadFactory::class;
+            // Each factory decides how to read its field — FileUploadFactory
+            // reads raw $livewire->data so the `[uuid => TempFile]` shape
+            // survives; everything else goes through the schema-based Get.
+            $value = $factoryClass::readState($livewire, $field, $schemaComponent);
             $attachments = array_merge(
                 $attachments,
-                $factoryClass::toAttachments(data_get($formData, $field), $disk),
+                $factoryClass::toAttachments($value, $disk),
             );
         }
 

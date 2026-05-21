@@ -15,6 +15,7 @@ return [
         'transcription_empty' => 'No speech detected in the recording.',
         'transcription_error' => 'Could not transcribe the audio. Please try again.',
         'transcription_rate_limited' => 'Too many transcription requests. Please wait a moment.',
+        'transcription_overloaded' => 'The transcription service is currently overloaded. Please try again.',
         'microphone_denied' => 'Microphone access is required for dictation.',
         'image_generation_success' => 'AI image generated for :fields.',
         'image_generation_error' => 'Could not generate the image. Please try again.',

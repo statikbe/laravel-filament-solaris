@@ -4,15 +4,13 @@ namespace Statikbe\FilamentSolaris\Concerns;
 
 use Closure;
 use Filament\Notifications\Notification;
-use Filament\Schemas\Components\Component;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Model;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Enums\Lab;
-use Laravel\Ai\Exceptions\AiException;
 use Laravel\Ai\Providers\Tools\ProviderTool;
-use Laravel\Ai\Responses\AgentResponse;
 use Laravel\Ai\Responses\StructuredAgentResponse;
+use Statikbe\FilamentSolaris\Actions\SolarisAction;
 use Statikbe\FilamentSolaris\Agents\ConversationalSolarisAgent;
 use Statikbe\FilamentSolaris\Agents\SolarisAgent;
 use Statikbe\FilamentSolaris\Contracts\PromptBuilder;
@@ -25,9 +23,20 @@ use Statikbe\FilamentSolaris\Support\SolarisNotification;
 use Statikbe\FilamentSolaris\Support\SolarisPromptLogger;
 use Statikbe\FilamentSolaris\Testing\AiActionFake;
 
+/**
+ * Text-generation pipeline plumbing for Solaris actions.
+ *
+ * Owns the bits that are specific to running a structured-response AI call:
+ * PromptBuilder/Preset selection, locale, text-generation options
+ * (temperature/maxTokens/maxSteps/topP/tools), preset-aware provider+timeout
+ * resolution, factory-driven result transformation, conversational refinement.
+ *
+ * Form-side helpers (resolveFieldLabel, resolveFormSchemaComponent, etc.) come
+ * from {@see HasFormPipeline}. Provider/timeout state, withPreview, and
+ * executeAiCall come from {@see SolarisAction}.
+ */
 trait HasPromptPipeline
 {
-    use HasAttachments;
     use HasTargetFields;
     use HasUserInput;
 
@@ -36,15 +45,6 @@ trait HasPromptPipeline
     protected string|View|null $promptInstruction = null;
 
     protected string|Closure|null $localeOverride = null;
-
-    /**
-     * @var Lab|array<string, string>|array<int, string>|string|Closure|null
-     */
-    protected Lab|array|string|Closure|null $pipelineProvider = null;
-
-    protected string|Closure|null $pipelineModel = null;
-
-    protected int|Closure|null $pipelineTimeout = null;
 
     /** @var array<Tool|ProviderTool>|Closure|null */
     protected array|Closure|null $pipelineTools = null;
@@ -56,6 +56,22 @@ trait HasPromptPipeline
     protected int|Closure|null $pipelineMaxSteps = null;
 
     protected float|int|Closure|null $pipelineTopP = null;
+
+    /**
+     * Per-action sanitizer applied to every AI value before it's written to
+     * form state. Receives the value returned by the factory's
+     * {@see ComponentFactory::toFormValue()}; whatever it returns replaces
+     * that value. Default: not set (identity).
+     */
+    protected ?Closure $sanitizer = null;
+
+    /**
+     * Per-field sanitizers, keyed by field name. Override the per-action
+     * {@see $sanitizer} for that specific field.
+     *
+     * @var array<string, Closure>
+     */
+    protected array $fieldSanitizers = [];
 
     /**
      * Set an inline prompt instruction or a Blade view.
@@ -107,32 +123,6 @@ trait HasPromptPipeline
     public function getLocale(): string
     {
         return $this->evaluate($this->localeOverride) ?? app()->getLocale();
-    }
-
-    /**
-     * Set the AI provider (and optionally model) for this action.
-     *
-     * @param  Lab|array<string, string>|array<int, string>|string|Closure  $provider
-     */
-    public function provider(Lab|array|string|Closure $provider, string|Closure|null $model = null): static
-    {
-        $this->pipelineProvider = $provider;
-
-        if ($model !== null) {
-            $this->pipelineModel = $model;
-        }
-
-        return $this;
-    }
-
-    /**
-     * Set the timeout in seconds for the AI call.
-     */
-    public function timeout(int|Closure $timeout): static
-    {
-        $this->pipelineTimeout = $timeout;
-
-        return $this;
     }
 
     /**
@@ -188,6 +178,52 @@ trait HasPromptPipeline
     }
 
     /**
+     * Sanitize every AI value before it's written to form state.
+     *
+     * The closure receives the value returned by the factory's
+     * `toFormValue()` and must return the sanitized value. Applied to
+     * every target field unless overridden per-field via
+     * {@see sanitizeField()}.
+     *
+     * Use this when the form is public-facing or AI-populated values
+     * may later be rendered as raw HTML, included in emails, etc. — see
+     * the "Security Considerations" section in the README.
+     *
+     * Example with HTML Purifier:
+     *
+     * ```php
+     * AiAction::make('summarize')
+     *     ->targetField('summary')
+     *     ->sanitize(fn (string $value) => \Mews\Purifier\Facades\Purifier::clean($value));
+     * ```
+     *
+     * @param  Closure(mixed): mixed  $closure
+     */
+    public function sanitize(Closure $closure): static
+    {
+        $this->sanitizer = $closure;
+
+        return $this;
+    }
+
+    /**
+     * Sanitize a single target field's AI value.
+     *
+     * Overrides any per-action {@see sanitize()} closure for this field
+     * only. Use when different target fields need different sanitization
+     * (e.g. `summary` stripped to plain text, `body_html` passed through
+     * an HTML purifier).
+     *
+     * @param  Closure(mixed): mixed  $closure
+     */
+    public function sanitizeField(string $field, Closure $closure): static
+    {
+        $this->fieldSanitizers[$field] = $closure;
+
+        return $this;
+    }
+
+    /**
      * Resolve the timeout for this pipeline call.
      *
      * Resolution chain (highest to lowest priority):
@@ -198,7 +234,7 @@ trait HasPromptPipeline
      */
     protected function resolveTimeout(): ?int
     {
-        $timeout = $this->evaluate($this->pipelineTimeout);
+        $timeout = $this->resolveActionTimeout();
 
         if ($timeout !== null) {
             return $timeout;
@@ -277,12 +313,9 @@ trait HasPromptPipeline
     protected function resolveProviderAndModel(): array
     {
         // 1. Action-level override
-        $provider = $this->evaluate($this->pipelineProvider);
-        if ($provider !== null) {
-            return [
-                'provider' => $provider,
-                'model' => $this->evaluate($this->pipelineModel),
-            ];
+        $action = $this->resolveActionProvider();
+        if ($action !== null) {
+            return $action;
         }
 
         $config = FilamentSolaris::config();
@@ -387,8 +420,14 @@ trait HasPromptPipeline
 
         $attachments = $this->resolveAttachments($userInput);
 
+        $callParams = $this->resolveAiCallParams();
+
         /** @var StructuredAgentResponse|null $response */
-        $response = $this->executeAiCall(fn () => $agent->prompt($prompt, $attachments, ...array_values($this->resolveAiCallParams())));
+        $response = $this->executeAiCall(
+            fn () => $agent->prompt($prompt, $attachments, ...array_values($callParams)),
+            $callParams['provider'],
+            $callParams['model'],
+        );
 
         if ($response === null) {
             return;
@@ -425,6 +464,8 @@ trait HasPromptPipeline
         $fake->recordCall($this->getName(), $sourceData, $prompt, $provider, $model, $timeout, $options, $attachments);
 
         if ($fake->shouldSimulateError()) {
+            $this->dispatchFakeResponseFailed($fake->getErrorMessage(), $provider, $model);
+
             Notification::make()
                 ->title($fake->getErrorMessage())
                 ->danger()
@@ -434,19 +475,21 @@ trait HasPromptPipeline
         }
 
         if ($fake->shouldSimulateTimeout()) {
+            $timeoutMessage = filament_solaris_trans('notifications.timeout');
+
+            $this->dispatchFakeResponseFailed($timeoutMessage, $provider, $model);
+
             Notification::make()
-                ->title(filament_solaris_trans('notifications.timeout'))
+                ->title($timeoutMessage)
                 ->danger()
                 ->send();
 
             return;
         }
 
-        $aiResponse = $fake->resolve($this->getName());
+        $aiResponse = $fake->resolve($this->getName()) ?? [];
 
-        if ($aiResponse === null) {
-            $aiResponse = [];
-        }
+        $this->dispatchFakeResponseReceived($provider, $model);
 
         $this->applyResults($aiResponse, $factories, [
             'sourceData' => $sourceData,
@@ -492,25 +535,6 @@ trait HasPromptPipeline
             ...$this->resolveProviderAndModel(),
             'timeout' => $this->resolveTimeout(),
         ];
-    }
-
-    /**
-     * Execute an AI call with standardized error handling.
-     *
-     * Returns the response on success, or null if an AI exception occurred
-     * (the error notification is sent automatically).
-     *
-     * @param  Closure(): AgentResponse  $callback
-     */
-    protected function executeAiCall(Closure $callback): ?AgentResponse
-    {
-        try {
-            return $callback();
-        } catch (AiException $e) {
-            SolarisNotification::sendAiErrorNotification($e);
-
-            return null;
-        }
     }
 
     /**
@@ -566,15 +590,38 @@ trait HasPromptPipeline
             }
 
             try {
-                $values[$fieldName] = $factory->toFormValue($aiValue);
+                $formValue = $factory->toFormValue($aiValue);
+                $values[$fieldName] = $this->applySanitizer($fieldName, $formValue);
                 $filledLabels[] = $this->resolveFieldLabel($fieldName);
             } catch (\Throwable $e) {
-                info($e);
+                // Route via report() so the app's exception tracker
+                // (Sentry, Bugsnag, Flare, …) picks it up — info-level
+                // logs are silently dropped by most production setups.
+                report($e);
                 $failedLabels[] = $this->resolveFieldLabel($fieldName);
             }
         }
 
         return compact('values', 'filledLabels', 'failedLabels');
+    }
+
+    /**
+     * Apply the per-field or per-action sanitizer (if any) to a form value.
+     *
+     * Field-level closures registered via {@see sanitizeField()} take
+     * precedence over the action-level {@see sanitize()} closure.
+     */
+    protected function applySanitizer(string $fieldName, mixed $formValue): mixed
+    {
+        if (isset($this->fieldSanitizers[$fieldName])) {
+            return ($this->fieldSanitizers[$fieldName])($formValue);
+        }
+
+        if ($this->sanitizer !== null) {
+            return ($this->sanitizer)($formValue);
+        }
+
+        return $formValue;
     }
 
     /**
@@ -668,31 +715,6 @@ trait HasPromptPipeline
     }
 
     /**
-     * Build display arrays from values and factories.
-     *
-     * @param  array<string, mixed>  $values
-     * @param  array<string, ComponentFactory>  $factories
-     * @return array<string, array{label: string, display: string, type: string}>
-     */
-    protected function buildDisplays(array $values, array $factories): array
-    {
-        $displays = [];
-
-        foreach ($values as $fieldName => $formValue) {
-            $factory = $factories[$fieldName] ?? null;
-            $preview = $factory?->toPreviewDisplay($formValue) ?? ['display' => (string) $formValue, 'type' => 'text'];
-
-            $displays[$fieldName] = [
-                'label' => $this->resolveFieldLabel($fieldName),
-                'display' => $preview['display'],
-                'type' => $preview['type'],
-            ];
-        }
-
-        return $displays;
-    }
-
-    /**
      * Refine the preview results with a conversational follow-up message.
      *
      * @param  array<string, mixed>  $turnAttachments  Files attached to this turn only,
@@ -752,8 +774,14 @@ trait HasPromptPipeline
 
         $attachments = $this->resolveAttachmentsForTurn($userInput, $turnAttachments);
 
+        $callParams = $this->resolveAiCallParams();
+
         /** @var StructuredAgentResponse|null $response */
-        $response = $this->executeAiCall(fn () => $agent->prompt($message, $attachments, ...array_values($this->resolveAiCallParams())));
+        $response = $this->executeAiCall(
+            fn () => $agent->prompt($message, $attachments, ...array_values($callParams)),
+            $callParams['provider'],
+            $callParams['model'],
+        );
 
         if ($response === null) {
             return;
@@ -810,59 +838,6 @@ trait HasPromptPipeline
         ];
 
         $livewire->solarisPreviewData = $previewData;
-    }
-
-    /**
-     * Resolve a human-readable label for a field name from the form schema.
-     */
-    protected function resolveFieldLabel(string $fieldName): string
-    {
-        try {
-            $label = $this->getLivewire()
-                ->getSchemaComponent("form.{$fieldName}")
-                ?->getLabel();
-
-            if (filled($label)) {
-                return (string) $label;
-            }
-        } catch (\Throwable) {
-            // Component not resolvable
-        }
-
-        return str($fieldName)->headline()->toString();
-    }
-
-    /**
-     * Format a list of field labels for display in notifications.
-     *
-     * @param  array<string>  $labels
-     */
-    protected function formatFieldList(array $labels): string
-    {
-        return SolarisNotification::formatFieldList($labels);
-    }
-
-    /**
-     * Resolve a form schema component for Get/Set utilities.
-     */
-    public function resolveFormSchemaComponent(): ?Component
-    {
-        $schemaComponent = $this->getSchemaComponent();
-
-        if ($schemaComponent !== null) {
-            return $schemaComponent;
-        }
-
-        $livewire = $this->getLivewire();
-        $fieldName = $this->getFieldNamesForSchemaResolution()[0] ?? null;
-
-        if ($fieldName === null) {
-            return null;
-        }
-
-        $component = $livewire->getSchemaComponent("form.{$fieldName}");
-
-        return $component instanceof Component ? $component : null;
     }
 
     /**

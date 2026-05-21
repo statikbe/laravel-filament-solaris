@@ -2,53 +2,53 @@
 
 use PHPUnit\Framework\ExpectationFailedException;
 use Statikbe\FilamentSolaris\Testing\AiActionFake;
-use Statikbe\FilamentSolaris\Testing\DictationActionFake;
+use Statikbe\FilamentSolaris\Testing\DictationFieldActionFake;
 
 beforeEach(function () {
-    DictationActionFake::reset();
+    DictationFieldActionFake::reset();
     AiActionFake::reset();
 });
 
 afterEach(function () {
-    DictationActionFake::reset();
+    DictationFieldActionFake::reset();
     AiActionFake::reset();
 });
 
 it('is inactive by default', function () {
-    expect(DictationActionFake::isActive())->toBeFalse();
+    expect(DictationFieldActionFake::isActive())->toBeFalse();
 });
 
 it('activates with a transcript', function () {
-    DictationActionFake::activate('Hello world');
+    DictationFieldActionFake::activate('Hello world');
 
-    expect(DictationActionFake::isActive())->toBeTrue()
-        ->and(DictationActionFake::getInstance()->getTranscript())->toBe('Hello world');
+    expect(DictationFieldActionFake::isActive())->toBeTrue()
+        ->and(DictationFieldActionFake::getInstance()->getTranscript())->toBe('Hello world');
 });
 
 it('activates AiActionFake when AI response is provided', function () {
-    DictationActionFake::activate('Hello', ['summary' => 'Test']);
+    DictationFieldActionFake::activate('Hello', ['summary' => 'Test']);
 
-    expect(DictationActionFake::isActive())->toBeTrue()
+    expect(DictationFieldActionFake::isActive())->toBeTrue()
         ->and(AiActionFake::isActive())->toBeTrue();
 });
 
 it('does not activate AiActionFake when no AI response is provided', function () {
-    DictationActionFake::activate('Hello');
+    DictationFieldActionFake::activate('Hello');
 
-    expect(DictationActionFake::isActive())->toBeTrue()
+    expect(DictationFieldActionFake::isActive())->toBeTrue()
         ->and(AiActionFake::isActive())->toBeFalse();
 });
 
 it('resets both fakes when AI response was provided', function () {
-    DictationActionFake::activate('Hello', ['summary' => 'Test']);
-    DictationActionFake::reset();
+    DictationFieldActionFake::activate('Hello', ['summary' => 'Test']);
+    DictationFieldActionFake::reset();
 
-    expect(DictationActionFake::isActive())->toBeFalse()
+    expect(DictationFieldActionFake::isActive())->toBeFalse()
         ->and(AiActionFake::isActive())->toBeFalse();
 });
 
 it('records calls', function () {
-    $fake = DictationActionFake::activate('Hello');
+    $fake = DictationFieldActionFake::activate('Hello');
 
     $fake->recordCall('dictate', 'Hello');
     $fake->recordCall('dictate', 'World');
@@ -57,7 +57,7 @@ it('records calls', function () {
 });
 
 it('asserts called', function () {
-    $fake = DictationActionFake::activate('Hello');
+    $fake = DictationFieldActionFake::activate('Hello');
 
     $fake->recordCall('dictate', 'Hello');
 
@@ -65,13 +65,13 @@ it('asserts called', function () {
 });
 
 it('asserts not called', function () {
-    $fake = DictationActionFake::activate('Hello');
+    $fake = DictationFieldActionFake::activate('Hello');
 
     $fake->assertNotCalled();
 });
 
 it('asserts not called fails when called', function () {
-    $fake = DictationActionFake::activate('Hello');
+    $fake = DictationFieldActionFake::activate('Hello');
     $fake->recordCall('dictate', 'Hello');
 
     expect(fn () => $fake->assertNotCalled())->toThrow(
@@ -80,7 +80,7 @@ it('asserts not called fails when called', function () {
 });
 
 it('asserts transcribed', function () {
-    $fake = DictationActionFake::activate('Hello world');
+    $fake = DictationFieldActionFake::activate('Hello world');
 
     $fake->recordCall('dictate', 'Hello world');
 
@@ -88,7 +88,7 @@ it('asserts transcribed', function () {
 });
 
 it('asserts transcribed fails for empty transcript', function () {
-    $fake = DictationActionFake::activate('');
+    $fake = DictationFieldActionFake::activate('');
 
     $fake->recordCall('dictate', '');
 
@@ -98,7 +98,7 @@ it('asserts transcribed fails for empty transcript', function () {
 });
 
 it('asserts transcribed with callback', function () {
-    $fake = DictationActionFake::activate('Hello world');
+    $fake = DictationFieldActionFake::activate('Hello world');
 
     $fake->recordCall('dictate', 'Hello world');
 
@@ -108,7 +108,7 @@ it('asserts transcribed with callback', function () {
 });
 
 it('asserts called times', function () {
-    $fake = DictationActionFake::activate('Hello');
+    $fake = DictationFieldActionFake::activate('Hello');
 
     $fake->recordCall('dictate', 'Hello');
     $fake->recordCall('dictate', 'Hello');
@@ -118,7 +118,7 @@ it('asserts called times', function () {
 });
 
 it('asserts called times fails with wrong count', function () {
-    $fake = DictationActionFake::activate('Hello');
+    $fake = DictationFieldActionFake::activate('Hello');
 
     $fake->recordCall('dictate', 'Hello');
 

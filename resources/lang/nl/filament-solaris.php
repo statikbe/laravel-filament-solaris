@@ -15,6 +15,7 @@ return [
         'transcription_empty' => 'Geen spraak gedetecteerd in de opname.',
         'transcription_error' => 'Kon de audio niet transcriberen. Probeer het opnieuw.',
         'transcription_rate_limited' => 'Te veel transcriptieverzoeken. Wacht even.',
+        'transcription_overloaded' => 'De transcriptiedienst is momenteel overbelast. Probeer het opnieuw.',
         'microphone_denied' => 'Microfoontoegang is vereist voor dictatie.',
     ],
 

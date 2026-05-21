@@ -2,9 +2,26 @@
     "name": "statikbe/laravel-filament-solaris",
     "description": "AI actions for Filament v4 & v5 — auto-detect form fields, compose prompts, and write structured AI responses back. Powered by laravel-ai.",
     "keywords": [
-        "statikbe",
         "laravel",
-        "laravel-filament-solaris"
+        "filament",
+        "ai",
+        "llm",
+        "agent",
+        "prompt",
+        "openai",
+        "anthropic",
+        "gemini",
+        "conversation",
+        "chat",
+        "transcription",
+        "dictation",
+        "whisper",
+        "image-generation",
+        "dall-e",
+        "gpt-image-1",
+        "statikbe",
+        "laravel-filament-solaris",
+        "laravel-ai"
     ],
     "homepage": "https://github.com/statikbe/laravel-filament-solaris",
     "license": "MIT",
@@ -19,9 +36,11 @@
         "php": "^8.3",
         "filament/filament": "^4.2||^5.0",
         "laravel/ai": "^0.7",
-        "spatie/laravel-package-tools": "^1.16",
-        "illuminate/contracts": "^11.0||^12.0",
-        "ext-intl": "*"
+        "spatie/laravel-package-tools": "^1.93",
+        "illuminate/contracts": "^12.0||^13.0"
+    },
+    "suggest": {
+        "ext-intl": "Required for human-readable locale display names in TranslationPreset. Without it, locale codes (e.g. 'nl') are shown instead of names (e.g. 'Dutch') unless a translation entry is published."
     },
     "require-dev": {
         "filament/spatie-laravel-media-library-plugin": "^4.2||^5.0",
@@ -76,6 +95,6 @@
             }
         }
     },
-    "minimum-stability": "dev",
+    "minimum-stability": "stable",
     "prefer-stable": true
 }

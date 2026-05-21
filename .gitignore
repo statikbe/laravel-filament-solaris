@@ -35,3 +35,9 @@ testbench.yaml
 .claude/settings.local.json
 /.playwright-mcp
 
+# Internal working notes — kept locally, not published
+/refactor.md
+/review.md
+/PLAN.md
+/RELEASE-REVIEW.md
+

@@ -68,62 +68,83 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Default Locale
+    | Option Matching
     |--------------------------------------------------------------------------
     |
-    | Override the default locale for AI prompts. When null, the application
-    | locale (app()->getLocale()) is used.
+    | When a Select/CheckboxList has more options than `max_options`, the schema
+    | becomes free-text and the AI's answer is resolved back to an option key
+    | through a priority chain ending in a Levenshtein fuzzy match. Fuzzy
+    | matching can produce a wrong-but-plausible result, so it's tunable here:
+    |
+    | - `fuzzy`           — master on/off for the fuzzy fallback. Disable it for
+    |                       high-stakes fields where a wrong match is worse than
+    |                       no match (the value then falls through unmatched).
+    | - `fuzzy_threshold` — max edit distance as a fraction of the longer string
+    |                       (0.25 ≈ "up to a quarter of the characters differ").
+    |                       Relative, so short labels need near-exact matches and
+    |                       long labels tolerate proportionally more typos.
+    | - `fuzzy_min_length`— labels/values shorter than this never fuzzy-match
+    |                       (a 1-char edit on a 3-char word usually flips meaning,
+    |                       e.g. "cat" → "car").
+    |
+    | Whenever an inexact match (substring or fuzzy) resolves, a
+    | `SolarisOptionMatched` event fires so you can detect misclassification in
+    | production. Per-field overrides: `->targetFuzzyMatching($field, false)` and
+    | `->targetFuzzyThreshold($field, 0.15)` on the action.
     |
     */
 
-    'default_locale' => null,
+    'option_matching' => [
+        'fuzzy' => true,
+        'fuzzy_threshold' => 0.25,
+        'fuzzy_min_length' => 4,
+    ],
 
     /*
     |--------------------------------------------------------------------------
-    | Action Icon
+    | Icons
     |--------------------------------------------------------------------------
     |
-    | The default icon for AI actions. Accepts a Heroicon name string or a
-    | BackedEnum that resolves to an icon name.
+    | Default icons for the Solaris action buttons. Each entry accepts a
+    | Heroicon name string or a BackedEnum that resolves to an icon name.
     |
     */
 
-    'action_icon' => Heroicon::OutlinedSparkles,
+    'icons' => [
+        'action' => Heroicon::OutlinedSparkles,
+        'dictation' => Heroicon::OutlinedMicrophone,
+        'image_generation' => Heroicon::OutlinedPhoto,
+        'conversation_send' => Heroicon::OutlinedPaperAirplane,
+        'conversation_attachment' => Heroicon::OutlinedPaperClip,
+    ],
 
     /*
     |--------------------------------------------------------------------------
-    | Dictation Icon
+    | Locale
     |--------------------------------------------------------------------------
     |
-    | The default icon for dictation actions. Accepts a Heroicon name string
-    | or a BackedEnum that resolves to an icon name.
+    | `default` — override the locale used for AI prompts. When null, the
+    | application locale (app()->getLocale()) is used.
+    |
+    | `supported` — locales available for the TranslatePreset language
+    | selector. Fallback chain (first non-null wins):
+    |   1. Runtime: FilamentSolaris::setLocales([...]) from a service provider.
+    |   2. This config key.
+    |   3. config('app.supported_locales').
+    |   4. [config('app.locale')] (single-locale fallback).
+    |
+    | Accepts a flat array or a key-value array:
+    |   ['en', 'nl', 'fr']                     — display names are resolved
+    |                                             from the translation file
+    |                                             or the intl extension.
+    |   ['en' => 'English', 'nl' => 'Dutch']   — display names used as-is.
     |
     */
 
-    'dictation_icon' => Heroicon::OutlinedMicrophone,
-
-    /*
-    |--------------------------------------------------------------------------
-    | Conversational Refinement Icon
-    |--------------------------------------------------------------------------
-    |
-    | The icon for the send button in the conversational refinement chat.
-    |
-    */
-
-    'conversation_send_icon' => Heroicon::OutlinedPaperAirplane,
-
-    /*
-    |--------------------------------------------------------------------------
-    | Conversational Refinement Attachment Icon
-    |--------------------------------------------------------------------------
-    |
-    | The icon for the attach-files button in the conversational refinement
-    | chat (used to attach files to a refinement message).
-    |
-    */
-
-    'conversation_attachment_icon' => Heroicon::OutlinedPaperClip,
+    'locale' => [
+        'default' => null,
+        'supported' => null,
+    ],
 
     /*
     |--------------------------------------------------------------------------
@@ -139,99 +160,89 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Supported Locales
-    |--------------------------------------------------------------------------
-    |
-    | The locales available for the TranslatePreset language selector.
-    |
-    | Fallback chain (first non-null wins):
-    |   1. Runtime: FilamentSolaris::setLocales([...]) — call from a service
-    |      provider to pass locales from another package.
-    |   2. This config key.
-    |   3. config('app.supported_locales').
-    |   4. [config('app.locale')] (si
-    ngle-locale fallback).
-    |
-    | Accepts a flat array or a key-value array:
-    |   ['en', 'nl', 'fr']                     — display names are resolved
-    |                                             from the translation file
-    |                                             or the intl extension.
-    |   ['en' => 'English', 'nl' => 'Dutch']   — display names used as-is.
-    |
-    */
-
-    'supported_locales' => null,
-
-    /*
-    |--------------------------------------------------------------------------
     | Prompt Logging
     |--------------------------------------------------------------------------
     |
-    | When enabled, the composed prompt and JSON schema are logged via
-    | Laravel's logger before each AI call. Useful for debugging prompts
-    | during development. Should be disabled in production.
+    | When `enabled`, the composed prompt, JSON schema, and per-call Usage are
+    | logged via Laravel's logger before/after each AI call. Useful for
+    | debugging prompts during development. Should be disabled in production.
     |
-    | You can add a logging channel if you want to collect the prompt logs in
-    | a different log file.
-    |
+    | `channel` lets you collect the prompt logs in a different log file.
     | Loggers can also be registered in service providers via
-    | Statikbe\FilamentSolaris\Facades\FilamentSolaris::registerLogger()
+    | Statikbe\FilamentSolaris\Facades\FilamentSolaris::registerLogger().
+    |
     */
 
-    'prompt_logging_enabled' => (bool) env('FILAMENT_SOLARIS_PROMPT_LOGGING', false),
-    'prompt_logging_channel' => null,
+    'prompt_logging' => [
+        'enabled' => (bool) env('FILAMENT_SOLARIS_PROMPT_LOGGING', false),
+        'channel' => null,
+    ],
 
     /*
     |--------------------------------------------------------------------------
-    | Default AI Provider & Model
+    | AI Defaults
     |--------------------------------------------------------------------------
     |
-    | Default provider for all AI actions. When null, the laravel/ai default
-    | (config('ai.default')) is used. Supports failover arrays.
-    |
-    | Examples:
+    | Defaults for text-generation AI calls. When a value is null, the
+    | laravel/ai default (or the agent's PHP attribute / provider default
+    | for the text-generation options) is used. Supports failover arrays for
+    | provider:
     |   'openai'
     |   ['openai' => 'gpt-4o', 'anthropic' => 'claude-sonnet-4-5-20250514']
     |
-    */
-
-    'default_provider' => null,
-    'default_model' => null,
-    'default_timeout' => null,
-
-    /*
-    |--------------------------------------------------------------------------
-    | Default Text Generation Options
-    |--------------------------------------------------------------------------
-    |
-    | Defaults for text-generation parameters resolved by laravel/ai's
-    | TextGenerationOptions. When null, laravel/ai falls back to the agent's
-    | PHP attributes (#[Temperature], #[MaxTokens], #[MaxSteps], #[TopP]) and
-    | then to the provider's own defaults.
-    |
-    | These can be overridden per-action (->temperature(), ->maxTokens(),
-    | ->maxSteps(), ->topP()) or per-preset (Preset::make()->temperature()).
+    | Text-generation options (temperature, max_tokens, max_steps, top_p) can
+    | be overridden per-action (->temperature(), ->maxTokens(), ->maxSteps(),
+    | ->topP()) or per-preset (Preset::make()->temperature()).
     |
     */
 
-    'default_temperature' => null,
-    'default_max_tokens' => null,
-    'default_max_steps' => null,
-    'default_top_p' => null,
+    'ai' => [
+        'default_provider' => null,
+        'default_model' => null,
+        'default_timeout' => null,
+        'default_temperature' => null,
+        'default_max_tokens' => null,
+        'default_max_steps' => null,
+        'default_top_p' => null,
+    ],
 
     /*
     |--------------------------------------------------------------------------
-    | Default Transcription Provider & Model
+    | Transcription Defaults
     |--------------------------------------------------------------------------
     |
-    | Default provider for transcription (DictationAction). When null, the
+    | Defaults for DictationFieldAction's transcription step. When null, the
     | laravel/ai default is used.
     |
     */
 
-    'default_transcription_provider' => null,
-    'default_transcription_model' => null,
-    'default_transcription_timeout' => null,
+    'transcription' => [
+        'default_provider' => null,
+        'default_model' => null,
+        'default_timeout' => null,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Image Generation Defaults
+    |--------------------------------------------------------------------------
+    |
+    | Defaults for ImageGenerationAction. When a value is null, the laravel/ai
+    | default is used. The disk and directory should match the FileUpload
+    | component's configuration for the generated image to display correctly.
+    |
+    */
+
+    'image_generation' => [
+        'default_provider' => null,
+        'default_model' => null,
+        'default_timeout' => null,
+        'default_size' => null,           // '1:1', '3:2', '2:3'
+        'default_quality' => null,        // 'low', 'medium', 'high'
+        'default_disk' => null,           // Storage disk (null = default filesystem disk)
+        'default_directory' => 'ai-images',
+        'default_visibility' => null,     // 'public' or null
+    ],
 
     /*
     |--------------------------------------------------------------------------
@@ -256,36 +267,5 @@ return [
     */
 
     'preset_providers' => [],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Image Generation Icon
-    |--------------------------------------------------------------------------
-    |
-    | The default icon for image generation actions.
-    |
-    */
-
-    'image_generation_icon' => Heroicon::OutlinedPhoto,
-
-    /*
-    |--------------------------------------------------------------------------
-    | Image Generation Defaults
-    |--------------------------------------------------------------------------
-    |
-    | Default settings for AI image generation. When null, laravel/ai defaults
-    | are used. The disk and directory should match the FileUpload component's
-    | configuration for the generated image to display correctly.
-    |
-    */
-
-    'default_image_provider' => null,
-    'default_image_model' => null,
-    'default_image_timeout' => null,
-    'default_image_size' => null,           // '1:1', '3:2', '2:3'
-    'default_image_quality' => null,        // 'low', 'medium', 'high'
-    'default_image_disk' => null,           // Storage disk (null = default filesystem disk)
-    'default_image_directory' => 'ai-images',
-    'default_image_visibility' => null,     // 'public' or null
 
 ];

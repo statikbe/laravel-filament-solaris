@@ -4,6 +4,15 @@ namespace Statikbe\FilamentSolaris;
 
 use Psr\Log\LoggerInterface;
 
+/**
+ * Singleton service holding Solaris's runtime registries.
+ *
+ * Bound as a singleton in {@see FilamentSolarisServiceProvider::register()} —
+ * runtime state (factory overrides, supported locales, custom logger) lives
+ * on the bound instance and is shared across the request. Call via the
+ * facade ({@see Facades\FilamentSolaris}) or by
+ * resolving the class directly with `app(FilamentSolaris::class)`.
+ */
 class FilamentSolaris
 {
     /**
@@ -11,19 +20,19 @@ class FilamentSolaris
      *
      * @var array<class-string, class-string>
      */
-    protected static array $runtimeFactories = [];
+    protected array $runtimeFactories = [];
 
     /**
      * Runtime-set supported locales.
      *
      * @var array<int|string, string>|null
      */
-    protected static ?array $locales = null;
+    protected ?array $locales = null;
 
     /**
      * Runtime-registered logger.
      */
-    protected static ?LoggerInterface $logger = null;
+    protected ?LoggerInterface $logger = null;
 
     /**
      * Get the config instance.
@@ -41,7 +50,7 @@ class FilamentSolaris
      */
     public function registerFactory(string $componentClass, string $factoryClass): void
     {
-        static::$runtimeFactories[$componentClass] = $factoryClass;
+        $this->runtimeFactories[$componentClass] = $factoryClass;
     }
 
     /**
@@ -49,17 +58,17 @@ class FilamentSolaris
      *
      * @return array<class-string, class-string>
      */
-    public static function getRuntimeFactories(): array
+    public function getRuntimeFactories(): array
     {
-        return static::$runtimeFactories;
+        return $this->runtimeFactories;
     }
 
     /**
      * Clear all runtime-registered factories (for testing).
      */
-    public static function clearRuntimeFactories(): void
+    public function clearRuntimeFactories(): void
     {
-        static::$runtimeFactories = [];
+        $this->runtimeFactories = [];
     }
 
     /**
@@ -69,9 +78,9 @@ class FilamentSolaris
      *
      * @param  array<int|string, string>  $locales
      */
-    public static function setLocales(array $locales): void
+    public function setLocales(array $locales): void
     {
-        static::$locales = $locales;
+        $this->locales = $locales;
     }
 
     /**
@@ -79,40 +88,40 @@ class FilamentSolaris
      *
      * @return array<int|string, string>|null
      */
-    public static function getLocales(): ?array
+    public function getLocales(): ?array
     {
-        return static::$locales;
+        return $this->locales;
     }
 
     /**
      * Clear runtime-set locales (for testing).
      */
-    public static function clearLocales(): void
+    public function clearLocales(): void
     {
-        static::$locales = null;
+        $this->locales = null;
     }
 
     /**
      * Register runtime-set logger.
      */
-    public static function registerLogger(LoggerInterface $logger): void
+    public function registerLogger(LoggerInterface $logger): void
     {
-        static::$logger = $logger;
+        $this->logger = $logger;
     }
 
     /**
      * Get runtime logger.
      */
-    public static function getLogger(): ?LoggerInterface
+    public function getLogger(): ?LoggerInterface
     {
-        return static::$logger;
+        return $this->logger;
     }
 
     /**
      * Clear runtime-set logger (for testing).
      */
-    public static function clearLogger(): void
+    public function clearLogger(): void
     {
-        static::$logger = null;
+        $this->logger = null;
     }
 }

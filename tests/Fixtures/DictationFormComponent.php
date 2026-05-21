@@ -7,16 +7,16 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\FormsComponent;
 use Filament\Schemas\Schema;
-use Statikbe\FilamentSolaris\Actions\DictationAction;
+use Statikbe\FilamentSolaris\Actions\DictationFieldAction;
+use Statikbe\FilamentSolaris\Concerns\InteractsWithSolarisPreview;
 
 class DictationFormComponent extends FormsComponent
 {
+    use InteractsWithSolarisPreview;
+
     /** @var array<string, mixed> */
     public array $data = [];
 
-    /**
-     * Mount the component with initial form data.
-     */
     public function mount(): void
     {
         $this->form->fill([
@@ -27,9 +27,6 @@ class DictationFormComponent extends FormsComponent
         ]);
     }
 
-    /**
-     * Define the form schema.
-     */
     public function form(Schema $form): Schema
     {
         return $form
@@ -37,9 +34,35 @@ class DictationFormComponent extends FormsComponent
                 TextInput::make('title')
                     ->required()
                     ->maxLength(255),
+
+                // Plain dictation — hint actions on a Textarea write the
+                // transcript into 'body' (auto-resolved from the host field).
+                // Append-mode variant is a second hint action on the same field.
+                // The `dictateBodyWithPreview` variant pairs the recorder with
+                // `->withPreview()` to exercise the dictation/preview interaction
+                // (the component carries the InteractsWithSolarisPreview trait so
+                // validatePreviewConfiguration() passes).
                 Textarea::make('body')
-                    ->required(),
-                Textarea::make('summary'),
+                    ->required()
+                    ->hintActions([
+                        DictationFieldAction::make('dictateBody'),
+                        DictationFieldAction::make('dictateBodyAppend')->append(),
+                        DictationFieldAction::make('dictateBodyWithPreview')->withPreview(),
+                    ]),
+
+                // AI-chained dictation — records, transcribes, pipes the
+                // transcript through the AI pipeline, writes the resulting
+                // summary into 'summary'. Multi-target variant also writes
+                // 'category' via explicit ->targetFields().
+                Textarea::make('summary')
+                    ->hintActions([
+                        DictationFieldAction::make('dictateAndSummarize')
+                            ->prompt('Summarize the transcription in one sentence.'),
+                        DictationFieldAction::make('dictateAndClassify')
+                            ->targetFields(['summary', 'category'])
+                            ->prompt('Summarize and classify the transcription.'),
+                    ]),
+
                 Select::make('category')
                     ->options([
                         'tech' => 'Technology',
@@ -50,56 +73,6 @@ class DictationFormComponent extends FormsComponent
             ->statePath('data');
     }
 
-    /**
-     * Pure transcription — writes directly to body field.
-     */
-    public function dictateBodyAction(): DictationAction
-    {
-        return DictationAction::make('dictateBody')
-            ->targetField('body');
-    }
-
-    /**
-     * Transcription with append mode — appends to body field.
-     */
-    public function dictateBodyAppendAction(): DictationAction
-    {
-        return DictationAction::make('dictateBodyAppend')
-            ->targetField('body')
-            ->append();
-    }
-
-    /**
-     * Transcription + AI processing — transcribes and generates a summary.
-     */
-    public function dictateAndSummarizeAction(): DictationAction
-    {
-        return DictationAction::make('dictateAndSummarize')
-            ->targetField('summary')
-            ->prompt('Summarize the transcription in one sentence.');
-    }
-
-    /**
-     * Transcription + AI processing with multiple target fields.
-     */
-    public function dictateAndClassifyAction(): DictationAction
-    {
-        return DictationAction::make('dictateAndClassify')
-            ->targetFields(['summary', 'category'])
-            ->prompt('Summarize and classify the transcription.');
-    }
-
-    /**
-     * Dictation with no target fields — should throw.
-     */
-    public function dictateInvalidAction(): DictationAction
-    {
-        return DictationAction::make('dictateInvalid');
-    }
-
-    /**
-     * Render the component.
-     */
     public function render(): string
     {
         return '<div>{{ $this->form }}</div>';

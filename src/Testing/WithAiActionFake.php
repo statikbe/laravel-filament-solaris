@@ -10,7 +10,7 @@ trait WithAiActionFake
     protected function resetAiActionFake(): void
     {
         AiActionFake::reset();
-        DictationActionFake::reset();
+        DictationFieldActionFake::reset();
         ImageGenerationActionFake::reset();
     }
 }

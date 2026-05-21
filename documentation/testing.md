@@ -66,24 +66,24 @@ AiAction::fake(['summary' => 'Default summary'])
     ->forAction('translate');
 ```
 
-## Testing DictationAction
+## Testing DictationFieldAction
 
 ```php
-use Statikbe\FilamentSolaris\Actions\DictationAction;
+use Statikbe\FilamentSolaris\Actions\DictationFieldAction;
 
 // Fake pure transcription
-DictationAction::fake('This is the transcribed text.');
+DictationFieldAction::fake('This is the transcribed text.');
 
 // Fake transcription + AI processing
-DictationAction::fake('Meeting notes about deadlines.', aiResponse: [
+DictationFieldAction::fake('Meeting notes about deadlines.', aiResponse: [
     'summary' => 'Discussion about project deadlines.',
     'category_id' => 'meetings',
 ]);
 
 // Assertions
-DictationAction::assertCalled();
-DictationAction::assertTranscribed();
-DictationAction::assertTranscribedWith(function (string $transcript) {
+DictationFieldAction::assertCalled();
+DictationFieldAction::assertTranscribed();
+DictationFieldAction::assertTranscribedWith(function (string $transcript) {
     expect($transcript)->toContain('meeting');
 });
 ```
@@ -123,7 +123,7 @@ class MyTest extends TestCase
 {
     use WithAiActionFake;
 
-    // AiActionFake, DictationActionFake, and ImageGenerationActionFake
+    // AiActionFake, DictationFieldActionFake, and ImageGenerationActionFake
     // are all reset automatically after each test
 }
 ```
