@@ -2,6 +2,28 @@
 
 All notable changes to `laravel-filament-solaris` will be documented in this file.
 
+## v0.1.0 - 2026-05-21
+
+### What's Changed
+
+First release 🎉
+
+* Update laravel/ai requirement from ^0.1 to ^0.2 by @dependabot[bot] in https://github.com/statikbe/laravel-filament-solaris/pull/1
+* Update laravel/ai requirement from ^0.3 to ^0.4 by @dependabot[bot] in https://github.com/statikbe/laravel-filament-solaris/pull/4
+* Update laravel/ai requirement from ^0.4 to ^0.5 by @dependabot[bot] in https://github.com/statikbe/laravel-filament-solaris/pull/6
+* Update laravel/ai requirement from ^0.5 to ^0.6 by @dependabot[bot] in https://github.com/statikbe/laravel-filament-solaris/pull/8
+* Bump ramsey/composer-install from 3 to 4 by @dependabot[bot] in https://github.com/statikbe/laravel-filament-solaris/pull/2
+* Bump actions/setup-node from 4 to 6 by @dependabot[bot] in https://github.com/statikbe/laravel-filament-solaris/pull/3
+* Bump dependabot/fetch-metadata from 2.5.0 to 3.1.0 by @dependabot[bot] in https://github.com/statikbe/laravel-filament-solaris/pull/7
+* Update laravel/ai requirement from ^0.6 to ^0.7 by @dependabot[bot] in https://github.com/statikbe/laravel-filament-solaris/pull/9
+* Update orchestra/testbench requirement from ^10.0.0||^9.0.0 to ^11.1.0 by @dependabot[bot] in https://github.com/statikbe/laravel-filament-solaris/pull/10
+
+### New Contributors
+
+* @dependabot[bot] made their first contribution in https://github.com/statikbe/laravel-filament-solaris/pull/1
+
+**Full Changelog**: https://github.com/statikbe/laravel-filament-solaris/commits/0.1.0
+
 ## [0.1.0] - 2026-05-14
 
 Initial public release. Solaris ships as `0.x` while [`laravel/ai`](https://github.com/laravel/ai) is pre-1.0 — see [Versioning](README.md#versioning) for the coupling.
