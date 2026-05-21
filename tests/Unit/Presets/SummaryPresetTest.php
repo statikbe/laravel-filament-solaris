@@ -43,6 +43,19 @@ it('includes language override in prompt', function () {
     expect($prompt)->toContain('French');
 });
 
+it('resolves a locale code to a language name in the prompt', function () {
+    $preset = SummaryPreset::make()->language('fr');
+    $factory = TextFactory::make(Textarea::make('summary'));
+
+    $prompt = $preset->build(
+        instruction: '',
+        sourceData: ['body' => 'Content'],
+        factories: ['summary' => $factory],
+    );
+
+    expect($prompt)->toContain('French')->not->toContain(' in fr.');
+});
+
 it('includes source data in prompt', function () {
     $preset = SummaryPreset::make();
     $factory = TextFactory::make(Textarea::make('summary'));

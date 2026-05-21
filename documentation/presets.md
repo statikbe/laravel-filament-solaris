@@ -10,9 +10,9 @@ Generates a summary of the source content.
 
 ```php
 SummaryPreset::make()
-    ->maxWords(200)       // default: 200
+    ->maxWords(200)        // default: 200
     ->tone('professional') // default: config('filament-solaris.default_tone')
-    ->language('French')   // overrides locale for output language
+    ->language('fr')       // overrides the action locale; a code ('fr') resolves to its name ('French')
 ```
 
 ## ClassificationPreset
@@ -31,7 +31,7 @@ Translates source content into a target language.
 
 ```php
 TranslationPreset::make()
-    ->language('fr')                // required — target language
+    ->language('fr')                // required — target language; a code ('fr') resolves to its name ('French')
     ->preserveFormatting()          // default: true — preserve HTML/Markdown structure
     ->glossary('API = API (never translate), Laravel = Laravel')
 ```

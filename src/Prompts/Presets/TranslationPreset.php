@@ -92,7 +92,7 @@ class TranslationPreset extends Preset
     protected function viewData(): array
     {
         return [
-            'language' => $this->getLanguage(),
+            'language' => $this->resolveLanguageName($this->getLanguage()),
             'preserveFormatting' => $this->preserveFormatting,
             'glossary' => $this->getGlossary(),
         ];

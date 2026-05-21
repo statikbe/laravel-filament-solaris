@@ -79,7 +79,7 @@ class SummaryPreset extends Preset
         return [
             'maxWords' => $this->getMaxWords(),
             'tone' => $this->getTone(),
-            'language' => $this->getLanguage(),
+            'language' => $this->resolveLanguageName($this->getLanguage()),
         ];
     }
 }
