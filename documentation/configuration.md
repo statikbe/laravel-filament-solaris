@@ -6,9 +6,9 @@ Publish the config file:
 php artisan vendor:publish --tag="filament-solaris-config"
 ```
 
-This creates `config/filament-solaris.php` with all available options. The file is organised into semantic groups: `icons`, `locale`, `prompt_logging`, `ai`, `transcription`, `image_generation`, plus standalone top-level keys (`factories`, `max_options`, `default_tone`, `preset_providers`).
+This creates `config/filament-solaris.php` with all available options. The file is organised into semantic groups: `icons`, `locale`, `prompt_logging`, `ai`, `transcription`, `image_generation`, `option_matching`, plus standalone top-level keys (`factories`, `max_options`, `default_tone`, `preset_providers`).
 
-For per-panel overrides see [Per-Panel Configuration](../README.md#per-panel-configuration-plugin) — every key documented below has a matching plugin setter.
+For per-panel overrides see [Per-Panel Configuration](#per-panel-configuration-plugin) — every key documented below has a matching plugin setter.
 
 ## Factory Map
 
@@ -29,6 +29,18 @@ The threshold above which `SelectFactory` and `CheckboxListFactory` switch from 
 
 ```php
 'max_options' => 100,
+```
+
+## Option Matching
+
+Tunes how free-text AI answers are resolved back to Select/CheckboxList option keys. See [Component Factories → Option Matching](factories.md#option-matching) for behaviour and the per-field/per-panel overrides.
+
+```php
+'option_matching' => [
+    'fuzzy' => true,            // master on/off for the Levenshtein fuzzy fallback
+    'fuzzy_threshold' => 0.25,  // max edit distance as a fraction of the longer string
+    'fuzzy_min_length' => 4,    // values/labels shorter than this skip fuzzy entirely
+],
 ```
 
 ## Icons
@@ -215,3 +227,51 @@ Route specific preset types to different providers, models, and timeouts. Useful
 ```
 
 All keys are optional: `provider`, `model`, `timeout`, `temperature`, `max_tokens`, `max_steps`, `top_p`. Each is overridden by the matching action-level setter (`->provider()`, `->timeout()`, `->temperature()`, etc.) or by a preset-level setter on the preset object.
+
+## Per-Panel Configuration (Plugin)
+
+For apps with multiple Filament panels — typically an admin panel plus customer/partner panels — register `FilamentSolarisPlugin` on each panel to override the global defaults. Every setting in `config/filament-solaris.php` that's worth varying per audience is exposed as a fluent setter:
+
+```php
+use Statikbe\FilamentSolaris\FilamentSolarisPlugin;
+
+// app/Providers/Filament/AdminPanelProvider.php
+$panel->plugin(
+    FilamentSolarisPlugin::make()
+        ->defaultProvider('anthropic', 'claude-sonnet-4-5')
+        ->defaultTemperature(0.3)
+        ->defaultMaxTokens(4096)
+        ->actionIcon('heroicon-o-sparkles')
+        ->locales(['en', 'nl', 'fr'])
+        ->promptLogging(true)
+);
+
+// app/Providers/Filament/CustomerPanelProvider.php
+$panel->plugin(
+    FilamentSolarisPlugin::make()
+        ->defaultProvider('google', 'gemini-2.5-flash')   // cheaper for end-user features
+        ->defaultMaxTokens(1024)                           // tighter token budget
+        ->defaultImageDisk('public')
+        ->visible(fn () => auth()->user()?->plan === 'pro') // hide AI for free-tier users
+);
+```
+
+Available setters (every Tier-1/2 config key has one):
+
+- **Provider/model/timeout:** `defaultProvider()`, `defaultModel()`, `defaultTimeout()`
+- **Text-gen options:** `defaultTemperature()`, `defaultMaxTokens()`, `defaultMaxSteps()`, `defaultTopP()`
+- **Transcription:** `defaultTranscriptionProvider()`, `defaultTranscriptionModel()`, `defaultTranscriptionTimeout()`
+- **Image generation:** `defaultImageProvider()`, `defaultImageModel()`, `defaultImageTimeout()`, `defaultImageSize()`, `defaultImageQuality()`, `defaultImageDisk()`, `defaultImageDirectory()`, `defaultImageVisibility()`
+- **Option matching:** `optionFuzzyMatching()`, `optionFuzzyThreshold()`, `optionFuzzyMinLength()`
+- **Logging:** `promptLogging()`, `promptLoggingChannel()`
+- **Locales:** `defaultLocale()`, `locales()`
+- **Icons:** `actionIcon()`, `dictationIcon()`, `imageGenerationIcon()`, `conversationSendIcon()`, `conversationAttachmentIcon()`
+- **Tone:** `defaultTone()`
+- **Preset overrides:** `presetProvider()` (single, repeatable) and `presetProviders()` (bulk merge)
+- **Visibility gate:** `visible(bool|Closure)` and `disabled()`
+
+**Visibility gate (`->visible(...)` / `->disabled()`).** Set a single panel-wide predicate; Solaris registers `->hidden(...)` on every Solaris action with the negated check, so it hard-AND's with whatever the consuming action sets via its own `->visible(...)`. Users can't accidentally show an action on a disabled panel.
+
+**preset_providers merge semantics.** `presetProvider()` overrides one entry from `config/filament-solaris.php` at a time; entries you don't override stay live. `presetProviders([...])` merges with any prior `presetProvider()` calls on the same plugin.
+
+**Outside a panel context** (queued jobs, CLI commands, non-panel Livewire components) Solaris falls through to `config/filament-solaris.php` — the plugin only applies when `Filament::getCurrentPanel()` returns a panel that registered it.
