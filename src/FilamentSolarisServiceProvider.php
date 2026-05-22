@@ -2,6 +2,7 @@
 
 namespace Statikbe\FilamentSolaris;
 
+use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
 use Filament\Support\Assets\AlpineComponent;
 use Filament\Support\Facades\FilamentAsset;
@@ -10,6 +11,7 @@ use Spatie\LaravelPackageTools\PackageServiceProvider;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris as FilamentSolarisFacade;
 use Statikbe\FilamentSolaris\Factories\SpatieMediaLibraryFileUploadFactory;
+use Statikbe\FilamentSolaris\RichEditor\DictationRichEditorPlugin;
 
 class FilamentSolarisServiceProvider extends PackageServiceProvider
 {
@@ -35,6 +37,15 @@ class FilamentSolarisServiceProvider extends PackageServiceProvider
         FilamentAsset::register([
             AlpineComponent::make('dictation-modal', __DIR__.'/../dist/components/dictation.js'),
         ], 'statikbe/filament-solaris');
+
+        // Globally add the dictation button to every RichEditor when enabled.
+        // The flag is read at make()-time (not boot-time) so runtime/panel
+        // config changes are honoured and the behaviour is testable.
+        RichEditor::configureUsing(static function (RichEditor $editor): void {
+            if (FilamentSolarisFacade::config()->shouldEnableRichEditorToolbarButton()) {
+                $editor->plugins([DictationRichEditorPlugin::make()]);
+            }
+        });
 
         // Auto-register the Spatie media-library variant when both Filament's
         // plugin and Spatie's media-library are installed. No-op otherwise —
