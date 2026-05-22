@@ -15,7 +15,7 @@ AI actions for Filament v4 & v5 — drop a button on any form to summarize, clas
 
 - **`AiAction`** — read source fields, send them to an AI provider, write a structured response back into one or more target fields. Filament component types are auto-detected (Select, Toggle, RichEditor, …) and the AI is constrained to a matching JSON schema, so a `Select` only ever gets a valid option.
 - **`ImageGenerationAction`** — generate (or edit/reskin) images and store them straight into a `FileUpload` / Spatie media field.
-- **`DictationFieldAction`** — record audio, transcribe it, and drop the text into a field — optionally piped through the AI pipeline first.
+- **`DictationFieldAction`** — record audio, transcribe it, and drop the text into a field — optionally piped through the AI pipeline first. A **`RichEditor` toolbar button** variant inserts the transcript at the cursor.
 - **Presets** for the common jobs (summary, classification, translation, generation) and a prompt API (inline string, Blade view, or custom builder) for everything else.
 - **Extra input modal and attachments** to add extra user input to the prompt.
 - **Preview & conversational refinement** — let users review and chat-refine the result before it touches the form.
@@ -380,7 +380,7 @@ Read the full threat model and field-by-field guidance in [Security Consideratio
 | [Presets Reference](documentation/presets.md) | Summary / Classification / Translation / Generation + custom presets |
 | [Prompt Builders](documentation/prompt-builders.md) | Inline, view, and custom prompt builders |
 | [ImageGenerationAction](documentation/image-generation.md) | Sizes, quality, providers, storage, reference images |
-| [DictationFieldAction](documentation/dictation.md) | Transcription, AI chaining, providers, RichEditor support |
+| [Dictation](documentation/dictation.md) | Field action (transcription, AI chaining, providers) + RichEditor toolbar button (cursor insert) |
 | [Usage Tracking](documentation/usage-tracking.md) | Events, metering, rate-limit handling & retry |
 | [Security Considerations](documentation/security.md) | Threat model, render-layer guidance, sanitization hook |
 | [Configuration](documentation/configuration.md) | All config keys + per-panel plugin |

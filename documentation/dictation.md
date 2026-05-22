@@ -1,12 +1,21 @@
-# DictationFieldAction
+# Dictation
 
 [← Back to README](../README.md)
 
-`DictationFieldAction` captures audio via the browser's MediaRecorder API, transcribes it using `laravel/ai`'s Transcription API, and optionally processes the transcript through the AI pipeline. It works in two modes: pure transcription and transcription with AI processing.
+Solaris offers two ways to dictate into a form, both capturing audio via the browser's MediaRecorder API and transcribing it with `laravel/ai`'s Transcription API. They share the same recording modal and language/provider settings — they differ in *where* the transcript lands.
 
-Attach it directly to any Filament `Field` via `->hintAction(...)` (works on `Textarea`, `RichEditor`, etc.) or via `->suffixAction(...)` on a `TextInput`. The transcript is written back into the **host field** — no `->targetField()` call needed.
+| | Field action | Toolbar button |
+|---|---|---|
+| Class | `DictationFieldAction` | `DictationRichEditorPlugin` |
+| Attaches to | any `Field` — `->hintAction()` / `->suffixAction()` | a `RichEditor` toolbar — `->plugins()` |
+| Writes | the field value (replace / append) | inserts at the cursor |
+| AI pipeline | yes (`->preset()` / `->prompt()`) | no (pure transcription) |
 
-## Pure Transcription
+## Field action (`DictationFieldAction`)
+
+`DictationFieldAction` works in two modes: pure transcription and transcription with AI processing. Attach it directly to any Filament `Field` via `->hintAction(...)` (works on `Textarea`, `RichEditor`, etc.) or via `->suffixAction(...)` on a `TextInput`. The transcript is written back into the **host field** — no `->targetField()` call needed.
+
+### Pure transcription
 
 ```php
 use Filament\Forms\Components\Textarea;
@@ -32,11 +41,57 @@ Textarea::make('notes')
 
 ### RichEditor support
 
-On a `RichEditor`, attach via `->hintAction(...)` (the `->suffixAction(...)` slot is `TextInput`-only). The transcript **replaces** the editor's whole value, or **appends** to it with `->append()` — it writes the field value, it does not insert at the cursor position.
+On a `RichEditor`, attach via `->hintAction(...)` (the `->suffixAction(...)` slot is `TextInput`-only). The transcript **replaces** the editor's whole value, or **appends** to it with `->append()` — it writes the field value, it does not insert at the cursor position. For cursor insertion, use the [toolbar button](#toolbar-button-dictationricheditorplugin) instead.
 
-## Toolbar button (RichEditor)
+### Transcription + AI processing
 
-Add a dictation button to a `RichEditor`'s toolbar. Clicking it opens the recording modal and inserts the transcript **at the cursor** — rather than replacing or appending to the whole field value like the `hintAction` path above.
+Add a `->prompt()` or `->preset()` and the transcript flows through the AI pipeline before being written:
+
+```php
+Textarea::make('summary')
+    ->hintAction(
+        DictationFieldAction::make('voice-summary')
+            ->preset(SummaryPreset::make()->maxWords(200))
+            ->locale('nl')
+            ->lang('nl')
+    );
+```
+
+To write into multiple fields (or a different field than the host), set `->targetFields()` explicitly:
+
+```php
+Textarea::make('summary')
+    ->hintAction(
+        DictationFieldAction::make('voice-classify')
+            ->targetFields(['summary', 'category_id'])
+            ->prompt('Summarize the transcription and classify it.')
+    );
+```
+
+The transcript becomes the source data (`['transcription' => $transcript]`) for any prompt or preset.
+
+### Transcription provider
+
+The transcription step and AI processing step can use different providers:
+
+```php
+DictationFieldAction::make('voice')
+    ->preset(SummaryPreset::make())
+    ->transcriptionProvider('openai', 'whisper-1')         // transcription
+    ->transcriptionTimeout(30)                              // transcription timeout
+    ->provider('anthropic', 'claude-sonnet-4-5-20250514')  // AI processing
+    ->timeout(120)                                          // AI processing timeout
+```
+
+Package-wide defaults can be set in the config (`default_transcription_provider`, `default_transcription_model`, `default_transcription_timeout`). See [Configuration](configuration.md).
+
+### Testing
+
+See [Testing documentation](testing.md#testing-dictationfieldaction).
+
+## Toolbar button (`DictationRichEditorPlugin`)
+
+Add a dictation button to a `RichEditor`'s toolbar. Clicking it opens the recording modal and inserts the transcript **at the cursor** — rather than replacing or appending to the whole field value like the field action's `hintAction` path.
 
 > **Scope:** pure transcription → cursor insert. The AI preset/prompt pipeline available on `DictationFieldAction` (via `->preset()` / `->prompt()`) is **not** supported for the toolbar button.
 
@@ -125,58 +180,12 @@ DictationToolbarAction::assertCalledTimes(1);
 DictationToolbarAction::assertNotCalled(); // use this when verifying it was NOT triggered
 ```
 
-## Transcription + AI Processing
+## How it works
 
-Add a `->prompt()` or `->preset()` and the transcript flows through the AI pipeline before being written:
-
-```php
-Textarea::make('summary')
-    ->hintAction(
-        DictationFieldAction::make('voice-summary')
-            ->preset(SummaryPreset::make()->maxWords(200))
-            ->locale('nl')
-            ->lang('nl')
-    );
-```
-
-To write into multiple fields (or a different field than the host), set `->targetFields()` explicitly:
-
-```php
-Textarea::make('summary')
-    ->hintAction(
-        DictationFieldAction::make('voice-classify')
-            ->targetFields(['summary', 'category_id'])
-            ->prompt('Summarize the transcription and classify it.')
-    );
-```
-
-The transcript becomes the source data (`['transcription' => $transcript]`) for any prompt or preset.
-
-## Transcription Provider
-
-The transcription step and AI processing step can use different providers:
-
-```php
-DictationFieldAction::make('voice')
-    ->preset(SummaryPreset::make())
-    ->transcriptionProvider('openai', 'whisper-1')         // transcription
-    ->transcriptionTimeout(30)                              // transcription timeout
-    ->provider('anthropic', 'claude-sonnet-4-5-20250514')  // AI processing
-    ->timeout(120)                                          // AI processing timeout
-```
-
-Package-wide defaults can be set in the config (`default_transcription_provider`, `default_transcription_model`, `default_transcription_timeout`). See [Configuration](configuration.md).
-
-## How It Works
-
-When the user clicks the dictation button, a modal opens with a recording UI. The user clicks to start recording, speaks, then clicks to stop. The audio is uploaded and transcribed server-side. In AI processing mode, the transcript is then fed into the prompt pipeline.
+When the user clicks a dictation button, a modal opens with a recording UI. The user clicks to start recording, speaks, then clicks to stop. The audio is uploaded and transcribed server-side. For the field action's AI processing mode, the transcript is then fed into the prompt pipeline.
 
 The recording UI shows clear visual states: a pulsing red button with elapsed timer while recording, a green checkmark when the upload completes, and inline error messages for microphone permission issues. The modal's submit button is disabled while recording or uploading is in progress, so a transcription can't fire without audio.
 
-## Browser Support
+## Browser support
 
-DictationFieldAction uses the MediaRecorder API and works in all modern browsers (Chrome 49+, Edge 79+, Firefox 25+, Safari 14.1+). The button is automatically hidden in unsupported browsers.
-
-## Testing
-
-See [Testing documentation](testing.md#testing-dictationfieldaction).
+Dictation uses the MediaRecorder API and works in all modern browsers (Chrome 49+, Edge 79+, Firefox 25+, Safari 14.1+). The button is automatically hidden in unsupported browsers.
