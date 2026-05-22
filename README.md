@@ -214,12 +214,15 @@ ImageGenerationAction::make('generate-cover')
     ->prompt('Generate a cover image for this article')
     ->sourceFields(['title', 'body'])
     ->targetField('cover_image')
-    ->imageSize(ImageSize::Landscape);
+    ->imageSize(ImageSize::Landscape)
+    ->conversational();
 ```
 
 Reference images (image-to-image / edits) and storage options are covered in [ImageGenerationAction](documentation/image-generation.md).
 
-<img src="documentation/assets/preview-conversational-image.png" width="440" alt="A generated cover image shown in the Review AI Results modal, with a chat box to refine it">
+<div align="center">
+  <img src="documentation/assets/preview-conversational-image.png" width="560" alt="A generated cover image shown in the Review AI Results modal, with a chat box to refine it">
+</div>
 
 The generated image lands in the preview modal, where the user can [refine it conversationally](#refine-conversationally) ("add logos of the AI providers in the background") before it's saved.
 
@@ -239,11 +242,15 @@ Textarea::make('notes')
 
 Add a `->preset()` / `->prompt()` to pipe the transcript through the AI first (e.g. dictate rough notes → store a clean summary). See [Dictation](documentation/dictation.md).
 
-<img src="documentation/assets/dictation-hint-action.png" width="600" alt="A 'Voice summary' dictation hint action above a textarea">
+<div align="center">
+  <img src="documentation/assets/dictation-hint-action.png" width="480" alt="A 'Voice summary' dictation hint action above a textarea">
+</div>
 
 Clicking it opens a recording modal; on stop, the audio is transcribed and written into the field:
 
-<img src="documentation/assets/dictation-modal-recording.png" width="560" alt="The Record Audio modal while recording, showing a pulsing mic and an elapsed timer">
+<div align="center">
+  <img src="documentation/assets/dictation-modal-recording.png" width="480" alt="The Record Audio modal while recording, showing a pulsing mic and an elapsed timer">
+</div>
 
 It also works as a **RichEditor toolbar button** that inserts the transcript at the cursor — enable it per editor or globally (see [Dictation](documentation/dictation.md#toolbar-button-dictationricheditorplugin)):
 
@@ -254,7 +261,9 @@ use Statikbe\FilamentSolaris\RichEditor\DictationRichEditorPlugin;
 RichEditor::make('body')->plugins([DictationRichEditorPlugin::make()]);
 ```
 
-<img src="documentation/assets/dictation-toolbar.png" width="720" alt="A RichEditor toolbar with a dictate (microphone) button">
+<div align="center">
+  <img src="documentation/assets/dictation-toolbar.png" width="560" alt="A RichEditor toolbar with a dictate (microphone) button">
+</div>
 
 ### Preview before applying
 
@@ -381,7 +390,9 @@ public function form(Form $form): Form
 
 The form above, rendered with its Solaris action buttons, the "Voice summary" dictation hint, and the RichEditor dictate button:
 
-<img src="documentation/assets/form-with-solaris-actions.png" width="760" alt="A Create Article form with Solaris action buttons (Create summary, Classify, Auto fill, Translate, Generate cover), a RichEditor dictate button, and a Voice summary hint">
+<div align="center">
+  <img src="documentation/assets/form-with-solaris-actions.png" width="760" alt="A Create Article form with Solaris action buttons (Create summary, Classify, Auto fill, Translate, Generate cover), a RichEditor dictate button, and a Voice summary hint">
+</div>
 
 ## Core Concepts
 
