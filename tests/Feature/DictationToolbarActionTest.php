@@ -30,7 +30,7 @@ it('shows a success notification after inserting', function () {
 
     Livewire::test(DictationToolbarFormComponent::class)
         ->callFormComponentAction('body', 'solarisDictation', arguments: ['editorSelection' => null])
-        ->assertNotified();
+        ->assertNotified('Transcription inserted.');
 });
 
 it('tracks call count', function () {

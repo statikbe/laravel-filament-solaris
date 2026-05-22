@@ -6,6 +6,7 @@ use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\FilamentSolarisPlugin;
 use Statikbe\FilamentSolaris\Prompts\Presets\ClassificationPreset;
 use Statikbe\FilamentSolaris\Prompts\Presets\SummaryPreset;
+use Statikbe\FilamentSolaris\RichEditor\DictationRichEditorPlugin;
 
 beforeEach(function () {
     // Activate the admin panel so FilamentSolarisPlugin::current() can resolve it.
@@ -278,4 +279,28 @@ it('overrides the rich editor toolbar button flag via the plugin', function () {
         ->enableRichEditorToolbarButton();
 
     expect(FilamentSolaris::config()->shouldEnableRichEditorToolbarButton())->toBeTrue();
+});
+
+// ──────────────────────────────────────────────────────────────
+//  Panel gate — DictationRichEditorPlugin respects FilamentSolarisPlugin visibility
+// ──────────────────────────────────────────────────────────────
+
+it('gates the rich editor toolbar button out when the panel plugin is disabled', function () {
+    registerSolarisPlugin()->disabled();
+
+    $plugin = DictationRichEditorPlugin::make();
+
+    expect($plugin->getEditorTools())->toBe([])
+        ->and($plugin->getEditorActions())->toBe([])
+        ->and($plugin->getEnabledToolbarButtons())->toBe([])
+        ->and($plugin->getDisabledToolbarButtons())->toBe(['solarisDictation']);
+});
+
+it('renders the rich editor toolbar button when the panel plugin is enabled', function () {
+    registerSolarisPlugin(); // visible by default
+
+    $plugin = DictationRichEditorPlugin::make();
+
+    expect($plugin->getEnabledToolbarButtons())->toBe(['solarisDictation'])
+        ->and($plugin->getDisabledToolbarButtons())->toBe([]);
 });
