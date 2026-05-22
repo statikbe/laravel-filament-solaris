@@ -106,7 +106,7 @@ use Statikbe\FilamentSolaris\RichEditor\DictationRichEditorPlugin;
 RichEditor::make('body')
     ->plugins([
         DictationRichEditorPlugin::make()
-            ->lang('nl-BE'),
+            ->lang('nl'),
     ]);
 ```
 
@@ -138,7 +138,7 @@ A per-instance `DictationRichEditorPlugin` always overrides the global setting â
 // Different language on this editor
 RichEditor::make('body')
     ->plugins([
-        DictationRichEditorPlugin::make()->lang('nl-BE'),
+        DictationRichEditorPlugin::make()->lang('nl'),
     ]);
 
 // Opt this editor out even when the global flag is on

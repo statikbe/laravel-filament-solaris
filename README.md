@@ -214,7 +214,8 @@ ImageGenerationAction::make('generate-cover')
     ->prompt('Generate a cover image for this article')
     ->sourceFields(['title', 'body'])
     ->targetField('cover_image')
-    ->imageSize(ImageSize::Landscape);
+    ->imageSize(ImageSize::Landscape)
+    ->conversational();
 ```
 
 Reference images (image-to-image / edits) and storage options are covered in [ImageGenerationAction](documentation/image-generation.md).
