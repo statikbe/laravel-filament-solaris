@@ -44,7 +44,7 @@ class DictationToolbarAction extends SolarisAction
         parent::setUp();
 
         // No extra schema: pure transcription, no UserInput / pipeline fields.
-        $this->setUpDictationModal(fn (): array => []);
+        $this->setUpDictationModal();
 
         $this->action(function (DictationToolbarAction $action, array $data = [], array $arguments = []): void {
             $action->processDictation($data, $arguments);
