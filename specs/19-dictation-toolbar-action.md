@@ -42,7 +42,7 @@ Filament keeps `AttachFilesAction` internal to the editor.
 ### Traits
 - `HandlesDictation` — recording modal schema/content/heading, audio state-path
   resolution (modal-stacking aware), `extractAudioFile()`, `transcribe()`, and
-  the `lang() / transcriptionProvider() / transcriptionModel() / transcriptionTimeout()`
+  the `lang() / transcriptionProvider() / transcriptionTimeout()`
   setters + resolution chains.
 
 **Not** used: `HasPromptPipeline`, `HasFormPipeline`, `HasTargetFields`. There is
@@ -197,8 +197,7 @@ lists so they can never drift.
 |--------|--------|
 | `make(): static` | factory |
 | `lang(string\|Closure)` | transcription language hint |
-| `transcriptionProvider(Lab\|array\|string\|Closure, ?string)` | provider (+ model) override |
-| `transcriptionModel(string\|Closure)` | model override |
+| `transcriptionProvider(Lab\|array\|string\|Closure, ?string $model = null)` | provider (and optional model) override |
 | `transcriptionTimeout(int\|Closure)` | timeout override |
 | `icon(string\|BackedEnum\|Closure)` | toolbar button icon (defaults to `icons.dictation` config) |
 | `label(string\|Closure)` | button tooltip / aria-label (defaults to `dictation.toolbar_button_label`) |
@@ -287,13 +286,13 @@ New config key, in the existing `transcription` group:
 In `FilamentSolarisServiceProvider::packageBooted()`:
 
 ```php
-if (FilamentSolaris::config()->shouldAddDictationToRichEditorToolbar()) {
+if (FilamentSolaris::config()->shouldEnableRichEditorToolbarButton()) {
     RichEditor::configureUsing(static fn (RichEditor $editor): RichEditor =>
         $editor->plugins([DictationRichEditorPlugin::make()]));
 }
 ```
 
-`FilamentSolarisConfig::shouldAddDictationToRichEditorToolbar()` reads
+`FilamentSolarisConfig::shouldEnableRichEditorToolbarButton()` reads
 `transcription.enable_rich_editor_toolbar_btn` (default `false`).
 
 No new JS or asset registration — the existing `dictation-modal` Alpine component
@@ -382,7 +381,7 @@ the target field — there's no field name in the cursor-insert case.)
 
 ```php
 // FilamentSolarisConfig
-public function shouldAddDictationToRichEditorToolbar(): bool
+public function shouldEnableRichEditorToolbarButton(): bool
 {
     return (bool) ($this->get('transcription.enable_rich_editor_toolbar_btn') ?? false);
 }
