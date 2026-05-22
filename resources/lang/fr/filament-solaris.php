@@ -17,6 +17,7 @@ return [
         'transcription_rate_limited' => 'Trop de demandes de transcription. Veuillez patienter un instant.',
         'transcription_overloaded' => 'Le service de transcription est actuellement surchargé. Veuillez réessayer.',
         'microphone_denied' => 'L\'accès au microphone est requis pour la dictée.',
+        'transcription_inserted' => 'Transcription insérée.',
     ],
 
     'preview' => [
@@ -40,6 +41,7 @@ return [
         'submit_label' => 'Transcrire',
         'not_supported' => 'Votre navigateur ne prend pas en charge l\'enregistrement audio.',
         'microphone_denied' => 'L\'accès au microphone a été refusé. Veuillez autoriser l\'accès au microphone dans les paramètres de votre navigateur et réessayer.',
+        'toolbar_button_label' => 'Dicter',
     ],
 
     'user_input' => [

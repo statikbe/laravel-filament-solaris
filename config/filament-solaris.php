@@ -220,6 +220,7 @@ return [
         'default_provider' => null,
         'default_model' => null,
         'default_timeout' => null,
+        'enable_rich_editor_toolbar_btn' => false,
     ],
 
     /*

@@ -17,6 +17,7 @@ return [
         'transcription_rate_limited' => 'Te veel transcriptieverzoeken. Wacht even.',
         'transcription_overloaded' => 'De transcriptiedienst is momenteel overbelast. Probeer het opnieuw.',
         'microphone_denied' => 'Microfoontoegang is vereist voor dictatie.',
+        'transcription_inserted' => 'Transcriptie ingevoegd.',
     ],
 
     'preview' => [
@@ -40,6 +41,7 @@ return [
         'submit_label' => 'Transcriberen',
         'not_supported' => 'Uw browser ondersteunt geen audio-opname.',
         'microphone_denied' => 'Microfoontoegang is geweigerd. Sta microfoontoegang toe in uw browserinstellingen en probeer het opnieuw.',
+        'toolbar_button_label' => 'Dicteren',
     ],
 
     'user_input' => [

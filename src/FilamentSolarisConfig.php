@@ -315,6 +315,14 @@ class FilamentSolarisConfig
     }
 
     /**
+     * Whether the dictation button is added to every RichEditor's toolbar.
+     */
+    public function shouldEnableRichEditorToolbarButton(): bool
+    {
+        return (bool) $this->resolveConfig('transcription.enable_rich_editor_toolbar_btn', false);
+    }
+
+    /**
      * Get the image generation icon.
      */
     public function getImageGenerationIcon(): string|\BackedEnum

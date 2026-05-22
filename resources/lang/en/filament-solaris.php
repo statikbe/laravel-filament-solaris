@@ -21,6 +21,7 @@ return [
         'image_generation_error' => 'Could not generate the image. Please try again.',
         'image_generation_rate_limited' => 'Too many image generation requests. Please wait a moment.',
         'image_generation_store_failed' => 'Could not store the generated image.',
+        'transcription_inserted' => 'Transcription inserted.',
     ],
 
     'preview' => [
@@ -44,6 +45,7 @@ return [
         'submit_label' => 'Transcribe',
         'not_supported' => 'Your browser does not support audio recording.',
         'microphone_denied' => 'Microphone access was denied. Please allow microphone access in your browser settings and try again.',
+        'toolbar_button_label' => 'Dictate',
     ],
 
     'image_generation' => [
