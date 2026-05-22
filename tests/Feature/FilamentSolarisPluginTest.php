@@ -270,3 +270,12 @@ it('honours an explicit null override (e.g. clearing a global default)', functio
     // Global says 'public'; plugin explicitly sets null. Plugin wins.
     expect(FilamentSolaris::config()->getDefaultImageVisibility())->toBeNull();
 });
+
+it('overrides the rich editor toolbar button flag via the plugin', function () {
+    config()->set('filament-solaris.transcription.enable_rich_editor_toolbar_btn', false);
+
+    registerSolarisPlugin()
+        ->enableRichEditorToolbarButton();
+
+    expect(FilamentSolaris::config()->shouldEnableRichEditorToolbarButton())->toBeTrue();
+});

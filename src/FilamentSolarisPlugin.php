@@ -160,6 +160,11 @@ class FilamentSolarisPlugin implements Plugin
         return $this->override('transcription.default_timeout', $seconds);
     }
 
+    public function enableRichEditorToolbarButton(bool $enabled = true): static
+    {
+        return $this->override('transcription.enable_rich_editor_toolbar_btn', $enabled);
+    }
+
     // ──────────────────────────────────────────────────────────────
     //  Image generation
     // ──────────────────────────────────────────────────────────────
