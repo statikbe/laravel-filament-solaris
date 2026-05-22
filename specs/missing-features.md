@@ -201,3 +201,17 @@ Schema::create('solaris_conversations', function (Blueprint $table) {
 - [ ] README "Conversational Refinement" section documenting the resume flow when shipped.
 
 Existing roadmap note: [memory/project_continue_conversation_todo.md] (private).
+
+---
+
+### 12. RichEditor toolbar dictation button ✅ Shipped
+
+A dictation button in the RichEditor toolbar (pure transcription → cursor
+insert), via `DictationRichEditorPlugin` + internal `DictationToolbarAction`,
+reusing the `HandlesDictation` trait. Global enablement through the
+`transcription.enable_rich_editor_toolbar_btn` config flag or
+`FilamentSolarisPlugin::make()->enableRichEditorToolbarButton()`; per-instance
+override / opt-out via `->plugins([DictationRichEditorPlugin::make()->visible(false)])`.
+
+**Shipped:** see `specs/19-dictation-toolbar-action.md`. AI-chaining for the
+toolbar variant remains deferred.

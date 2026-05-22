@@ -2,6 +2,17 @@
 
 All notable changes to `laravel-filament-solaris` will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- RichEditor toolbar dictation button: `DictationRichEditorPlugin` adds a dictate
+  button to the editor toolbar that transcribes audio and inserts the text at the
+  cursor. Enable globally via `transcription.enable_rich_editor_toolbar_btn` (or
+  `FilamentSolarisPlugin::make()->enableRichEditorToolbarButton()`), or per editor
+  with `->plugins([DictationRichEditorPlugin::make()])`. Test with
+  `DictationToolbarAction::fake()`.
+
 ## v0.1.0 - 2026-05-21
 
 ### What's Changed

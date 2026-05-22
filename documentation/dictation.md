@@ -34,7 +34,96 @@ Textarea::make('notes')
 
 On a `RichEditor`, attach via `->hintAction(...)` (the `->suffixAction(...)` slot is `TextInput`-only). The transcript **replaces** the editor's whole value, or **appends** to it with `->append()` — it writes the field value, it does not insert at the cursor position.
 
-> **Roadmap:** a `DictationToolbarAction` that lives *in the RichEditor's toolbar* and inserts the transcript at the cursor is planned but not yet shipped. The recording/transcription internals already live in a shared `HandlesDictation` trait to make that variant cheap to add later. For now, use the `hintAction` path above.
+## Toolbar button (RichEditor)
+
+Add a dictation button to a `RichEditor`'s toolbar. Clicking it opens the recording modal and inserts the transcript **at the cursor** — rather than replacing or appending to the whole field value like the `hintAction` path above.
+
+> **Scope:** pure transcription → cursor insert. The AI preset/prompt pipeline available on `DictationFieldAction` (via `->preset()` / `->prompt()`) is **not** supported for the toolbar button.
+
+### Per editor
+
+Attach a `DictationRichEditorPlugin` to any `RichEditor` instance:
+
+```php
+use Filament\Forms\Components\RichEditor;
+use Statikbe\FilamentSolaris\RichEditor\DictationRichEditorPlugin;
+
+RichEditor::make('body')
+    ->plugins([
+        DictationRichEditorPlugin::make()
+            ->lang('nl-BE'),
+    ]);
+```
+
+### Globally (every RichEditor)
+
+Enable the toolbar button for every `RichEditor` in the application via the config flag:
+
+```php
+// config/filament-solaris.php
+'transcription' => [
+    'enable_rich_editor_toolbar_btn' => true,
+],
+```
+
+Or, if you prefer to scope enablement to a specific panel, use the Solaris panel plugin:
+
+```php
+use Statikbe\FilamentSolaris\FilamentSolarisPlugin;
+
+$panel->plugin(
+    FilamentSolarisPlugin::make()
+        ->enableRichEditorToolbarButton(),
+);
+```
+
+A per-instance `DictationRichEditorPlugin` always overrides the global setting — useful for per-editor language or to opt a single editor out:
+
+```php
+// Different language on this editor
+RichEditor::make('body')
+    ->plugins([
+        DictationRichEditorPlugin::make()->lang('nl-BE'),
+    ]);
+
+// Opt this editor out even when the global flag is on
+RichEditor::make('slug')
+    ->plugins([
+        DictationRichEditorPlugin::make()->visible(false),
+    ]);
+```
+
+### Configuration
+
+`DictationRichEditorPlugin` exposes the same transcription settings as `DictationFieldAction`:
+
+| Method | Description |
+|---|---|
+| `->lang(string)` | BCP 47 / ISO 639-1 language tag passed to the transcription API |
+| `->transcriptionProvider(string $provider, string $model)` | Override the transcription provider and model |
+| `->transcriptionTimeout(int $seconds)` | Override the transcription request timeout |
+| `->icon(string)` | Button icon (defaults to `icons.dictation` config value) |
+| `->label(string)` | Button tooltip / aria-label |
+| `->visible(bool\|Closure)` | Show or hide the button |
+| `->hidden(bool\|Closure)` | Inverse of `->visible()` |
+
+### Testing
+
+Use `DictationToolbarAction::fake()` to stub the toolbar action in tests:
+
+```php
+use Statikbe\FilamentSolaris\Actions\DictationToolbarAction;
+
+DictationToolbarAction::fake('Dictated text.');
+
+// … trigger the Livewire action …
+
+DictationToolbarAction::assertTranscribed();
+DictationToolbarAction::assertTranscribedWith(fn (string $t) => expect($t)->toContain('Dictated'));
+DictationToolbarAction::assertCalled();
+DictationToolbarAction::assertCalledTimes(1);
+DictationToolbarAction::assertNotCalled(); // use this when verifying it was NOT triggered
+```
 
 ## Transcription + AI Processing
 
