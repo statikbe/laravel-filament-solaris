@@ -47,7 +47,7 @@ trait HasSourceFields
      */
     public function getSourceFields(): array
     {
-        return value($this->sourceFieldNames);
+        return $this->evaluate($this->sourceFieldNames);
     }
 
     /**

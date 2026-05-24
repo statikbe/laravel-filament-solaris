@@ -113,7 +113,7 @@ class AiAction extends SolarisAction
             throw new \RuntimeException('AiAction requires at least one target field.');
         }
 
-        if ($this->promptBuilder === null) {
+        if (! $this->hasPromptBuilder()) {
             throw new \RuntimeException('AiAction requires a prompt, preset, or custom promptBuilder.');
         }
     }

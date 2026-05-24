@@ -135,7 +135,7 @@ class DictationFieldAction extends SolarisAction
      */
     public function getTargetFields(): array
     {
-        $configured = value($this->targetFieldNames);
+        $configured = $this->evaluate($this->targetFieldNames);
 
         if (! empty($configured)) {
             return $configured;

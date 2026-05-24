@@ -62,7 +62,7 @@ trait HasTargetFields
      */
     public function getTargetFields(): array
     {
-        return value($this->targetFieldNames);
+        return $this->evaluate($this->targetFieldNames);
     }
 
     /**

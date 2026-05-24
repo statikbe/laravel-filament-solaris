@@ -42,7 +42,7 @@ trait HasPromptPipeline
 
     protected ?PromptBuilder $promptBuilder = null;
 
-    protected string|View|null $promptInstruction = null;
+    protected string|View|Closure|null $promptInstruction = null;
 
     protected string|Closure|null $localeOverride = null;
 
@@ -76,15 +76,28 @@ trait HasPromptPipeline
     /**
      * Set an inline prompt instruction or a Blade view.
      */
-    public function prompt(string|View $instruction): static
+    public function prompt(string|View|Closure $instruction): static
     {
-        $this->promptBuilder = $instruction instanceof View
-            ? new ViewPromptBuilder
-            : new InlinePromptBuilder;
+        // A closure's return type isn't known until it's evaluated, so builder
+        // selection for the closure case is deferred to buildPrompt().
+        $this->promptBuilder = $instruction instanceof Closure
+            ? null
+            : $this->resolvePromptBuilderFor($instruction);
 
         $this->promptInstruction = $instruction;
 
         return $this;
+    }
+
+    /**
+     * Select the prompt builder for a resolved instruction: a Blade view uses
+     * the view builder, a string the inline builder.
+     */
+    private function resolvePromptBuilderFor(string|View $instruction): PromptBuilder
+    {
+        return $instruction instanceof View
+            ? new ViewPromptBuilder
+            : new InlinePromptBuilder;
     }
 
     /**
@@ -349,7 +362,11 @@ trait HasPromptPipeline
      */
     public function hasPromptBuilder(): bool
     {
-        return $this->promptBuilder !== null;
+        // A closure prompt defers builder selection to buildPrompt(), so
+        // promptBuilder is still null here — the closure itself counts as
+        // "a prompt is configured".
+        return $this->promptBuilder !== null
+            || $this->promptInstruction instanceof Closure;
     }
 
     /**
@@ -378,6 +395,20 @@ trait HasPromptPipeline
         $record = $this->resolveRecord();
         $locale = $this->getLocale();
         $instruction = $this->promptInstruction ?? '';
+
+        if ($instruction instanceof Closure) {
+            $resolved = $this->evaluate($instruction, [
+                'sourceData' => $sourceData,
+                'userInput' => $userInput,
+                'locale' => $locale,
+            ]);
+
+            $instruction = $resolved instanceof View ? $resolved : (string) $resolved;
+
+            // Builder wasn't chosen at set-time for a closure — pick it now
+            // from the resolved instruction's type.
+            $this->promptBuilder ??= $this->resolvePromptBuilderFor($instruction);
+        }
 
         $prompt = $this->promptBuilder->build(
             $instruction,
