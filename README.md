@@ -184,6 +184,17 @@ AiAction::make('social-post')
     ->prompt('Write a short, upbeat social media post promoting this article. Max 280 characters, add 2-3 relevant hashtags.');
 ```
 
+`->prompt()`, `->sourceFields()`, and `->targetFields()` also accept closures with Filament's dependency injection — reach for the current `$record` (and, in the prompt, the gathered `$sourceData`):
+
+```php
+AiAction::make('social-post')
+    ->sourceFields(['title', 'body'])
+    ->targetField('social_post')
+    ->prompt(fn ($record) => "Write a social post promoting this article for a {$record->audience} audience.");
+```
+
+See [Closure Support](documentation/ai-action.md#closure-support) for the full injection list (`$record` is `null` on Create pages).
+
 ### Ask the user for guidance first
 
 Open a modal before the AI runs and feed the answer into the prompt:

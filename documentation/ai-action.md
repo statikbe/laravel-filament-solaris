@@ -232,20 +232,31 @@ Resolution chain per option (highest wins): action → preset → config `preset
 
 ## Closure Support
 
-Most setters accept a `Closure` alongside their static type, following Filament's own pattern. The closure is resolved at execution time via Laravel's `value()` helper, enabling dynamic configuration based on the current record or application state:
+Most setters accept a `Closure` alongside their static type, following Filament's own pattern. There are two resolution tiers.
+
+**Action setters** resolve through Filament's `$this->evaluate()`, so their closures receive Filament's dependency injection — `$record`, `$livewire`, `$component`, `$get`, `$operation`, and the rest:
 
 ```php
-AiAction::make('translate')
-    ->sourceFields(fn () => ['title', "body_{$sourceLocale}"])
-    ->targetFields(fn () => ["body_{$targetLocale}"])
-    ->locale(fn () => auth()->user()->locale)
-    ->preset(
-        TranslationPreset::make()
-            ->language(fn () => $this->record->target_language)
-    )
+AiAction::make('summarize')
+    ->sourceFields(fn ($record) => $record->translatable_columns)
+    ->targetField('summary')
+    ->prompt(fn ($record, $sourceData) =>
+        "Summarise '{$sourceData['body']}' for a {$record->audience} audience.");
 ```
 
-Closures are supported on: `sourceFields()`, `targetFields()`, `locale()`, `provider()`, `timeout()`, `tools()`, `temperature()`, `maxTokens()`, `maxSteps()`, `topP()`, `userInput()`, `attachmentField()`, `attachmentFromUserInput()`, `attachments()`, and all preset setters (e.g., `maxWords()`, `tone()`, `language()`, `style()`, etc.). Static values continue to work unchanged.
+- `prompt()` accepts a closure returning a `string` or a Blade `View`, and is additionally injected with the pipeline context — `$sourceData`, `$userInput`, `$locale`.
+- `sourceFields()` / `targetFields()` closures run *before* the AI call (to know which fields to read/write), so they receive Filament's defaults only — `$sourceData` is not available there.
+- Injected `$record` is **`null` on Create pages** (no model exists yet); closures must tolerate a null record.
+
+Action setters with injection: `prompt()`, `sourceFields()`, `targetFields()`, `locale()`, `provider()`, `timeout()`, `tools()`, `temperature()`, `maxTokens()`, `maxSteps()`, `topP()`, `attachmentField()`, `attachmentFromUserInput()`, `attachments()`.
+
+**Preset setters** (`maxWords()`, `tone()`, `language()`, `style()`, …) and `userInput()` resolve via Laravel's `value()` — their closures take no injected arguments (a closure defined inside your component still closes over `$this`):
+
+```php
+->preset(TranslationPreset::make()->language(fn () => $this->record->target_language))
+```
+
+Static values continue to work unchanged everywhere.
 
 ## Attachments
 

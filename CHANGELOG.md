@@ -6,6 +6,11 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
 
 ### Added
 
+- Closure support with Filament dependency injection on `AiAction`'s `->prompt()`,
+  `->sourceFields()`, and `->targetFields()`. Closures receive `$record` (and
+  Filament's other injected args); `->prompt()` additionally receives
+  `$sourceData`, `$userInput`, and `$locale`, and may return a string or a Blade
+  view — e.g. `->prompt(fn ($record) => "Summarise for {$record->audience}")`.
 - RichEditor toolbar dictation button: `DictationRichEditorPlugin` adds a dictate
   button to the editor toolbar that transcribes audio and inserts the text at the
   cursor. Enable globally via `transcription.enable_rich_editor_toolbar_btn` (or
