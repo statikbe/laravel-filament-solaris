@@ -221,6 +221,9 @@ class AiGenerateAction extends SolarisAction
             return $this->schemaResolver;
         }
 
+        // validateConfiguration() guarantees a model when no outputSchema is set.
+        assert($this->modelClass !== null);
+
         return function (JsonSchemaTypeFactory $schema): array {
             $properties = (new ModelSchemaResolver)->resolve($schema, $this->modelClass, $this->onlyColumns, $this->exceptColumns);
 
@@ -298,6 +301,11 @@ class AiGenerateAction extends SolarisAction
     public static function fake(array $response = []): AiGenerateActionFake
     {
         return AiGenerateActionFake::activate($response);
+    }
+
+    public static function fakeError(string $message = 'AI service error'): AiGenerateActionFake
+    {
+        return AiGenerateActionFake::activateError($message);
     }
 
     public static function assertCalled(): void

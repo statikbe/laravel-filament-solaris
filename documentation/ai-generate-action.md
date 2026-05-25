@@ -158,21 +158,22 @@ AiGenerateAction::fake([
 
 ```php
 // Was the action called at all?
-AiGenerateAction::assertCalled('seed-categories');
+AiGenerateAction::assertCalled();
 
 // Was it called exactly N times?
-AiGenerateAction::assertCalledTimes('seed-categories', 1);
+AiGenerateAction::assertCalledTimes(1);
 
 // Was it never called?
-AiGenerateAction::assertNotCalled('seed-categories');
+AiGenerateAction::assertNotCalled();
 
-// Inspect the data that reached the handler
-AiGenerateAction::assertHandledWith('seed-categories', function (array $data) {
-    expect($data['records'])->toHaveCount(2);
-    expect($data['records'][0]['name'])->toBe('Technology');
-    return true; // return true to pass the assertion
+// Inspect the data that reached the handler (assert with expect() inside the closure)
+AiGenerateAction::assertHandledWith(function (array $data) {
+    expect($data['records'])->toHaveCount(2)
+        ->and($data['records'][0]['name'])->toBe('Technology');
 });
 ```
+
+Simulate a provider failure with `AiGenerateAction::fakeError('...')` — the handler does not run and an error notification is shown.
 
 The fake dispatches the same `SolarisResponseReceived` event the real action does, so usage-tracking listeners can be exercised in tests without a live provider.
 

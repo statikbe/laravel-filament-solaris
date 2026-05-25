@@ -2,8 +2,10 @@
 
 namespace Statikbe\FilamentSolaris\Tests\Fixtures;
 
+use Filament\Actions\Action;
 use Filament\Forms\FormsComponent;
 use Filament\Schemas\Schema;
+use Illuminate\Database\Eloquent\Model;
 use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
 
 class GenerateFormComponent extends FormsComponent
@@ -17,6 +19,16 @@ class GenerateFormComponent extends FormsComponent
     public function mount(): void
     {
         $this->form->fill([]);
+    }
+
+    /**
+     * Supplies the record Filament injects as `$record` into action closures.
+     * Built fresh per request (Livewire would strip an unsaved model held as a
+     * public property).
+     */
+    public function getDefaultActionRecord(Action $action): ?Model
+    {
+        return new SeedCategory(['name' => 'Ctx']);
     }
 
     public function form(Schema $form): Schema
@@ -54,6 +66,26 @@ class GenerateFormComponent extends FormsComponent
             ->prompt('x')
             ->outputSchema(fn ($s) => ['a' => $s->string()])
             ->handleUsing(fn (array $data) => throw new \RuntimeException('handler boom'));
+    }
+
+    public function bothSourcesAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('bothSources')
+            ->prompt('x')
+            ->outputSchema(fn ($s) => ['a' => $s->string()])
+            ->forModel(SeedCategory::class)
+            ->handleUsing(fn (array $data) => null);
+    }
+
+    public function recordAwareAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('recordAware')
+            ->prompt('x')
+            ->outputSchema(fn ($s) => ['a' => $s->string()])
+            ->handleUsing(fn (array $data, $record, $livewire) => $livewire->handledData = [
+                'name' => $record?->name,
+                'data' => $data,
+            ]);
     }
 
     public function seedCategoriesAction(): AiGenerateAction

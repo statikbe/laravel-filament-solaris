@@ -64,3 +64,27 @@ it('seeds records via forModel and the $records handler arg', function () {
 
     Schema::dropIfExists('seed_categories');
 });
+
+it('errors when both schema sources are configured', function () {
+    AiGenerateAction::fake(['a' => 'x']);
+
+    expect(fn () => Livewire::test(GenerateFormComponent::class)->callAction('bothSources'))
+        ->toThrow(RuntimeException::class, 'not both');
+});
+
+it('injects $record into the handler', function () {
+    AiGenerateAction::fake(['taxonomy' => []]);
+
+    Livewire::test(GenerateFormComponent::class)
+        ->callAction('recordAware')
+        ->assertSet('handledData', ['name' => 'Ctx', 'data' => ['taxonomy' => []]]);
+});
+
+it('shows an error notification and skips the handler under fakeError', function () {
+    AiGenerateAction::fakeError('provider down');
+
+    Livewire::test(GenerateFormComponent::class)
+        ->callAction('buildTaxonomy')
+        ->assertNotified()
+        ->assertSet('handledData', []);
+});
