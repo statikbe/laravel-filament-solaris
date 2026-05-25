@@ -2,6 +2,7 @@
 
 namespace Statikbe\FilamentSolaris\Agents;
 
+use Closure;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
@@ -24,6 +25,8 @@ class SolarisAgent implements Agent, HasStructuredOutput, HasTools
      */
     protected array $factories = [];
 
+    protected ?Closure $schemaResolver = null;
+
     /** @var iterable<Tool|ProviderTool> */
     protected iterable $tools = [];
 
@@ -38,13 +41,15 @@ class SolarisAgent implements Agent, HasStructuredOutput, HasTools
     /**
      * Configure the agent for a specific AI call.
      *
-     * @param  string  $systemPrompt  The composed prompt from the PromptBuilder
-     * @param  array<string, ComponentFactory>  $factories  Target field factories
+     * @param  string  $systemPrompt  The composed prompt
+     * @param  array<string, ComponentFactory>  $factories  Target field factories (form actions)
+     * @param  ?Closure  $schemaResolver  fn(JsonSchema): array<string, Type> — overrides factory-derived schema (AiGenerateAction)
      */
-    public function configure(string $systemPrompt, array $factories): static
+    public function configure(string $systemPrompt, array $factories = [], ?Closure $schemaResolver = null): static
     {
         $this->systemPrompt = $systemPrompt;
         $this->factories = $factories;
+        $this->schemaResolver = $schemaResolver;
 
         return $this;
     }
@@ -147,6 +152,10 @@ class SolarisAgent implements Agent, HasStructuredOutput, HasTools
     public function schema(JsonSchema $schema): array
     {
         assert($schema instanceof JsonSchemaTypeFactory);
+
+        if ($this->schemaResolver !== null) {
+            return ($this->schemaResolver)($schema);
+        }
 
         return collect($this->factories)
             ->map(fn (ComponentFactory $factory) => $factory->responseSchema($schema))
