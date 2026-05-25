@@ -13,6 +13,10 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
 
 ### Added
 
+- `AiGenerateAction` — a form-agnostic AI action that generates structured data
+  (a custom `->outputSchema()` or model-derived `->forModel()`) and passes the
+  parsed result to a `->handleUsing()` closure. Enables AI-driven seeding,
+  taxonomy generation, and info-gathering. Test with `AiGenerateAction::fake()`.
 - Closure support with Filament dependency injection on `AiFormAction`'s `->prompt()`,
   `->sourceFields()`, and `->targetFields()`. Closures receive `$record` (and
   Filament's other injected args); `->prompt()` additionally receives

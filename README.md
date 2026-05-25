@@ -14,6 +14,7 @@ AI actions for Filament v4 & v5 — drop a button on any form to summarize, clas
 ## What you get
 
 - **`AiFormAction`** — read source fields, send them to an AI provider, write a structured response back into one or more target fields. Filament component types are auto-detected (Select, Toggle, RichEditor, …) and the AI is constrained to a matching JSON schema, so a `Select` only ever gets a valid option.
+- **`AiGenerateAction`** — generate structured data against a schema you control (custom or model-derived) and handle it yourself (seed records, build a taxonomy, gather info) — no form required.
 - **`ImageGenerationAction`** — generate (or edit/reskin) images and store them straight into a `FileUpload` / Spatie media field.
 - **`DictationFieldAction`** — record audio, transcribe it, and drop the text into a field — optionally piped through the AI pipeline first. A **`RichEditor` toolbar button** variant inserts the transcript at the cursor.
 - **Presets** for the common jobs (summary, classification, translation, generation) and a prompt API (inline string, Blade view, or custom builder) for everything else.
@@ -276,6 +277,20 @@ RichEditor::make('body')->plugins([DictationRichEditorPlugin::make()]);
   <img src="documentation/assets/dictation-toolbar.png" width="560" alt="A RichEditor toolbar with a dictate (microphone) button">
 </div>
 
+### Seed records from AI
+
+```php
+use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
+
+AiGenerateAction::make('seed-categories')
+    ->prompt('Generate realistic blog categories.')
+    ->forModel(Category::class)
+    ->count(20)
+    ->handleUsing(fn (array $records) => Category::query()->insert($records));
+```
+
+Or define the shape yourself with `->outputSchema()` and do anything in the handler. See [AiGenerateAction](documentation/ai-generate-action.md).
+
 ### Preview before applying
 
 Let the user review the result in a modal and accept or cancel:
@@ -423,6 +438,7 @@ Read the full threat model and field-by-field guidance in [Security Consideratio
 | Topic | What's inside |
 |---|---|
 | [AiFormAction API](documentation/ai-form-action.md) | Source/target fields, prompts, user input, locale, provider, timeout, tools, generation options, attachments, preview, conversational refinement |
+| [AiGenerateAction](documentation/ai-generate-action.md) | Custom/model-derived schema, custom handler, seeding |
 | [Component Factories](documentation/factories.md) | Supported components, custom factories, option matching & fuzzy tuning |
 | [Presets Reference](documentation/presets.md) | Summary / Classification / Translation / Generation + custom presets |
 | [Prompt Builders](documentation/prompt-builders.md) | Inline, view, and custom prompt builders |

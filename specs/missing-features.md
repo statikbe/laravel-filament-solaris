@@ -204,6 +204,18 @@ Existing roadmap note: [memory/project_continue_conversation_todo.md] (private).
 
 ---
 
+### 13. AiGenerateAction ✅ Shipped
+
+A form-agnostic AI action that generates structured data against a schema you
+define — either a custom `->outputSchema()` or derived automatically from an
+Eloquent model via `->forModel()` — and passes the parsed result to a
+`->handleUsing()` closure. Enables AI-driven seeding, taxonomy building, and
+info-gathering without any form wiring. Tested via `AiGenerateAction::fake()`.
+
+See `specs/21-ai-generate-action.md` for the full design spec.
+
+---
+
 ### 12. RichEditor toolbar dictation button ✅ Shipped
 
 A dictation button in the RichEditor toolbar (pure transcription → cursor
