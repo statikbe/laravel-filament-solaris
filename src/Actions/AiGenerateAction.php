@@ -221,12 +221,8 @@ class AiGenerateAction extends SolarisAction
             return $this->schemaResolver;
         }
 
-        $modelClass = $this->modelClass;
-        $only = $this->onlyColumns;
-        $except = $this->exceptColumns;
-
-        return function (JsonSchemaTypeFactory $schema) use ($modelClass, $only, $except): array {
-            $properties = (new ModelSchemaResolver)->resolve($schema, $modelClass, $only, $except);
+        return function (JsonSchemaTypeFactory $schema): array {
+            $properties = (new ModelSchemaResolver)->resolve($schema, $this->modelClass, $this->onlyColumns, $this->exceptColumns);
 
             return [self::RECORDS_KEY => $schema->array()->items($schema->object($properties))];
         };

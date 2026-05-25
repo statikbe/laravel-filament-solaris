@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
 use Illuminate\Support\Facades\Schema;
-use Statikbe\FilamentSolaris\Contracts\ComponentFactory;
 
 /**
  * Introspects an Eloquent model's writable columns into a JSON-schema property
