@@ -22,6 +22,7 @@ return [
         'image_generation_rate_limited' => 'Too many image generation requests. Please wait a moment.',
         'image_generation_store_failed' => 'Could not store the generated image.',
         'transcription_inserted' => 'Transcription inserted.',
+        'handler_error' => 'Something went wrong processing the AI result. Please try again.',
     ],
 
     'preview' => [

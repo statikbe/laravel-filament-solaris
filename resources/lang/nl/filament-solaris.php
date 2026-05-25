@@ -18,6 +18,7 @@ return [
         'transcription_overloaded' => 'De transcriptiedienst is momenteel overbelast. Probeer het opnieuw.',
         'microphone_denied' => 'Microfoontoegang is vereist voor dictatie.',
         'transcription_inserted' => 'Transcriptie ingevoegd.',
+        'handler_error' => 'Er ging iets mis bij het verwerken van het AI-resultaat. Probeer het opnieuw.',
     ],
 
     'preview' => [

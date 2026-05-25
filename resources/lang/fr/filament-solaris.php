@@ -18,6 +18,7 @@ return [
         'transcription_overloaded' => 'Le service de transcription est actuellement surchargé. Veuillez réessayer.',
         'microphone_denied' => 'L\'accès au microphone est requis pour la dictée.',
         'transcription_inserted' => 'Transcription insérée.',
+        'handler_error' => 'Une erreur est survenue lors du traitement du résultat de l\'IA. Veuillez réessayer.',
     ],
 
     'preview' => [
