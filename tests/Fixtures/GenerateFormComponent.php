@@ -56,6 +56,15 @@ class GenerateFormComponent extends FormsComponent
             ->handleUsing(fn (array $data) => throw new \RuntimeException('handler boom'));
     }
 
+    public function seedCategoriesAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('seedCategories')
+            ->prompt('Generate realistic blog categories.')
+            ->forModel(SeedCategory::class)
+            ->count(2)
+            ->handleUsing(fn (array $records) => collect($records)->each(fn (array $row) => SeedCategory::create($row)));
+    }
+
     public function render(): string
     {
         return '<div>{{ $this->form }}</div>';

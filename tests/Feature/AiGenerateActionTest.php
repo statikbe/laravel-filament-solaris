@@ -1,9 +1,11 @@
 <?php
 
+use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;
 use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 use Statikbe\FilamentSolaris\Tests\Fixtures\GenerateFormComponent;
+use Statikbe\FilamentSolaris\Tests\Fixtures\SeedCategory;
 
 beforeEach(fn () => AiGenerateActionFake::reset());
 afterEach(fn () => AiGenerateActionFake::reset());
@@ -38,4 +40,27 @@ it('shows an error notification when the handler throws', function () {
     Livewire::test(GenerateFormComponent::class)
         ->callAction('throwingHandler')
         ->assertNotified();
+});
+
+it('seeds records via forModel and the $records handler arg', function () {
+    Schema::create('seed_categories', function ($table) {
+        $table->id();
+        $table->string('name');
+        $table->string('slug');
+        $table->timestamps();
+    });
+
+    AiGenerateAction::fake(['records' => [
+        ['name' => 'Tech', 'slug' => 'tech'],
+        ['name' => 'Science', 'slug' => 'science'],
+    ]]);
+
+    Livewire::test(GenerateFormComponent::class)->callAction('seedCategories');
+
+    expect(SeedCategory::count())->toBe(2)
+        ->and(SeedCategory::pluck('slug')->all())->toEqualCanonicalizing(['tech', 'science']);
+
+    AiGenerateAction::assertHandledWith(fn (array $data) => expect($data['records'])->toHaveCount(2));
+
+    Schema::dropIfExists('seed_categories');
 });
