@@ -8,7 +8,7 @@ A form-agnostic AI action that generates **structured data** against a schema yo
 // Custom schema → your handler
 AiGenerateAction::make('build-taxonomy')
     ->prompt(fn ($record) => "Generate a category taxonomy for {$record->topic}.")
-    ->schema(fn ($s) => ['taxonomy' => $s->array()->items($s->object([
+    ->outputSchema(fn ($s) => ['taxonomy' => $s->array()->items($s->object([
         'name' => $s->string(),
         'slug' => $s->string(),
     ]))])
@@ -36,8 +36,8 @@ Today the text pipeline is wired to form fields at both ends: the output schema 
 |--------|-------|
 | `make(string $name)` | factory |
 | `prompt(string\|View\|Closure)` | the instruction; reuses the existing prompt builders + closure DI (`$record`, `$livewire`, …). No `$sourceData` (no source fields). |
-| `schema(Closure)` | custom output schema: `fn (JsonSchema $s): array<string, Type>`. Mutually exclusive with `forModel()`. |
-| `forModel(class-string<Model>)` | derive the schema from an Eloquent model (see introspection rules). Mutually exclusive with `schema()`. |
+| `outputSchema(Closure)` | custom output schema: `fn (JsonSchema $s): array<string, Type>`. Mutually exclusive with `forModel()`. (Named `outputSchema`, not `schema`, because `Filament\Actions\Action` already defines `schema()` for the modal form.) |
+| `forModel(class-string<Model>)` | derive the schema from an Eloquent model (see introspection rules). Mutually exclusive with `outputSchema()`. |
 | `count(int)` | (forModel only) how many records to request; default `1`. Conveyed to the model and shapes the schema as an array. |
 | `only(array<string>)` / `except(array<string>)` | (forModel only) refine the included columns. |
 | `handleUsing(Closure)` | required. Receives the parsed response + Filament DI (see handler contract). Replaces the form-write sink. |
@@ -80,13 +80,13 @@ Resolved by a dedicated `ModelSchemaResolver` (the model-side analogue of `Compo
 ## Internals
 
 - **`SolarisAgent`** gains a schema-resolver path: `configure()` accepts an optional `Closure $schemaResolver`; `schema(JsonSchema $s)` returns `($schemaResolver)($s)` when set, else maps factories (unchanged for `AiFormAction`).
-- **`AiGenerateAction`** orchestrates: build instruction (prompt builder; closure resolved via `evaluate()`), resolve the schema resolver (`schema()` closure, or one produced by `ModelSchemaResolver`), `createAgent()` → `configure(instruction, [], $schemaResolver)` → `executeAiCall(agent->prompt(...))` (so `SolarisResponseReceived/Failed` + provider notifications fire), then dispatch the decoded array to `handleUsing()`.
+- **`AiGenerateAction`** orchestrates: build instruction (prompt builder; closure resolved via `evaluate()`), resolve the schema resolver (`outputSchema()` closure, or one produced by `ModelSchemaResolver`), `createAgent()` → `configure(instruction, [], $schemaResolver)` → `executeAiCall(agent->prompt(...))` (so `SolarisResponseReceived/Failed` + provider notifications fire), then dispatch the decoded array to `handleUsing()`.
 - **Shared core / light factoring:** the prompt-building (`prompt()` + builder selection + instruction render) and the generation-options setters are currently inside `HasPromptPipeline` (form-coupled). The implementation plan will extract the form-agnostic parts (a `HasPrompt` concern, and the generation-options setters) so `AiGenerateAction` reuses them **without** inheriting `sourceFields()/targetFields()`. The 460-test suite guards `AiFormAction` against regressions during that factoring. (If factoring proves invasive, the fallback is localized reuse of the prompt builders + a small options duplication — decided in the plan, not here.)
 - **No preset support** for v1 (presets are prompt-shapers tied to the form/target-field flow); `AiGenerateAction` uses a plain instruction.
 
 ## Validation (before execution)
 
-- Exactly one schema source: `schema()` **or** `forModel()` (neither → error; both → error).
+- Exactly one schema source: `outputSchema()` **or** `forModel()` (neither → error; both → error).
 - A `handleUsing()` handler is required (none → error).
 - `count()` / `only()` / `except()` are only meaningful with `forModel()` (ignored otherwise, or a dev-facing warning).
 

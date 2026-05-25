@@ -259,7 +259,7 @@ class AiGenerateAction extends SolarisAction
         $hasModel = $this->modelClass !== null;
 
         if ($hasSchema && $hasModel) {
-            throw new RuntimeException('AiGenerateAction: use either ->schema() or ->forModel(), not both.');
+            throw new RuntimeException('AiGenerateAction: use either ->outputSchema() or ->forModel(), not both.');
         }
 
         if (! $hasSchema && ! $hasModel) {
