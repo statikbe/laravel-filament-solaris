@@ -4,9 +4,16 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
 
 ## [Unreleased]
 
+### Changed
+
+- **Renamed `AiAction` → `AiFormAction`** (and `AiActionFake` → `AiFormActionFake`,
+  `WithAiActionFake` → `WithAiFormActionFake`) to distinguish the form-filling
+  action from the upcoming form-agnostic generation action. Breaking change;
+  update imports and `AiFormAction::` calls accordingly.
+
 ### Added
 
-- Closure support with Filament dependency injection on `AiAction`'s `->prompt()`,
+- Closure support with Filament dependency injection on `AiFormAction`'s `->prompt()`,
   `->sourceFields()`, and `->targetFields()`. Closures receive `$record` (and
   Filament's other injected args); `->prompt()` additionally receives
   `$sourceData`, `$userInput`, and `$locale`, and may return a string or a Blade
@@ -46,7 +53,7 @@ Initial public release. Solaris ships as `0.x` while [`laravel/ai`](https://gith
 
 ### Added
 
-- **`AiAction`** — Filament `Action` that reads source fields, sends them to an AI provider via `laravel/ai`, and writes structured responses back into one or more target fields.
+- **`AiFormAction`** — Filament `Action` that reads source fields, sends them to an AI provider via `laravel/ai`, and writes structured responses back into one or more target fields.
 - **`ImageGenerationAction`** — generates images via the `laravel/ai` Image API and writes them to a `FileUpload` (or `SpatieMediaLibraryFileUpload`) field; supports OpenAI `gpt-image-1`, DALL·E, and any provider laravel/ai exposes.
 - **`DictationFieldAction`** — modal-based audio recording + transcription, attached to any Filament `Field` via `->hintAction(...)` (universal) or `->suffixAction(...)` (TextInput). Auto-resolves the host field as the write-back target. Optional AI post-processing of the transcript via `->preset()` / `->prompt()`. The recording/transcription mechanics live in a `HandlesDictation` trait so future variants (e.g. a `DictationToolbarAction` for `RichEditor` toolbar buttons) can reuse them.
 - **Component factories** — `Select`, `Radio`, `TextInput`, `Textarea`, `CheckboxList`, `Toggle`, `RichEditor`, `FileUpload`, `SpatieMediaLibraryFileUpload`. Custom factories registerable via facade or config.
@@ -59,7 +66,7 @@ Initial public release. Solaris ships as `0.x` while [`laravel/ai`](https://gith
 - **Generation options** — `temperature()`, `maxTokens()`, `maxSteps()`, `topP()` fluent setters across action / preset / config layers.
 - **Provider / model / timeout overrides** — per-action, per-preset, and package-wide config defaults; separate defaults for transcription and image generation.
 - **Locale support** — per-action `->locale()` override; configurable supported-locale list for the translation preset.
-- **Testing fakes** — `AiAction::fake()`, `DictationFieldAction::fake()`, `ImageGenerationAction::fake()` with assertion helpers (`assertCalled`, `assertCalledWith`, `assertCalledTimes`).
+- **Testing fakes** — `AiFormAction::fake()`, `DictationFieldAction::fake()`, `ImageGenerationAction::fake()` with assertion helpers (`assertCalled`, `assertCalledWith`, `assertCalledTimes`).
 - **Abstract `SolarisAction` base** — form-agnostic AI core (provider/timeout/executeAiCall/preview state) so future non-form actions can build on the same foundation without inheriting form-field assumptions.
 - **Usage-tracking events** — `SolarisResponseReceived` and `SolarisResponseFailed` fire after every AI call (text, image, transcription) with the laravel/ai `Usage` payload plus Solaris context (action name, provider, model, duration, user, Livewire component). No built-in persistence; apps wire a listener. The fakes dispatch synthetic events so listeners can be tested without a real provider. Sample listener in [Usage Tracking](documentation/usage-tracking.md).
 - **`FilamentSolarisPlugin`** — per-panel configuration via the idiomatic `$panel->plugin(...)` pattern. Every Tier-1/2 config key (provider, model, timeout, text-gen options, transcription, image generation, logging, locales, icons, tone, preset overrides) has a fluent setter. Panel-level visibility gate via `->visible(bool|Closure)` / `->disabled()` is registered as `->hidden(...)` on every Solaris action — hard-AND with the action's own visibility so consumers can't accidentally bypass it. Falls through to `config/filament-solaris.php` outside panel context (CLI, queued jobs). See [Per-Panel Configuration](documentation/configuration.md#per-panel-configuration-plugin).

@@ -6,7 +6,7 @@ use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Files\File;
 use PHPUnit\Framework\Assert;
 
-class AiActionFake
+class AiFormActionFake
 {
     protected static ?self $instance = null;
 
@@ -242,7 +242,7 @@ class AiActionFake
     {
         Assert::assertNotEmpty(
             $this->calls,
-            'Expected an AiAction to be called, but none was.'
+            'Expected an AiFormAction to be called, but none was.'
         );
     }
 
@@ -277,7 +277,7 @@ class AiActionFake
     {
         Assert::assertEmpty(
             $this->calls,
-            'Expected no AiAction to be called, but '.count($this->calls).' were.'
+            'Expected no AiFormAction to be called, but '.count($this->calls).' were.'
         );
     }
 
@@ -289,7 +289,7 @@ class AiActionFake
         Assert::assertCount(
             $count,
             $this->calls,
-            "Expected AiAction to be called {$count} times, but was called ".count($this->calls).' times.'
+            "Expected AiFormAction to be called {$count} times, but was called ".count($this->calls).' times.'
         );
     }
 

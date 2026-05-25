@@ -2,7 +2,7 @@
 
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
-use Statikbe\FilamentSolaris\Actions\AiAction;
+use Statikbe\FilamentSolaris\Actions\AiFormAction;
 use Statikbe\FilamentSolaris\Factories\TextFactory;
 use Statikbe\FilamentSolaris\Prompts\InlinePromptBuilder;
 use Statikbe\FilamentSolaris\Prompts\Presets\GenerationPreset;
@@ -94,7 +94,7 @@ it('withDefaultUserInput sets user input from preset', function () {
 });
 
 it('resolves withDefaultUserInput when called after preset', function () {
-    $action = AiAction::make('generate')
+    $action = AiFormAction::make('generate')
         ->preset(GenerationPreset::make())
         ->withDefaultUserInput();
 
@@ -106,7 +106,7 @@ it('resolves withDefaultUserInput when called before preset (deferred)', functio
     // Regression: withDefaultUserInput() used to read $this->promptBuilder
     // eagerly, so calling it before ->preset() silently no-op'd. Resolution
     // is now deferred to getUserInput(), making call order irrelevant.
-    $action = AiAction::make('generate')
+    $action = AiFormAction::make('generate')
         ->withDefaultUserInput()
         ->preset(GenerationPreset::make());
 
@@ -117,7 +117,7 @@ it('resolves withDefaultUserInput when called before preset (deferred)', functio
 it('lets an explicit userInput() win over the preset default regardless of order', function () {
     $explicit = UserInput::make()->fields([TextInput::make('context')]);
 
-    $action = AiAction::make('generate')
+    $action = AiFormAction::make('generate')
         ->withDefaultUserInput()
         ->userInput($explicit)
         ->preset(GenerationPreset::make());
@@ -126,7 +126,7 @@ it('lets an explicit userInput() win over the preset default regardless of order
 });
 
 it('reports no user input when withDefaultUserInput is not opted in', function () {
-    $action = AiAction::make('generate')
+    $action = AiFormAction::make('generate')
         ->preset(GenerationPreset::make());
 
     expect($action->hasUserInput())->toBeFalse()

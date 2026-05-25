@@ -125,7 +125,7 @@ class FlagFuzzyOptionMatches
 
 ```php
 // Per field, on the action
-AiAction::make('classify')
+AiFormAction::make('classify')
     ->targetFuzzyMatching('billing_code', false)   // off for this field
     ->targetFuzzyThreshold('city', 0.15);          // stricter for this field
 

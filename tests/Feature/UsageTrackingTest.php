@@ -4,13 +4,13 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Responses\Data\Usage;
 use Livewire\Livewire;
-use Statikbe\FilamentSolaris\Actions\AiAction;
+use Statikbe\FilamentSolaris\Actions\AiFormAction;
 use Statikbe\FilamentSolaris\Actions\DictationFieldAction;
 use Statikbe\FilamentSolaris\Actions\ImageGenerationAction;
 use Statikbe\FilamentSolaris\Events\SolarisResponseFailed;
 use Statikbe\FilamentSolaris\Events\SolarisResponseReceived;
 use Statikbe\FilamentSolaris\Support\SolarisPromptLogger;
-use Statikbe\FilamentSolaris\Testing\AiActionFake;
+use Statikbe\FilamentSolaris\Testing\AiFormActionFake;
 use Statikbe\FilamentSolaris\Testing\DictationFieldActionFake;
 use Statikbe\FilamentSolaris\Testing\ImageGenerationActionFake;
 use Statikbe\FilamentSolaris\Tests\Fixtures\AiFormComponent;
@@ -18,13 +18,13 @@ use Statikbe\FilamentSolaris\Tests\Fixtures\DictationFormComponent;
 use Statikbe\FilamentSolaris\Tests\Fixtures\ImageGenerationFormComponent;
 
 beforeEach(function () {
-    AiActionFake::reset();
+    AiFormActionFake::reset();
     DictationFieldActionFake::reset();
     ImageGenerationActionFake::reset();
 });
 
 afterEach(function () {
-    AiActionFake::reset();
+    AiFormActionFake::reset();
     DictationFieldActionFake::reset();
     ImageGenerationActionFake::reset();
 });
@@ -33,9 +33,9 @@ afterEach(function () {
 //  SolarisResponseReceived — success path
 // ──────────────────────────────────────────────────────────────
 
-it('dispatches SolarisResponseReceived after a successful AiAction call', function () {
+it('dispatches SolarisResponseReceived after a successful AiFormAction call', function () {
     Event::fake([SolarisResponseReceived::class]);
-    AiAction::fake(['summary' => 'Generated summary.']);
+    AiFormAction::fake(['summary' => 'Generated summary.']);
 
     Livewire::test(AiFormComponent::class)
         ->fillForm(['title' => 'Article', 'body' => 'Body of the article.'])
@@ -43,7 +43,7 @@ it('dispatches SolarisResponseReceived after a successful AiAction call', functi
 
     Event::assertDispatched(SolarisResponseReceived::class, function (SolarisResponseReceived $event): bool {
         return $event->actionName === 'generateSummary'
-            && $event->actionClass === AiAction::class
+            && $event->actionClass === AiFormAction::class
             && $event->usage instanceof Usage
             && $event->durationMs >= 0;
     });
@@ -81,9 +81,9 @@ it('dispatches SolarisResponseReceived after a successful DictationFieldAction c
 //  SolarisResponseFailed — error path
 // ──────────────────────────────────────────────────────────────
 
-it('dispatches SolarisResponseFailed when the AiAction simulates an error', function () {
+it('dispatches SolarisResponseFailed when the AiFormAction simulates an error', function () {
     Event::fake([SolarisResponseFailed::class, SolarisResponseReceived::class]);
-    AiAction::fakeError('Rate limited');
+    AiFormAction::fakeError('Rate limited');
 
     Livewire::test(AiFormComponent::class)
         ->fillForm(['title' => 'Article', 'body' => 'Body.'])
@@ -91,16 +91,16 @@ it('dispatches SolarisResponseFailed when the AiAction simulates an error', func
 
     Event::assertDispatched(SolarisResponseFailed::class, function (SolarisResponseFailed $event): bool {
         return $event->actionName === 'generateSummary'
-            && $event->actionClass === AiAction::class
+            && $event->actionClass === AiFormAction::class
             && $event->exception->getMessage() === 'Rate limited';
     });
 
     Event::assertNotDispatched(SolarisResponseReceived::class);
 });
 
-it('dispatches SolarisResponseFailed when the AiAction simulates a timeout', function () {
+it('dispatches SolarisResponseFailed when the AiFormAction simulates a timeout', function () {
     Event::fake([SolarisResponseFailed::class]);
-    AiAction::fakeTimeout();
+    AiFormAction::fakeTimeout();
 
     Livewire::test(AiFormComponent::class)
         ->fillForm(['title' => 'Article', 'body' => 'Body.'])
@@ -115,7 +115,7 @@ it('dispatches SolarisResponseFailed when the AiAction simulates a timeout', fun
 
 it('carries the resolved provider, model, and livewire component on the success event', function () {
     Event::fake([SolarisResponseReceived::class]);
-    AiAction::fake(['summary' => 'Done.']);
+    AiFormAction::fake(['summary' => 'Done.']);
 
     Livewire::test(AiFormComponent::class)
         ->fillForm(['title' => 'Article', 'body' => 'Body.'])

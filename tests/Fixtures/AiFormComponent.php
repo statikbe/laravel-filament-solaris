@@ -8,7 +8,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\FormsComponent;
 use Filament\Schemas\Schema;
-use Statikbe\FilamentSolaris\Actions\AiAction;
+use Statikbe\FilamentSolaris\Actions\AiFormAction;
 use Statikbe\FilamentSolaris\Support\UserInput;
 
 class AiFormComponent extends FormsComponent
@@ -57,9 +57,9 @@ class AiFormComponent extends FormsComponent
     /**
      * AI action that generates a summary from title and body.
      */
-    public function generateSummaryAction(): AiAction
+    public function generateSummaryAction(): AiFormAction
     {
-        return AiAction::make('generateSummary')
+        return AiFormAction::make('generateSummary')
             ->sourceFields(['title', 'body'])
             ->targetField('summary')
             ->prompt('Summarize the content in one sentence.');
@@ -68,9 +68,9 @@ class AiFormComponent extends FormsComponent
     /**
      * AI action that fills multiple target fields.
      */
-    public function generateAllAction(): AiAction
+    public function generateAllAction(): AiFormAction
     {
-        return AiAction::make('generateAll')
+        return AiFormAction::make('generateAll')
             ->sourceFields(['title', 'body'])
             ->targetFields(['summary', 'category', 'is_featured'])
             ->prompt('Analyze the content and fill in the summary, category, and featured flag.');
@@ -79,9 +79,9 @@ class AiFormComponent extends FormsComponent
     /**
      * AI action with source scope that transforms the body to uppercase.
      */
-    public function generateWithSourceScopeAction(): AiAction
+    public function generateWithSourceScopeAction(): AiFormAction
     {
-        return AiAction::make('generateWithSourceScope')
+        return AiFormAction::make('generateWithSourceScope')
             ->sourceFields(['title', 'body'])
             ->sourceScope('body', fn ($value) => mb_strtoupper($value))
             ->targetField('summary')
@@ -91,9 +91,9 @@ class AiFormComponent extends FormsComponent
     /**
      * AI action with a locale override.
      */
-    public function generateWithLocaleAction(): AiAction
+    public function generateWithLocaleAction(): AiFormAction
     {
-        return AiAction::make('generateWithLocale')
+        return AiFormAction::make('generateWithLocale')
             ->sourceFields(['title', 'body'])
             ->targetField('summary')
             ->prompt('Summarize.')
@@ -103,9 +103,9 @@ class AiFormComponent extends FormsComponent
     /**
      * AI action with custom user input.
      */
-    public function generateWithUserInputAction(): AiAction
+    public function generateWithUserInputAction(): AiFormAction
     {
-        return AiAction::make('generateWithUserInput')
+        return AiFormAction::make('generateWithUserInput')
             ->sourceFields(['title', 'body'])
             ->targetField('summary')
             ->prompt('Summarize.')
@@ -119,9 +119,9 @@ class AiFormComponent extends FormsComponent
     /**
      * AI action with a per-action sanitizer (strips HTML tags from every value).
      */
-    public function generateWithSanitizerAction(): AiAction
+    public function generateWithSanitizerAction(): AiFormAction
     {
-        return AiAction::make('generateWithSanitizer')
+        return AiFormAction::make('generateWithSanitizer')
             ->sourceFields(['title', 'body'])
             ->targetFields(['summary', 'category'])
             ->prompt('Fill the fields.')
@@ -131,9 +131,9 @@ class AiFormComponent extends FormsComponent
     /**
      * AI action with a per-field sanitizer overriding the per-action one.
      */
-    public function generateWithFieldSanitizerAction(): AiAction
+    public function generateWithFieldSanitizerAction(): AiFormAction
     {
-        return AiAction::make('generateWithFieldSanitizer')
+        return AiFormAction::make('generateWithFieldSanitizer')
             ->sourceFields(['title', 'body'])
             ->targetFields(['summary', 'category'])
             ->prompt('Fill the fields.')
@@ -144,9 +144,9 @@ class AiFormComponent extends FormsComponent
     /**
      * AI action with a sanitizer that throws — verifies failure routing.
      */
-    public function generateWithThrowingSanitizerAction(): AiAction
+    public function generateWithThrowingSanitizerAction(): AiFormAction
     {
-        return AiAction::make('generateWithThrowingSanitizer')
+        return AiFormAction::make('generateWithThrowingSanitizer')
             ->sourceFields(['title', 'body'])
             ->targetField('summary')
             ->prompt('Summarize.')

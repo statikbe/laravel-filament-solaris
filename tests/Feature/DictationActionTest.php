@@ -1,20 +1,20 @@
 <?php
 
 use Livewire\Livewire;
-use Statikbe\FilamentSolaris\Actions\AiAction;
+use Statikbe\FilamentSolaris\Actions\AiFormAction;
 use Statikbe\FilamentSolaris\Actions\DictationFieldAction;
-use Statikbe\FilamentSolaris\Testing\AiActionFake;
+use Statikbe\FilamentSolaris\Testing\AiFormActionFake;
 use Statikbe\FilamentSolaris\Testing\DictationFieldActionFake;
 use Statikbe\FilamentSolaris\Tests\Fixtures\DictationFormComponent;
 
 beforeEach(function () {
     DictationFieldActionFake::reset();
-    AiActionFake::reset();
+    AiFormActionFake::reset();
 });
 
 afterEach(function () {
     DictationFieldActionFake::reset();
-    AiActionFake::reset();
+    AiFormActionFake::reset();
 });
 
 // ──────────────────────────────────────────────────────────────
@@ -108,7 +108,7 @@ it('passes transcript as source data to AI pipeline', function () {
     Livewire::test(DictationFormComponent::class)
         ->callFormComponentAction('summary', 'dictateAndSummarize');
 
-    AiAction::assertCalledWith(function (array $sourceData, string $prompt) {
+    AiFormAction::assertCalledWith(function (array $sourceData, string $prompt) {
         expect($sourceData)->toHaveKey('transcription')
             ->and($sourceData['transcription'])->toBe('My transcribed audio content.');
     });

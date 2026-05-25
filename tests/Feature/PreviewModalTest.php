@@ -1,20 +1,20 @@
 <?php
 
 use Livewire\Livewire;
-use Statikbe\FilamentSolaris\Actions\AiAction;
-use Statikbe\FilamentSolaris\Testing\AiActionFake;
+use Statikbe\FilamentSolaris\Actions\AiFormAction;
+use Statikbe\FilamentSolaris\Testing\AiFormActionFake;
 use Statikbe\FilamentSolaris\Tests\Fixtures\PreviewFormComponent;
 
 beforeEach(function () {
-    AiActionFake::reset();
+    AiFormActionFake::reset();
 });
 
 afterEach(function () {
-    AiActionFake::reset();
+    AiFormActionFake::reset();
 });
 
 it('stores preview data without applying values when withPreview is enabled', function () {
-    AiAction::fake(['summary' => 'A concise summary.']);
+    AiFormAction::fake(['summary' => 'A concise summary.']);
 
     $component = Livewire::test(PreviewFormComponent::class)
         ->fillForm([
@@ -31,11 +31,11 @@ it('stores preview data without applying values when withPreview is enabled', fu
     expect($component->get('solarisPreviewData.values.summary'))->toBe('A concise summary.');
     expect($component->get('solarisPreviewData.actionName'))->toBe('generateSummary');
 
-    AiAction::assertCalled();
+    AiFormAction::assertCalled();
 });
 
 it('applies values when preview is accepted', function () {
-    AiAction::fake(['summary' => 'A concise summary.']);
+    AiFormAction::fake(['summary' => 'A concise summary.']);
 
     Livewire::test(PreviewFormComponent::class)
         ->fillForm([
@@ -50,7 +50,7 @@ it('applies values when preview is accepted', function () {
 });
 
 it('discards preview without applying values', function () {
-    AiAction::fake(['summary' => 'A concise summary.']);
+    AiFormAction::fake(['summary' => 'A concise summary.']);
 
     Livewire::test(PreviewFormComponent::class)
         ->fillForm([
@@ -64,7 +64,7 @@ it('discards preview without applying values', function () {
 });
 
 it('applies values directly without preview when withPreview is not set', function () {
-    AiAction::fake(['summary' => 'Direct summary.']);
+    AiFormAction::fake(['summary' => 'Direct summary.']);
 
     Livewire::test(PreviewFormComponent::class)
         ->fillForm([
@@ -78,7 +78,7 @@ it('applies values directly without preview when withPreview is not set', functi
 });
 
 it('stores preview data with correct display labels', function () {
-    AiAction::fake(['summary' => 'Test summary text.']);
+    AiFormAction::fake(['summary' => 'Test summary text.']);
 
     $component = Livewire::test(PreviewFormComponent::class)
         ->fillForm([
@@ -96,7 +96,7 @@ it('stores preview data with correct display labels', function () {
 });
 
 it('stores preview data for multiple target fields', function () {
-    AiAction::fake([
+    AiFormAction::fake([
         'summary' => 'Tech article summary.',
         'category' => 'Technology',
         'is_featured' => true,
@@ -124,7 +124,7 @@ it('stores preview data for multiple target fields', function () {
 });
 
 it('accepts preview with multiple target fields', function () {
-    AiAction::fake([
+    AiFormAction::fake([
         'summary' => 'Tech article summary.',
         'category' => 'Technology',
         'is_featured' => true,
@@ -146,7 +146,7 @@ it('accepts preview with multiple target fields', function () {
 });
 
 it('handles partial failure in preview mode', function () {
-    AiAction::fakePartial([
+    AiFormAction::fakePartial([
         'summary' => 'Valid summary.',
         'category' => null,
         'is_featured' => true,
@@ -174,7 +174,7 @@ it('does nothing when accepting with no preview data', function () {
 });
 
 it('cleans up preview data on unmountAction', function () {
-    AiAction::fake(['summary' => 'Test summary.']);
+    AiFormAction::fake(['summary' => 'Test summary.']);
 
     $component = Livewire::test(PreviewFormComponent::class)
         ->fillForm([

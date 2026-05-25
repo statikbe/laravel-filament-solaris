@@ -10,7 +10,7 @@ use Statikbe\FilamentSolaris\Support\SolarisNotification;
  * Form-side helpers shared by every action that reads or writes a
  * Filament form schema.
  *
- * Used by the three current actions (AiAction, ImageGenerationAction,
+ * Used by the three current actions (AiFormAction, ImageGenerationAction,
  * DictationFieldAction). Future non-form actions (data import, report generation)
  * should NOT use this trait — their notion of "source" and "target" lives
  * elsewhere (an Eloquent model, a file path, a query).

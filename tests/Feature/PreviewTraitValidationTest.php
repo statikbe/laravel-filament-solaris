@@ -1,21 +1,21 @@
 <?php
 
 use Livewire\Livewire;
-use Statikbe\FilamentSolaris\Actions\AiAction;
-use Statikbe\FilamentSolaris\Testing\AiActionFake;
+use Statikbe\FilamentSolaris\Actions\AiFormAction;
+use Statikbe\FilamentSolaris\Testing\AiFormActionFake;
 use Statikbe\FilamentSolaris\Tests\Fixtures\MissingPreviewTraitComponent;
 use Statikbe\FilamentSolaris\Tests\Fixtures\PreviewFormComponent;
 
 beforeEach(function () {
-    AiActionFake::reset();
+    AiFormActionFake::reset();
 });
 
 afterEach(function () {
-    AiActionFake::reset();
+    AiFormActionFake::reset();
 });
 
 it('throws when withPreview() is configured but the Livewire component lacks InteractsWithSolarisPreview', function () {
-    AiAction::fake(['summary' => 'Generated.']);
+    AiFormAction::fake(['summary' => 'Generated.']);
 
     Livewire::test(MissingPreviewTraitComponent::class)
         ->fillForm(['title' => 'Article', 'body' => 'Body.'])
@@ -23,7 +23,7 @@ it('throws when withPreview() is configured but the Livewire component lacks Int
 })->throws(RuntimeException::class, 'InteractsWithSolarisPreview trait');
 
 it('throws when conversational() is configured but the trait is missing', function () {
-    AiAction::fake(['summary' => 'Generated.']);
+    AiFormAction::fake(['summary' => 'Generated.']);
 
     Livewire::test(MissingPreviewTraitComponent::class)
         ->fillForm(['title' => 'Article', 'body' => 'Body.'])
@@ -31,11 +31,11 @@ it('throws when conversational() is configured but the trait is missing', functi
 })->throws(RuntimeException::class, 'InteractsWithSolarisPreview trait');
 
 it('passes when the Livewire component uses the InteractsWithSolarisPreview trait', function () {
-    AiAction::fake(['summary' => 'Generated with preview.']);
+    AiFormAction::fake(['summary' => 'Generated with preview.']);
 
     Livewire::test(PreviewFormComponent::class)
         ->fillForm(['title' => 'Article', 'body' => 'Body.'])
         ->callAction('generateSummary');
 
-    AiAction::assertCalled();
+    AiFormAction::assertCalled();
 });

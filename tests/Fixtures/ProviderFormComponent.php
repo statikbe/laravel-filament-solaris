@@ -6,7 +6,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\FormsComponent;
 use Filament\Schemas\Schema;
-use Statikbe\FilamentSolaris\Actions\AiAction;
+use Statikbe\FilamentSolaris\Actions\AiFormAction;
 use Statikbe\FilamentSolaris\Prompts\Presets\SummaryPreset;
 
 class ProviderFormComponent extends FormsComponent
@@ -34,69 +34,69 @@ class ProviderFormComponent extends FormsComponent
             ->statePath('data');
     }
 
-    public function generateSummaryAction(): AiAction
+    public function generateSummaryAction(): AiFormAction
     {
-        return AiAction::make('generateSummary')
+        return AiFormAction::make('generateSummary')
             ->sourceFields(['title', 'body'])
             ->targetField('summary')
             ->prompt('Summarize.');
     }
 
-    public function generateWithProviderAction(): AiAction
+    public function generateWithProviderAction(): AiFormAction
     {
-        return AiAction::make('generateWithProvider')
+        return AiFormAction::make('generateWithProvider')
             ->sourceFields(['title', 'body'])
             ->targetField('summary')
             ->prompt('Summarize.')
             ->provider('anthropic', 'claude-sonnet-4-5-20250514');
     }
 
-    public function generateWithPresetProviderAction(): AiAction
+    public function generateWithPresetProviderAction(): AiFormAction
     {
-        return AiAction::make('generateWithPresetProvider')
+        return AiFormAction::make('generateWithPresetProvider')
             ->sourceFields(['title', 'body'])
             ->targetField('summary')
             ->preset(SummaryPreset::make()->provider('openai', 'gpt-4o'));
     }
 
-    public function generateWithBothProvidersAction(): AiAction
+    public function generateWithBothProvidersAction(): AiFormAction
     {
-        return AiAction::make('generateWithBothProviders')
+        return AiFormAction::make('generateWithBothProviders')
             ->sourceFields(['title', 'body'])
             ->targetField('summary')
             ->preset(SummaryPreset::make()->provider('openai', 'gpt-4o'))
             ->provider('anthropic', 'claude-sonnet-4-5-20250514');
     }
 
-    public function generateWithPresetAction(): AiAction
+    public function generateWithPresetAction(): AiFormAction
     {
-        return AiAction::make('generateWithPreset')
+        return AiFormAction::make('generateWithPreset')
             ->sourceFields(['title', 'body'])
             ->targetField('summary')
             ->preset(SummaryPreset::make());
     }
 
-    public function generateWithFailoverAction(): AiAction
+    public function generateWithFailoverAction(): AiFormAction
     {
-        return AiAction::make('generateWithFailover')
+        return AiFormAction::make('generateWithFailover')
             ->sourceFields(['title', 'body'])
             ->targetField('summary')
             ->prompt('Summarize.')
             ->provider(['openai' => 'gpt-4o', 'anthropic']);
     }
 
-    public function generateWithTimeoutAction(): AiAction
+    public function generateWithTimeoutAction(): AiFormAction
     {
-        return AiAction::make('generateWithTimeout')
+        return AiFormAction::make('generateWithTimeout')
             ->sourceFields(['title', 'body'])
             ->targetField('summary')
             ->prompt('Summarize.')
             ->timeout(120);
     }
 
-    public function generateWithOptionsAction(): AiAction
+    public function generateWithOptionsAction(): AiFormAction
     {
-        return AiAction::make('generateWithOptions')
+        return AiFormAction::make('generateWithOptions')
             ->sourceFields(['title', 'body'])
             ->targetField('summary')
             ->prompt('Summarize.')
@@ -106,26 +106,26 @@ class ProviderFormComponent extends FormsComponent
             ->topP(0.95);
     }
 
-    public function generateWithPresetOptionsAction(): AiAction
+    public function generateWithPresetOptionsAction(): AiFormAction
     {
-        return AiAction::make('generateWithPresetOptions')
+        return AiFormAction::make('generateWithPresetOptions')
             ->sourceFields(['title', 'body'])
             ->targetField('summary')
             ->preset(SummaryPreset::make()->temperature(0.3)->maxTokens(512));
     }
 
-    public function generateWithBothOptionsAction(): AiAction
+    public function generateWithBothOptionsAction(): AiFormAction
     {
-        return AiAction::make('generateWithBothOptions')
+        return AiFormAction::make('generateWithBothOptions')
             ->sourceFields(['title', 'body'])
             ->targetField('summary')
             ->preset(SummaryPreset::make()->temperature(0.3)->maxTokens(512))
             ->temperature(0.9);
     }
 
-    public function generateWithClosureTemperatureAction(): AiAction
+    public function generateWithClosureTemperatureAction(): AiFormAction
     {
-        return AiAction::make('generateWithClosureTemperature')
+        return AiFormAction::make('generateWithClosureTemperature')
             ->sourceFields(['title', 'body'])
             ->targetField('summary')
             ->prompt('Summarize.')

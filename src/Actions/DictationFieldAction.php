@@ -10,7 +10,7 @@ use RuntimeException;
 use Statikbe\FilamentSolaris\Concerns\HandlesDictation;
 use Statikbe\FilamentSolaris\Concerns\HasFormPipeline;
 use Statikbe\FilamentSolaris\Concerns\HasPromptPipeline;
-use Statikbe\FilamentSolaris\Testing\AiActionFake;
+use Statikbe\FilamentSolaris\Testing\AiFormActionFake;
 use Statikbe\FilamentSolaris\Testing\DictationFieldActionFake;
 
 /**
@@ -42,7 +42,7 @@ use Statikbe\FilamentSolaris\Testing\DictationFieldActionFake;
  * )
  * ```
  *
- * Composes naturally inside an `AiAction`'s UserInput modal — the action's
+ * Composes naturally inside an `AiFormAction`'s UserInput modal — the action's
  * own modal opens layered over the parent, transcribes, and the result
  * lands in the host field of the outer modal's schema.
  */
@@ -192,7 +192,7 @@ class DictationFieldAction extends SolarisAction
         if ($this->hasPromptBuilder()) {
             $sourceData = ['transcription' => $transcript];
 
-            if (AiActionFake::isActive()) {
+            if (AiFormActionFake::isActive()) {
                 $this->runFakePipeline($sourceData, $data);
             } else {
                 $this->runPipeline($sourceData, $data);

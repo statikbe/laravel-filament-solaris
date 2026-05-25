@@ -11,7 +11,7 @@ use Statikbe\FilamentSolaris\Actions\DictationToolbarAction;
  *
  * The toolbar action has no AI pipeline (pure transcription → cursor insert),
  * so unlike {@see DictationFieldActionFake} there is no `aiResponse` / coupled
- * `AiActionFake` activation — only a canned transcript and call recording.
+ * `AiFormActionFake` activation — only a canned transcript and call recording.
  */
 class DictationToolbarActionFake
 {

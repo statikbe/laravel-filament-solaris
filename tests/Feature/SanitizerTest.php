@@ -1,20 +1,20 @@
 <?php
 
 use Livewire\Livewire;
-use Statikbe\FilamentSolaris\Actions\AiAction;
-use Statikbe\FilamentSolaris\Testing\AiActionFake;
+use Statikbe\FilamentSolaris\Actions\AiFormAction;
+use Statikbe\FilamentSolaris\Testing\AiFormActionFake;
 use Statikbe\FilamentSolaris\Tests\Fixtures\AiFormComponent;
 
 beforeEach(function () {
-    AiActionFake::reset();
+    AiFormActionFake::reset();
 });
 
 afterEach(function () {
-    AiActionFake::reset();
+    AiFormActionFake::reset();
 });
 
 it('runs the per-action sanitizer on every target field', function () {
-    AiAction::fake([
+    AiFormAction::fake([
         'summary' => '<p>Hello <script>alert(1)</script> world</p>',
         'category' => 'tech',
     ]);
@@ -31,7 +31,7 @@ it('runs the per-action sanitizer on every target field', function () {
 });
 
 it('lets sanitizeField override the per-action sanitizer for that field', function () {
-    AiAction::fake([
+    AiFormAction::fake([
         'summary' => 'lowercase summary',
         'category' => 'tech',
     ]);
@@ -48,7 +48,7 @@ it('lets sanitizeField override the per-action sanitizer for that field', functi
 });
 
 it('treats sanitizer exceptions as field failures and reports them', function () {
-    AiAction::fake(['summary' => 'whatever']);
+    AiFormAction::fake(['summary' => 'whatever']);
 
     Livewire::test(AiFormComponent::class)
         ->fillForm(['title' => 'X', 'body' => 'Y'])
@@ -59,7 +59,7 @@ it('treats sanitizer exceptions as field failures and reports them', function ()
 });
 
 it('does not affect output when no sanitizer is configured', function () {
-    AiAction::fake(['summary' => '<p>untouched</p>']);
+    AiFormAction::fake(['summary' => '<p>untouched</p>']);
 
     Livewire::test(AiFormComponent::class)
         ->fillForm(['title' => 'X', 'body' => 'Y'])

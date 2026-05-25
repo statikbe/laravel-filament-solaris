@@ -13,7 +13,7 @@ AI actions for Filament v4 & v5 — drop a button on any form to summarize, clas
 
 ## What you get
 
-- **`AiAction`** — read source fields, send them to an AI provider, write a structured response back into one or more target fields. Filament component types are auto-detected (Select, Toggle, RichEditor, …) and the AI is constrained to a matching JSON schema, so a `Select` only ever gets a valid option.
+- **`AiFormAction`** — read source fields, send them to an AI provider, write a structured response back into one or more target fields. Filament component types are auto-detected (Select, Toggle, RichEditor, …) and the AI is constrained to a matching JSON schema, so a `Select` only ever gets a valid option.
 - **`ImageGenerationAction`** — generate (or edit/reskin) images and store them straight into a `FileUpload` / Spatie media field.
 - **`DictationFieldAction`** — record audio, transcribe it, and drop the text into a field — optionally piped through the AI pipeline first. A **`RichEditor` toolbar button** variant inserts the transcript at the cursor.
 - **Presets** for the common jobs (summary, classification, translation, generation) and a prompt API (inline string, Blade view, or custom builder) for everything else.
@@ -36,11 +36,11 @@ AI actions for Filament v4 & v5 — drop a button on any form to summarize, clas
 
 ## How It Works
 
-`AiAction` is a Filament `Action` that reads values from source fields, sends them to an AI provider via `laravel/ai`, and writes structured responses back into target fields. The package auto-detects target component types (Select, TextInput, Toggle, etc.) and handles bidirectional data transformation — converting form state to prompt context and AI responses back to valid form state.
+`AiFormAction` is a Filament `Action` that reads values from source fields, sends them to an AI provider via `laravel/ai`, and writes structured responses back into target fields. The package auto-detects target component types (Select, TextInput, Toggle, etc.) and handles bidirectional data transformation — converting form state to prompt context and AI responses back to valid form state.
 
 ```mermaid
 flowchart LR
-      A([Source Fields]) -->|read form values| B[AiAction]
+      A([Source Fields]) -->|read form values| B[AiFormAction]
       G([UserInput]) -->|extra modal form| B
       P([Prompt]) -->|extra prompt| B
       N([Config]) -->|provider, model, options| B
@@ -105,13 +105,13 @@ Then rebuild your Filament theme (`npm run build` or `php artisan filament:asset
 
 ## Quick Start
 
-The smallest useful `AiAction` reads one field, asks the AI to rewrite it, and writes the result straight back into the *same* field — a one-click "improve writing" button, no preset, no second field:
+The smallest useful `AiFormAction` reads one field, asks the AI to rewrite it, and writes the result straight back into the *same* field — a one-click "improve writing" button, no preset, no second field:
 
 ```php
-use Statikbe\FilamentSolaris\Actions\AiAction;
+use Statikbe\FilamentSolaris\Actions\AiFormAction;
 
 Forms\Components\Actions::make([
-    AiAction::make('improve-writing')
+    AiFormAction::make('improve-writing')
         ->sourceFields(['description'])
         ->targetField('description')
         ->prompt('Rewrite this text: fix grammar and spelling, tighten the phrasing, keep the meaning and tone.'),
@@ -129,7 +129,7 @@ Self-contained snippets for the things you'll actually want to do. Each links to
 ```php
 use Statikbe\FilamentSolaris\Prompts\Presets\SummaryPreset;
 
-AiAction::make('summarize')
+AiFormAction::make('summarize')
     ->sourceFields(['title', 'body'])
     ->targetField('summary')
     ->preset(SummaryPreset::make()->maxWords(100)->tone('professional'));
@@ -142,7 +142,7 @@ The factory constrains the AI to the Select's actual options, so it can only ret
 ```php
 use Statikbe\FilamentSolaris\Prompts\Presets\ClassificationPreset;
 
-AiAction::make('classify')
+AiFormAction::make('classify')
     ->sourceFields(['title', 'body'])
     ->targetField('category_id')
     ->targetScope('category_id', fn ($query) => $query->where('active', true))
@@ -156,7 +156,7 @@ For Selects with hundreds of options the schema becomes free-text and the answer
 ```php
 use Statikbe\FilamentSolaris\Prompts\Presets\TranslationPreset;
 
-AiAction::make('translate')
+AiFormAction::make('translate')
     ->sourceFields(['body'])
     ->targetField('body_nl')
     ->preset(TranslationPreset::make()->language('nl')->preserveFormatting());
@@ -167,7 +167,7 @@ AiAction::make('translate')
 One call writes a summary, picks a category, and extracts a set of tags — three different field types from a single response:
 
 ```php
-AiAction::make('auto-fill')
+AiFormAction::make('auto-fill')
     ->sourceFields(['title', 'body'])
     ->targetFields(['summary', 'category_id', 'tags'])
     ->prompt('Analyze the article. Summarize it, pick the best category, and suggest a few relevant tags.');
@@ -178,7 +178,7 @@ AiAction::make('auto-fill')
 For one-off jobs that don't warrant a preset, write the instruction inline — here, turning an article into a ready-to-post social blurb:
 
 ```php
-AiAction::make('social-post')
+AiFormAction::make('social-post')
     ->sourceFields(['title', 'body'])
     ->targetField('social_post')
     ->prompt('Write a short, upbeat social media post promoting this article. Max 280 characters, add 2-3 relevant hashtags.');
@@ -187,13 +187,13 @@ AiAction::make('social-post')
 `->prompt()`, `->sourceFields()`, and `->targetFields()` also accept closures with Filament's dependency injection — reach for the current `$record` (and, in the prompt, the gathered `$sourceData`):
 
 ```php
-AiAction::make('social-post')
+AiFormAction::make('social-post')
     ->sourceFields(['title', 'body'])
     ->targetField('social_post')
     ->prompt(fn ($record) => "Write a social post promoting this article for a {$record->audience} audience.");
 ```
 
-See [Closure Support](documentation/ai-action.md#closure-support) for the full injection list (`$record` is `null` on Create pages).
+See [Closure Support](documentation/ai-form-action.md#closure-support) for the full injection list (`$record` is `null` on Create pages).
 
 ### Ask the user for guidance first
 
@@ -202,7 +202,7 @@ Open a modal before the AI runs and feed the answer into the prompt:
 ```php
 use Statikbe\FilamentSolaris\Support\UserInput;
 
-AiAction::make('generate')
+AiFormAction::make('generate')
     ->sourceFields(['title'])
     ->targetField('body')
     ->preset(GenerationPreset::make())
@@ -213,7 +213,7 @@ AiAction::make('generate')
     );
 ```
 
-Presets that ship their own default modal (e.g. `TranslationPreset`'s language picker) just need `->withDefaultUserInput()`. See [User Input](documentation/ai-action.md#user-input).
+Presets that ship their own default modal (e.g. `TranslationPreset`'s language picker) just need `->withDefaultUserInput()`. See [User Input](documentation/ai-form-action.md#user-input).
 
 ### Generate an image
 
@@ -281,28 +281,28 @@ RichEditor::make('body')->plugins([DictationRichEditorPlugin::make()]);
 Let the user review the result in a modal and accept or cancel:
 
 ```php
-AiAction::make('summarize')
+AiFormAction::make('summarize')
     ->sourceFields(['title', 'body'])
     ->targetField('summary')
     ->prompt('Summarise the body.')
     ->withPreview();
 ```
 
-**Requires** the `InteractsWithSolarisPreview` trait on the Livewire component hosting the form (it fails loud if missing). Full setup in [Preview](documentation/ai-action.md#preview).
+**Requires** the `InteractsWithSolarisPreview` trait on the Livewire component hosting the form (it fails loud if missing). Full setup in [Preview](documentation/ai-form-action.md#preview).
 
 ### Refine conversationally
 
 Turn the preview into a chat so the user can iterate ("shorter", "more formal") before accepting:
 
 ```php
-AiAction::make('summarize')
+AiFormAction::make('summarize')
     ->sourceFields(['title', 'body'])
     ->targetField('summary')
     ->preset(SummaryPreset::make())
     ->conversational();  // implies ->withPreview()
 ```
 
-Requires `laravel/ai`'s conversation migrations and an authenticated user — see [Conversational Refinement](documentation/ai-action.md#conversational-refinement).
+Requires `laravel/ai`'s conversation migrations and an authenticated user — see [Conversational Refinement](documentation/ai-form-action.md#conversational-refinement).
 
 ### Track usage & cost
 
@@ -335,7 +335,7 @@ A complete resource form combining several actions:
 
 ```php
 use Filament\Forms;
-use Statikbe\FilamentSolaris\Actions\AiAction;
+use Statikbe\FilamentSolaris\Actions\AiFormAction;
 use Statikbe\FilamentSolaris\Actions\DictationFieldAction;
 use Statikbe\FilamentSolaris\Actions\ImageGenerationAction;
 use Statikbe\FilamentSolaris\Enums\ImageSize;
@@ -365,23 +365,23 @@ public function form(Form $form): Form
         Forms\Components\TagsInput::make('tags'),
 
         Forms\Components\Actions::make([
-            AiAction::make('summarize')
+            AiFormAction::make('summarize')
                 ->sourceFields(['title', 'body'])
                 ->targetField('summary')
                 ->preset(SummaryPreset::make()->maxWords(100)->tone('professional')),
 
-            AiAction::make('classify')
+            AiFormAction::make('classify')
                 ->sourceFields(['title', 'body'])
                 ->targetField('category_id')
                 ->preset(ClassificationPreset::make())
                 ->provider('openai', 'gpt-4o-mini'),   // cheaper model for a simple job
 
-            AiAction::make('auto-fill')
+            AiFormAction::make('auto-fill')
                 ->sourceFields(['title', 'body'])
                 ->targetFields(['summary', 'category_id', 'tags'])
                 ->prompt('Summarize, pick the best category, and suggest a few relevant tags.'),
 
-            AiAction::make('translate')
+            AiFormAction::make('translate')
                 ->sourceFields(['body'])
                 ->targetField('body_nl')
                 ->preset(TranslationPreset::make()->language('nl')->preserveFormatting()),
@@ -422,7 +422,7 @@ Read the full threat model and field-by-field guidance in [Security Consideratio
 
 | Topic | What's inside |
 |---|---|
-| [AiAction API](documentation/ai-action.md) | Source/target fields, prompts, user input, locale, provider, timeout, tools, generation options, attachments, preview, conversational refinement |
+| [AiFormAction API](documentation/ai-form-action.md) | Source/target fields, prompts, user input, locale, provider, timeout, tools, generation options, attachments, preview, conversational refinement |
 | [Component Factories](documentation/factories.md) | Supported components, custom factories, option matching & fuzzy tuning |
 | [Presets Reference](documentation/presets.md) | Summary / Classification / Translation / Generation + custom presets |
 | [Prompt Builders](documentation/prompt-builders.md) | Inline, view, and custom prompt builders |

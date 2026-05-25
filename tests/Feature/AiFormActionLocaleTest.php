@@ -1,20 +1,20 @@
 <?php
 
 use Livewire\Livewire;
-use Statikbe\FilamentSolaris\Actions\AiAction;
-use Statikbe\FilamentSolaris\Testing\AiActionFake;
+use Statikbe\FilamentSolaris\Actions\AiFormAction;
+use Statikbe\FilamentSolaris\Testing\AiFormActionFake;
 use Statikbe\FilamentSolaris\Tests\Fixtures\AiFormComponent;
 
 beforeEach(function () {
-    AiActionFake::reset();
+    AiFormActionFake::reset();
 });
 
 afterEach(function () {
-    AiActionFake::reset();
+    AiFormActionFake::reset();
 });
 
 it('includes locale override in the prompt', function () {
-    AiAction::fake(['summary' => 'Dutch summary']);
+    AiFormAction::fake(['summary' => 'Dutch summary']);
 
     Livewire::test(AiFormComponent::class)
         ->fillForm([
@@ -23,13 +23,13 @@ it('includes locale override in the prompt', function () {
         ])
         ->callAction('generateWithLocale');
 
-    AiAction::assertCalledWith(function (array $sourceData, string $prompt) {
+    AiFormAction::assertCalledWith(function (array $sourceData, string $prompt) {
         expect($prompt)->toContain('Dutch');
     });
 });
 
 it('fills target fields with locale override active', function () {
-    AiAction::fake(['summary' => 'Nederlandse samenvatting']);
+    AiFormAction::fake(['summary' => 'Nederlandse samenvatting']);
 
     Livewire::test(AiFormComponent::class)
         ->fillForm([

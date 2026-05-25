@@ -6,9 +6,9 @@ use Statikbe\FilamentSolaris\Concerns\HasFormPipeline;
 use Statikbe\FilamentSolaris\Concerns\HasPromptPipeline;
 use Statikbe\FilamentSolaris\Concerns\HasSourceFields;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
-use Statikbe\FilamentSolaris\Testing\AiActionFake;
+use Statikbe\FilamentSolaris\Testing\AiFormActionFake;
 
-class AiAction extends SolarisAction
+class AiFormAction extends SolarisAction
 {
     use HasFormPipeline;
     use HasPromptPipeline;
@@ -23,7 +23,7 @@ class AiAction extends SolarisAction
 
         $this->icon(FilamentSolaris::config()->getActionIcon());
 
-        $this->requiresConfirmation(function (AiAction $action): bool {
+        $this->requiresConfirmation(function (AiFormAction $action): bool {
             if ($this->hasPreviewData()) {
                 return false;
             }
@@ -31,7 +31,7 @@ class AiAction extends SolarisAction
             return ! empty($action->getFilledTargetFieldLabels());
         });
 
-        $this->modalDescription(function (AiAction $action): ?string {
+        $this->modalDescription(function (AiFormAction $action): ?string {
             if ($this->hasPreviewData()) {
                 return null;
             }
@@ -47,7 +47,7 @@ class AiAction extends SolarisAction
             ]);
         });
 
-        $this->schema(function (AiAction $action): array {
+        $this->schema(function (AiFormAction $action): array {
             if ($this->hasPreviewData()) {
                 return [];
             }
@@ -55,7 +55,7 @@ class AiAction extends SolarisAction
             return $action->getUserInputFormSchema();
         });
 
-        $this->action(function (AiAction $action, array $data = []) {
+        $this->action(function (AiFormAction $action, array $data = []) {
             $action->execute($data);
         });
     }
@@ -79,7 +79,7 @@ class AiAction extends SolarisAction
         $userInput = $data;
         $sourceData = $this->getSourceFieldValues();
 
-        if (AiActionFake::isActive()) {
+        if (AiFormActionFake::isActive()) {
             $this->runFakePipeline($sourceData, $userInput);
 
             return;
@@ -110,11 +110,11 @@ class AiAction extends SolarisAction
     private function validateConfiguration(): void
     {
         if (empty($this->getTargetFields())) {
-            throw new \RuntimeException('AiAction requires at least one target field.');
+            throw new \RuntimeException('AiFormAction requires at least one target field.');
         }
 
         if (! $this->hasPromptBuilder()) {
-            throw new \RuntimeException('AiAction requires a prompt, preset, or custom promptBuilder.');
+            throw new \RuntimeException('AiFormAction requires a prompt, preset, or custom promptBuilder.');
         }
     }
 
@@ -127,25 +127,25 @@ class AiAction extends SolarisAction
      *
      * @param  array<string, mixed>  $response
      */
-    public static function fake(array $response = []): AiActionFake
+    public static function fake(array $response = []): AiFormActionFake
     {
-        return AiActionFake::activate($response);
+        return AiFormActionFake::activate($response);
     }
 
     /**
      * Simulate an API error.
      */
-    public static function fakeError(string $message = 'AI service error'): AiActionFake
+    public static function fakeError(string $message = 'AI service error'): AiFormActionFake
     {
-        return AiActionFake::activateError($message);
+        return AiFormActionFake::activateError($message);
     }
 
     /**
      * Simulate an API timeout.
      */
-    public static function fakeTimeout(): AiActionFake
+    public static function fakeTimeout(): AiFormActionFake
     {
-        return AiActionFake::activateTimeout();
+        return AiFormActionFake::activateTimeout();
     }
 
     /**
@@ -153,17 +153,17 @@ class AiAction extends SolarisAction
      *
      * @param  array<string, mixed|null>  $response
      */
-    public static function fakePartial(array $response): AiActionFake
+    public static function fakePartial(array $response): AiFormActionFake
     {
-        return AiActionFake::activatePartial($response);
+        return AiFormActionFake::activatePartial($response);
     }
 
     /**
-     * Assert that an AiAction was called.
+     * Assert that an AiFormAction was called.
      */
     public static function assertCalled(): void
     {
-        AiActionFake::getInstance()->assertCalled();
+        AiFormActionFake::getInstance()->assertCalled();
     }
 
     /**
@@ -171,22 +171,22 @@ class AiAction extends SolarisAction
      */
     public static function assertCalledWith(\Closure $callback): void
     {
-        AiActionFake::getInstance()->assertCalledWith($callback);
+        AiFormActionFake::getInstance()->assertCalledWith($callback);
     }
 
     /**
-     * Assert that no AiAction was called.
+     * Assert that no AiFormAction was called.
      */
     public static function assertNotCalled(): void
     {
-        AiActionFake::getInstance()->assertNotCalled();
+        AiFormActionFake::getInstance()->assertNotCalled();
     }
 
     /**
-     * Assert the number of times an AiAction was called.
+     * Assert the number of times an AiFormAction was called.
      */
     public static function assertCalledTimes(int $count): void
     {
-        AiActionFake::getInstance()->assertCalledTimes($count);
+        AiFormActionFake::getInstance()->assertCalledTimes($count);
     }
 }

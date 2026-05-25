@@ -1,22 +1,22 @@
-# AiAction API
+# AiFormAction API
 
 [← Back to README](../README.md)
 
-`AiAction` extends Filament's `Action` class and adds three concerns via traits: `HasSourceFields`, `HasTargetFields`, and `HasUserInput`.
+`AiFormAction` extends Filament's `Action` class and adds three concerns via traits: `HasSourceFields`, `HasTargetFields`, and `HasUserInput`.
 
 ## Source Fields
 
 Source fields are the form fields whose values are read and sent to the AI as context.
 
 ```php
-AiAction::make('summarize')
+AiFormAction::make('summarize')
     ->sourceFields(['title', 'body', 'author'])
 ```
 
 Use `sourceScope()` to transform a source value before it reaches the prompt. This is useful for truncating long content or formatting values:
 
 ```php
-AiAction::make('summarize')
+AiFormAction::make('summarize')
     ->sourceFields(['title', 'body'])
     ->sourceScope('body', fn (string $value) => str($value)->limit(3000)->toString())
 ```
@@ -27,18 +27,18 @@ Target fields are the form fields that receive the AI response. The package auto
 
 ```php
 // Single target
-AiAction::make('classify')
+AiFormAction::make('classify')
     ->targetField('category_id')
 
 // Multiple targets
-AiAction::make('fill')
+AiFormAction::make('fill')
     ->targetFields(['summary', 'category_id', 'tags'])
 ```
 
 Use `targetScope()` to constrain relationship-based options (e.g., filter a Select's relationship query):
 
 ```php
-AiAction::make('classify')
+AiFormAction::make('classify')
     ->targetField('category_id')
     ->targetScope('category_id', fn ($query) => $query->where('active', true))
 ```
@@ -46,7 +46,7 @@ AiAction::make('classify')
 Use `targetHint()` to append a behavioural nudge to a specific field's JSON-schema description — the hint is sent to the AI alongside the auto-generated schema, so it shapes how the field gets filled without rewriting the whole prompt:
 
 ```php
-AiAction::make('fill')
+AiFormAction::make('fill')
     ->targetFields(['summary', 'tags'])
     ->prompt('Read the body and fill the fields.')
     ->targetHint('summary', 'Keep it under 80 words. No marketing language.')
@@ -58,7 +58,7 @@ Hints compose with the structural description the factory generates from the com
 For Select/CheckboxList targets you can also tune the option-matching fallback per field — see [Component Factories → Option Matching](factories.md#option-matching):
 
 ```php
-AiAction::make('classify')
+AiFormAction::make('classify')
     ->targetFuzzyMatching('billing_code', false)   // disable fuzzy for a high-stakes field
     ->targetFuzzyThreshold('city', 0.15);          // stricter threshold for another
 ```
@@ -96,7 +96,7 @@ User input opens a modal before the AI executes, allowing the end user to provid
 ```php
 use Statikbe\FilamentSolaris\Support\UserInput;
 
-AiAction::make('generate')
+AiFormAction::make('generate')
     ->sourceFields(['title'])
     ->targetField('body')
     ->preset(GenerationPreset::make())
@@ -124,7 +124,7 @@ AiAction::make('generate')
 Some presets define their own default user input (e.g., `GenerationPreset` adds a "What should the AI write?" textarea, `TranslationPreset` adds a language selector). Use `withDefaultUserInput()` to enable it:
 
 ```php
-AiAction::make('translate')
+AiFormAction::make('translate')
     ->sourceFields(['body'])
     ->targetField('body_nl')
     ->preset(TranslationPreset::make()->language('nl'))
@@ -147,15 +147,15 @@ Override which AI provider and model are used per-action. When not set, the pack
 
 ```php
 // Single provider + model
-AiAction::make('summarize')
+AiFormAction::make('summarize')
     ->provider('anthropic', 'claude-sonnet-4-5-20250514')
 
 // Failover array — tries providers in order on failure
-AiAction::make('summarize')
+AiFormAction::make('summarize')
     ->provider(['openai' => 'gpt-4o', 'anthropic'])
 
 // Closure (Filament convention)
-AiAction::make('classify')
+AiFormAction::make('classify')
     ->provider(fn () => config('my-app.ai_provider'))
 
 // On a preset
@@ -167,10 +167,10 @@ AiAction::make('classify')
 Set the HTTP timeout in seconds for the AI call. Defaults to the `laravel/ai` default (60s) when not configured.
 
 ```php
-AiAction::make('summarize')
+AiFormAction::make('summarize')
     ->timeout(120)  // 2 minutes for long content
 
-AiAction::make('classify')
+AiFormAction::make('classify')
     ->timeout(30)   // quick classification
 ```
 
@@ -192,13 +192,13 @@ Pass tools to the underlying `laravel/ai` agent for this action. Tools are provi
 ```php
 use OpenAI\Laravel\Facades\OpenAI;
 
-AiAction::make('research')
+AiFormAction::make('research')
     ->sourceFields(['query'])
     ->targetField('result')
     ->tools([new WebSearchTool()])
 
 // Closure form
-AiAction::make('research')
+AiFormAction::make('research')
     ->tools(fn () => auth()->user()->can('web-search') ? [new WebSearchTool()] : [])
 ```
 
@@ -207,7 +207,7 @@ AiAction::make('research')
 Tune the underlying text generation. All four options are optional — when not set, `laravel/ai` falls back to the agent's PHP attributes (`#[Temperature]`, `#[MaxTokens]`, `#[MaxSteps]`, `#[TopP]`) and then to the provider's own defaults.
 
 ```php
-AiAction::make('summarize')
+AiFormAction::make('summarize')
     ->temperature(0.7)   // sampling temperature (float)
     ->maxTokens(2048)    // hard cap on output tokens
     ->maxSteps(5)        // max tool-call steps in an agent loop
@@ -217,7 +217,7 @@ AiAction::make('summarize')
 Setters accept `Closure` for runtime values (user preferences, feature flags, per-record tuning):
 
 ```php
-AiAction::make('summarize')
+AiFormAction::make('summarize')
     ->temperature(fn () => auth()->user()->ai_creativity)
     ->maxTokens(fn () => $this->record->is_premium ? 4096 : 1024)
 ```
@@ -237,7 +237,7 @@ Most setters accept a `Closure` alongside their static type, following Filament'
 **Action setters** resolve through Filament's `$this->evaluate()`, so their closures receive Filament's dependency injection — `$record`, `$livewire`, `$component`, `$get`, `$operation`, and the rest:
 
 ```php
-AiAction::make('summarize')
+AiFormAction::make('summarize')
     ->sourceFields(fn ($record) => $record->translatable_columns)
     ->targetField('summary')
     ->prompt(fn ($record, $sourceData) =>
@@ -267,7 +267,7 @@ use Laravel\Ai\Files\Image;
 use Laravel\Ai\Files\Audio;
 use Laravel\Ai\Files\Document;
 
-AiAction::make('analyse')
+AiFormAction::make('analyse')
     ->sourceFields(['title'])
     ->targetField('analysis')
     ->prompt('Analyse this content.')
@@ -304,7 +304,7 @@ Provider behaviour for attachments is delegated entirely to `laravel/ai` — pro
 Show the AI result in a preview modal before applying it to the form, so the user can review and accept (or cancel):
 
 ```php
-AiAction::make('summarize')
+AiFormAction::make('summarize')
     ->sourceFields(['title', 'body'])
     ->targetField('summary')
     ->prompt('Summarise the body.')
@@ -348,7 +348,7 @@ class GenerateArticle extends Component
 Enable a chat interface inside the preview modal so the user can iteratively refine the AI's response with follow-up messages:
 
 ```php
-AiAction::make('summarize')
+AiFormAction::make('summarize')
     ->sourceFields(['title', 'body'])
     ->targetField('summary')
     ->preset(SummaryPreset::make())

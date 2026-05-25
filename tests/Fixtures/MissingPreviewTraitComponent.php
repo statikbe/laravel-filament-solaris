@@ -6,7 +6,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\FormsComponent;
 use Filament\Schemas\Schema;
-use Statikbe\FilamentSolaris\Actions\AiAction;
+use Statikbe\FilamentSolaris\Actions\AiFormAction;
 
 /**
  * Deliberately omits the `InteractsWithSolarisPreview` trait so the
@@ -40,18 +40,18 @@ class MissingPreviewTraitComponent extends FormsComponent
             ->statePath('data');
     }
 
-    public function generateSummaryAction(): AiAction
+    public function generateSummaryAction(): AiFormAction
     {
-        return AiAction::make('generateSummary')
+        return AiFormAction::make('generateSummary')
             ->sourceFields(['title', 'body'])
             ->targetField('summary')
             ->prompt('Summarise the body.')
             ->withPreview();
     }
 
-    public function refineSummaryAction(): AiAction
+    public function refineSummaryAction(): AiFormAction
     {
-        return AiAction::make('refineSummary')
+        return AiFormAction::make('refineSummary')
             ->sourceFields(['title', 'body'])
             ->targetField('summary')
             ->prompt('Summarise the body.')

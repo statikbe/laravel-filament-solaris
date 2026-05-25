@@ -7,7 +7,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\FormsComponent;
 use Filament\Schemas\Schema;
-use Statikbe\FilamentSolaris\Actions\AiAction;
+use Statikbe\FilamentSolaris\Actions\AiFormAction;
 use Statikbe\FilamentSolaris\Concerns\InteractsWithSolarisPreview;
 
 class ConversationalFormComponent extends FormsComponent
@@ -56,9 +56,9 @@ class ConversationalFormComponent extends FormsComponent
     /**
      * AI action with conversational refinement.
      */
-    public function generateSummaryAction(): AiAction
+    public function generateSummaryAction(): AiFormAction
     {
-        return AiAction::make('generateSummary')
+        return AiFormAction::make('generateSummary')
             ->sourceFields(['title', 'body'])
             ->targetField('summary')
             ->prompt('Summarize the content in one sentence.')
@@ -68,9 +68,9 @@ class ConversationalFormComponent extends FormsComponent
     /**
      * AI action with conversational refinement and multiple targets.
      */
-    public function generateAllAction(): AiAction
+    public function generateAllAction(): AiFormAction
     {
-        return AiAction::make('generateAll')
+        return AiFormAction::make('generateAll')
             ->sourceFields(['title', 'body'])
             ->targetFields(['summary', 'category'])
             ->prompt('Analyze and classify.')

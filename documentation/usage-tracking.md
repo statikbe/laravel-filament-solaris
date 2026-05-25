@@ -36,7 +36,7 @@ class TrackAiUsage
 }
 ```
 
-Register it in `EventServiceProvider` the usual Laravel way. The event also fires from the Solaris fakes (`AiAction::fake()`, `ImageGenerationAction::fake()`, `DictationFieldAction::fake()`) so you can test your listener without hitting a real provider — the fake dispatches with a zero-token `Usage`.
+Register it in `EventServiceProvider` the usual Laravel way. The event also fires from the Solaris fakes (`AiFormAction::fake()`, `ImageGenerationAction::fake()`, `DictationFieldAction::fake()`) so you can test your listener without hitting a real provider — the fake dispatches with a zero-token `Usage`.
 
 **What the event deliberately does NOT carry:** the prompt text, the source field values, or the AI response. These can be large, may contain PII, and would bloat any listener's storage. Use `SolarisPromptLogger` (gate it on `prompt_logging_enabled`) if you need that level of detail for development.
 
@@ -50,7 +50,7 @@ A third event, **`Statikbe\FilamentSolaris\Events\SolarisOptionMatched`**, fires
 
 Solaris distinguishes three failure modes when an `AiException` is caught and renders dedicated user-facing notifications for each, per pipeline:
 
-| Exception | Text (`AiAction`) | Image (`ImageGenerationAction`) | Transcription (`DictationFieldAction`) |
+| Exception | Text (`AiFormAction`) | Image (`ImageGenerationAction`) | Transcription (`DictationFieldAction`) |
 |---|---|---|---|
 | `RateLimitedException` | `notifications.rate_limited` | `notifications.image_generation_rate_limited` | `notifications.transcription_rate_limited` |
 | `ProviderOverloadedException` | `notifications.overloaded` | `notifications.overloaded` | `notifications.transcription_overloaded` |

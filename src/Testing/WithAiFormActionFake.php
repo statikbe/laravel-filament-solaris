@@ -2,14 +2,14 @@
 
 namespace Statikbe\FilamentSolaris\Testing;
 
-trait WithAiActionFake
+trait WithAiFormActionFake
 {
     /**
      * @after
      */
-    protected function resetAiActionFake(): void
+    protected function resetAiFormActionFake(): void
     {
-        AiActionFake::reset();
+        AiFormActionFake::reset();
         DictationFieldActionFake::reset();
         ImageGenerationActionFake::reset();
     }

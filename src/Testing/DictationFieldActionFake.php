@@ -15,7 +15,7 @@ class DictationFieldActionFake
      */
     protected ?array $aiResponse = null;
 
-    protected bool $activatedAiActionFake = false;
+    protected bool $activatedAiFormActionFake = false;
 
     /**
      * @var array<int, array{name: string, transcript: string}>
@@ -33,22 +33,22 @@ class DictationFieldActionFake
         static::$instance->transcript = $transcript;
         static::$instance->aiResponse = $aiResponse;
 
-        // If AI processing is expected, also activate AiActionFake
+        // If AI processing is expected, also activate AiFormActionFake
         if ($aiResponse !== null) {
-            AiActionFake::activate($aiResponse);
-            static::$instance->activatedAiActionFake = true;
+            AiFormActionFake::activate($aiResponse);
+            static::$instance->activatedAiFormActionFake = true;
         }
 
         return static::$instance;
     }
 
     /**
-     * Reset the fake state, including AiActionFake if it was activated by this fake.
+     * Reset the fake state, including AiFormActionFake if it was activated by this fake.
      */
     public static function reset(): void
     {
-        if (static::$instance?->activatedAiActionFake) {
-            AiActionFake::reset();
+        if (static::$instance?->activatedAiFormActionFake) {
+            AiFormActionFake::reset();
         }
 
         static::$instance = null;

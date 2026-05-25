@@ -7,47 +7,47 @@
 ```mermaid
 sequenceDiagram
     participant User
-    participant AiAction
+    participant AiFormAction
     participant PromptBuilder
     participant SolarisAgent
     participant AI as laravel/ai Provider
     participant Factory as ComponentFactory
 
-    User->>AiAction: clicks action button
-    Note over AiAction: if UserInput configured
-    AiAction->>User: show modal form
-    User->>AiAction: submit user input
+    User->>AiFormAction: clicks action button
+    Note over AiFormAction: if UserInput configured
+    AiFormAction->>User: show modal form
+    User->>AiFormAction: submit user input
 
-    AiAction->>AiAction: validate config
-    AiAction->>AiAction: collect source field values
-    AiAction->>AiAction: resolve target factories
+    AiFormAction->>AiFormAction: validate config
+    AiFormAction->>AiFormAction: collect source field values
+    AiFormAction->>AiFormAction: resolve target factories
 
-    AiAction->>PromptBuilder: build(instruction, sourceData, factories, record, locale, userInput)
-    PromptBuilder-->>AiAction: composed prompt string
+    AiFormAction->>PromptBuilder: build(instruction, sourceData, factories, record, locale, userInput)
+    PromptBuilder-->>AiFormAction: composed prompt string
 
-    AiAction->>SolarisAgent: configure(prompt, factories)
+    AiFormAction->>SolarisAgent: configure(prompt, factories)
     SolarisAgent->>AI: prompt() with JSON schema
     AI-->>SolarisAgent: structured JSON response
 
     loop for each target field
-        AiAction->>Factory: toFormValue(aiValue)
-        Factory-->>AiAction: transformed value
-        AiAction->>AiAction: $set(field, value)
+        AiFormAction->>Factory: toFormValue(aiValue)
+        Factory-->>AiFormAction: transformed value
+        AiFormAction->>AiFormAction: $set(field, value)
     end
 
-    AiAction->>User: success/partial/error notification
+    AiFormAction->>User: success/partial/error notification
 ```
 
 This is the direct path. With `->withPreview()` the result isn't written immediately — it's parked for the user to review, per the next diagram.
 
 ## Preview & Conversational Refinement
 
-When `->withPreview()` (or `->conversational()`, which implies it) is set, the pipeline runs the AI call but **defers the write**: the structured result is stored on the Livewire component's `solarisPreviewData` and the action `halt()`s so the modal stays open. The user then accepts, refines, or cancels. This requires the [`InteractsWithSolarisPreview`](ai-action.md#preview) trait on the host Livewire component, which provides the methods the modal dispatches to.
+When `->withPreview()` (or `->conversational()`, which implies it) is set, the pipeline runs the AI call but **defers the write**: the structured result is stored on the Livewire component's `solarisPreviewData` and the action `halt()`s so the modal stays open. The user then accepts, refines, or cancels. This requires the [`InteractsWithSolarisPreview`](ai-form-action.md#preview) trait on the host Livewire component, which provides the methods the modal dispatches to.
 
 ```mermaid
 sequenceDiagram
     participant User
-    participant Action as AiAction
+    participant Action as AiFormAction
     participant AI as laravel/ai Provider
     participant LW as Livewire (InteractsWithSolarisPreview)
     participant Modal as Preview Modal
@@ -80,7 +80,7 @@ sequenceDiagram
     end
 ```
 
-The refine loop re-runs the AI with the new message appended to the conversation (via `laravel/ai`'s `RemembersConversations`); each turn replaces the preview until the user accepts. See [Conversational Refinement](ai-action.md#conversational-refinement) for the requirements (migrations, authenticated user) and lifetime semantics.
+The refine loop re-runs the AI with the new message appended to the conversation (via `laravel/ai`'s `RemembersConversations`); each turn replaces the preview until the user accepts. See [Conversational Refinement](ai-form-action.md#conversational-refinement) for the requirements (migrations, authenticated user) and lifetime semantics.
 
 ## Component Hierarchy
 

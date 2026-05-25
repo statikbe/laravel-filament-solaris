@@ -60,7 +60,7 @@ class MyPromptBuilder implements PromptBuilder
 Use it on an action:
 
 ```php
-AiAction::make('custom')
+AiFormAction::make('custom')
     ->sourceFields(['title'])
     ->targetField('body')
     ->promptBuilder(new MyPromptBuilder())

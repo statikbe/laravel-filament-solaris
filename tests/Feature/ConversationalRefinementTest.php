@@ -1,21 +1,21 @@
 <?php
 
 use Livewire\Livewire;
-use Statikbe\FilamentSolaris\Actions\AiAction;
-use Statikbe\FilamentSolaris\Testing\AiActionFake;
+use Statikbe\FilamentSolaris\Actions\AiFormAction;
+use Statikbe\FilamentSolaris\Testing\AiFormActionFake;
 use Statikbe\FilamentSolaris\Tests\Fixtures\ConversationalFormComponent;
 use Statikbe\FilamentSolaris\Tests\Fixtures\PreviewFormComponent;
 
 beforeEach(function () {
-    AiActionFake::reset();
+    AiFormActionFake::reset();
 });
 
 afterEach(function () {
-    AiActionFake::reset();
+    AiFormActionFake::reset();
 });
 
 it('conversational implies withPreview', function () {
-    $action = AiAction::make('test')
+    $action = AiFormAction::make('test')
         ->targetField('summary')
         ->prompt('Summarize.')
         ->conversational();
@@ -25,7 +25,7 @@ it('conversational implies withPreview', function () {
 });
 
 it('stores preview data with conversation context', function () {
-    AiAction::fake(['summary' => 'Initial summary.']);
+    AiFormAction::fake(['summary' => 'Initial summary.']);
 
     $component = Livewire::test(ConversationalFormComponent::class)
         ->fillForm([
@@ -47,7 +47,7 @@ it('stores preview data with conversation context', function () {
 });
 
 it('does not apply values to form on initial call', function () {
-    AiAction::fake(['summary' => 'Initial summary.']);
+    AiFormAction::fake(['summary' => 'Initial summary.']);
 
     Livewire::test(ConversationalFormComponent::class)
         ->fillForm([
@@ -61,7 +61,7 @@ it('does not apply values to form on initial call', function () {
 });
 
 it('refines preview values with a follow-up message', function () {
-    AiAction::fake(['summary' => 'Initial summary.'])
+    AiFormAction::fake(['summary' => 'Initial summary.'])
         ->fakeRefinement(['summary' => 'Refined and shorter summary.']);
 
     $component = Livewire::test(ConversationalFormComponent::class)
@@ -83,7 +83,7 @@ it('refines preview values with a follow-up message', function () {
 });
 
 it('appends messages during refinement', function () {
-    AiAction::fake(['summary' => 'Initial.'])
+    AiFormAction::fake(['summary' => 'Initial.'])
         ->fakeRefinement(['summary' => 'Refined.']);
 
     $component = Livewire::test(ConversationalFormComponent::class)
@@ -105,7 +105,7 @@ it('appends messages during refinement', function () {
 });
 
 it('accepts refined values into the form', function () {
-    AiAction::fake(['summary' => 'Initial.'])
+    AiFormAction::fake(['summary' => 'Initial.'])
         ->fakeRefinement(['summary' => 'Final refined version.']);
 
     Livewire::test(ConversationalFormComponent::class)
@@ -123,7 +123,7 @@ it('accepts refined values into the form', function () {
 });
 
 it('discards refined values without applying', function () {
-    AiAction::fake(['summary' => 'Initial.'])
+    AiFormAction::fake(['summary' => 'Initial.'])
         ->fakeRefinement(['summary' => 'Refined.']);
 
     Livewire::test(ConversationalFormComponent::class)
@@ -141,7 +141,7 @@ it('discards refined values without applying', function () {
 });
 
 it('supports multiple refinement rounds', function () {
-    AiAction::fake(['summary' => 'First.'])
+    AiFormAction::fake(['summary' => 'First.'])
         ->fakeRefinement(['summary' => 'Second.'])
         ->fakeRefinement(['summary' => 'Third.']);
 
@@ -157,11 +157,11 @@ it('supports multiple refinement rounds', function () {
     expect($component->get('solarisPreviewData.values.summary'))->toBe('Third.')
         ->and($component->get('solarisPreviewData.messages'))->toHaveCount(5);
 
-    AiActionFake::getInstance()->assertRefinedTimes(2);
+    AiFormActionFake::getInstance()->assertRefinedTimes(2);
 });
 
 it('records refinement calls in fake', function () {
-    AiAction::fake(['summary' => 'Initial.'])
+    AiFormAction::fake(['summary' => 'Initial.'])
         ->fakeRefinement(['summary' => 'Refined.']);
 
     Livewire::test(ConversationalFormComponent::class)
@@ -172,15 +172,15 @@ it('records refinement calls in fake', function () {
         ->callAction('generateSummary')
         ->call('solarisRefinePreview', 'Make it formal');
 
-    AiActionFake::getInstance()->assertRefined();
-    AiActionFake::getInstance()->assertRefinedWith(function (string $message) {
+    AiFormActionFake::getInstance()->assertRefined();
+    AiFormActionFake::getInstance()->assertRefinedWith(function (string $message) {
         expect($message)->toBe('Make it formal');
     });
 });
 
 it('ignores refinement when preview is not conversational', function () {
     // Use a non-conversational fixture — the regular preview
-    AiAction::fake(['summary' => 'Preview.']);
+    AiFormAction::fake(['summary' => 'Preview.']);
 
     $component = Livewire::test(PreviewFormComponent::class)
         ->fillForm([
@@ -206,7 +206,7 @@ it('ignores refinement when no preview data exists', function () {
 });
 
 it('works with multiple target fields in conversational mode', function () {
-    AiAction::fake(['summary' => 'Initial summary.', 'category' => 'tech'])
+    AiFormAction::fake(['summary' => 'Initial summary.', 'category' => 'tech'])
         ->fakeRefinement(['summary' => 'Better summary.', 'category' => 'science']);
 
     $component = Livewire::test(ConversationalFormComponent::class)
@@ -229,7 +229,7 @@ it('works with multiple target fields in conversational mode', function () {
 });
 
 it('uses _message from AI response as assistant chat message', function () {
-    AiAction::fake([
+    AiFormAction::fake([
         '_message' => 'Here is a concise summary of your article.',
         'summary' => 'Initial summary.',
     ])->fakeRefinement([
@@ -255,7 +255,7 @@ it('uses _message from AI response as assistant chat message', function () {
 });
 
 it('falls back to translation when _message is absent', function () {
-    AiAction::fake(['summary' => 'Initial.'])
+    AiFormAction::fake(['summary' => 'Initial.'])
         ->fakeRefinement(['summary' => 'Refined.']);
 
     $component = Livewire::test(ConversationalFormComponent::class)

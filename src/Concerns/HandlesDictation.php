@@ -149,7 +149,7 @@ trait HandlesDictation
      *
      * Filament mounts each action's schema at `mountedActions.{N}.data` where
      * N is the nesting index (0 for the top-most action, 1 if nested inside
-     * another action's modal — e.g. a dictation suffix inside an AiAction's
+     * another action's modal — e.g. a dictation suffix inside an AiFormAction's
      * UserInput modal). Computed at render time so it survives modal stacking.
      */
     protected function resolveAudioStatePath(): string

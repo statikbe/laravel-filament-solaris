@@ -10,6 +10,6 @@ trait WithDictationFieldActionFake
     protected function resetDictationFieldActionFake(): void
     {
         DictationFieldActionFake::reset();
-        AiActionFake::reset();
+        AiFormActionFake::reset();
     }
 }

@@ -103,7 +103,7 @@ ImageGenerationAction::make('generate')
 
 ## Reference Images
 
-Pass an input image (or several) to the image-generation provider for image-to-image, edit, or reference-based generation. OpenAI switches to its `images/edits` endpoint; Gemini sends the input as native multi-modal parts. Same three-channel API as [`AiAction` Attachments](ai-action.md#attachments) — only `Files\Image` instances reach the gateway (other types are silently dropped):
+Pass an input image (or several) to the image-generation provider for image-to-image, edit, or reference-based generation. OpenAI switches to its `images/edits` endpoint; Gemini sends the input as native multi-modal parts. Same three-channel API as [`AiFormAction` Attachments](ai-form-action.md#attachments) — only `Files\Image` instances reach the gateway (other types are silently dropped):
 
 ```php
 use Laravel\Ai\Files\Image;

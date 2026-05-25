@@ -14,7 +14,7 @@ use Statikbe\FilamentSolaris\Support\ComponentFactoryResolver;
  * Composes with {@see HasFormPipeline} — relies on its
  * `resolveFormSchemaComponent()` and `resolveFieldLabel()` / `formatFieldList()`
  * for schema-based value reads and the empty-fields warning. The three
- * concrete actions that use source fields (AiAction, ImageGenerationAction)
+ * concrete actions that use source fields (AiFormAction, ImageGenerationAction)
  * all also use HasFormPipeline; standalone usage would need to provide
  * those methods independently.
  */

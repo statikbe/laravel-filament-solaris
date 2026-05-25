@@ -9,11 +9,11 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\FormsComponent;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
-use Statikbe\FilamentSolaris\Actions\AiAction;
+use Statikbe\FilamentSolaris\Actions\AiFormAction;
 
 /**
  * Fixture exercising closure callbacks (with Filament dependency injection)
- * on AiAction's prompt / sourceFields / targetFields setters.
+ * on AiFormAction's prompt / sourceFields / targetFields setters.
  *
  * A record is supplied via {@see getDefaultActionRecord()} so closures receive
  * a non-null `$record` (the same mechanism Filament uses for component-level
@@ -68,9 +68,9 @@ class ClosureCallbackFormComponent extends FormsComponent
     /**
      * Prompt closure using both `$record` and the injected `$sourceData`.
      */
-    public function promptClosureAction(): AiAction
+    public function promptClosureAction(): AiFormAction
     {
-        return AiAction::make('promptClosure')
+        return AiFormAction::make('promptClosure')
             ->sourceFields(['title', 'body'])
             ->targetField('summary')
             ->prompt(fn ($record, $sourceData) => "Summarise '{$sourceData['title']}' for a {$record->audience} audience.");
@@ -79,9 +79,9 @@ class ClosureCallbackFormComponent extends FormsComponent
     /**
      * Prompt closure returning a Blade View — selects ViewPromptBuilder.
      */
-    public function promptViewClosureAction(): AiAction
+    public function promptViewClosureAction(): AiFormAction
     {
-        return AiAction::make('promptViewClosure')
+        return AiFormAction::make('promptViewClosure')
             ->sourceFields(['title', 'body'])
             ->targetField('summary')
             ->prompt(fn ($record) => view('filament-solaris::prompts.base-wrapper', [
@@ -92,9 +92,9 @@ class ClosureCallbackFormComponent extends FormsComponent
     /**
      * Source-fields closure using `$record`.
      */
-    public function sourceFieldsClosureAction(): AiAction
+    public function sourceFieldsClosureAction(): AiFormAction
     {
-        return AiAction::make('sourceFieldsClosure')
+        return AiFormAction::make('sourceFieldsClosure')
             ->sourceFields(fn ($record) => $record->summary_fields)
             ->targetField('summary')
             ->prompt('Summarise.');
@@ -103,9 +103,9 @@ class ClosureCallbackFormComponent extends FormsComponent
     /**
      * Target-fields closure using `$record`.
      */
-    public function targetFieldsClosureAction(): AiAction
+    public function targetFieldsClosureAction(): AiFormAction
     {
-        return AiAction::make('targetFieldsClosure')
+        return AiFormAction::make('targetFieldsClosure')
             ->sourceFields(['title', 'body'])
             ->targetFields(fn ($record) => $record->multi_target ? ['summary', 'category'] : ['summary'])
             ->prompt('Fill the fields.');

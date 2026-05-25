@@ -1,20 +1,20 @@
 <?php
 
 use Livewire\Livewire;
-use Statikbe\FilamentSolaris\Actions\AiAction;
-use Statikbe\FilamentSolaris\Testing\AiActionFake;
+use Statikbe\FilamentSolaris\Actions\AiFormAction;
+use Statikbe\FilamentSolaris\Testing\AiFormActionFake;
 use Statikbe\FilamentSolaris\Tests\Fixtures\AiFormComponent;
 
 beforeEach(function () {
-    AiActionFake::reset();
+    AiFormActionFake::reset();
 });
 
 afterEach(function () {
-    AiActionFake::reset();
+    AiFormActionFake::reset();
 });
 
 it('fills a single target field with faked AI response', function () {
-    AiAction::fake(['summary' => 'A concise summary of the content.']);
+    AiFormAction::fake(['summary' => 'A concise summary of the content.']);
 
     Livewire::test(AiFormComponent::class)
         ->fillForm([
@@ -27,11 +27,11 @@ it('fills a single target field with faked AI response', function () {
             'summary' => 'A concise summary of the content.',
         ]);
 
-    AiAction::assertCalled();
+    AiFormAction::assertCalled();
 });
 
 it('fills multiple target fields with faked AI response', function () {
-    AiAction::fake([
+    AiFormAction::fake([
         'summary' => 'Tech article summary.',
         'category' => 'tech',
         'is_featured' => true,
@@ -50,11 +50,11 @@ it('fills multiple target fields with faked AI response', function () {
             'is_featured' => true,
         ]);
 
-    AiAction::assertCalled();
+    AiFormAction::assertCalled();
 });
 
 it('reads source field values from form state', function () {
-    AiAction::fake(['summary' => 'Test summary']);
+    AiFormAction::fake(['summary' => 'Test summary']);
 
     Livewire::test(AiFormComponent::class)
         ->fillForm([
@@ -63,14 +63,14 @@ it('reads source field values from form state', function () {
         ])
         ->callAction('generateSummary');
 
-    AiAction::assertCalledWith(function (array $sourceData, string $prompt) {
+    AiFormAction::assertCalledWith(function (array $sourceData, string $prompt) {
         expect($sourceData['title'])->toBe('Source Title')
             ->and($sourceData['body'])->toBe('Source Body Content');
     });
 });
 
 it('includes prompt instruction in the composed prompt', function () {
-    AiAction::fake(['summary' => 'Test']);
+    AiFormAction::fake(['summary' => 'Test']);
 
     Livewire::test(AiFormComponent::class)
         ->fillForm([
@@ -79,13 +79,13 @@ it('includes prompt instruction in the composed prompt', function () {
         ])
         ->callAction('generateSummary');
 
-    AiAction::assertCalledWith(function (array $sourceData, string $prompt) {
+    AiFormAction::assertCalledWith(function (array $sourceData, string $prompt) {
         expect($prompt)->toContain('Summarize the content in one sentence.');
     });
 });
 
 it('fuzzy matches select values from AI response', function () {
-    AiAction::fake([
+    AiFormAction::fake([
         'summary' => 'Summary',
         'category' => 'Technology',  // AI returns label, not key
         'is_featured' => false,
@@ -103,7 +103,7 @@ it('fuzzy matches select values from AI response', function () {
 });
 
 it('converts boolean strings from AI response', function () {
-    AiAction::fake([
+    AiFormAction::fake([
         'summary' => 'Summary',
         'category' => 'tech',
         'is_featured' => 'yes',  // AI returns string, factory converts to bool
@@ -121,7 +121,7 @@ it('converts boolean strings from AI response', function () {
 });
 
 it('shows error notification when AI returns empty response', function () {
-    AiAction::fake([]);
+    AiFormAction::fake([]);
 
     Livewire::test(AiFormComponent::class)
         ->fillForm([
@@ -133,7 +133,7 @@ it('shows error notification when AI returns empty response', function () {
 });
 
 it('shows error notification on simulated AI error', function () {
-    AiAction::fakeError('Service unavailable');
+    AiFormAction::fakeError('Service unavailable');
 
     Livewire::test(AiFormComponent::class)
         ->fillForm([
@@ -143,11 +143,11 @@ it('shows error notification on simulated AI error', function () {
         ->callAction('generateSummary')
         ->assertNotified();
 
-    AiAction::assertCalled();
+    AiFormAction::assertCalled();
 });
 
 it('shows error notification on simulated timeout', function () {
-    AiAction::fakeTimeout();
+    AiFormAction::fakeTimeout();
 
     Livewire::test(AiFormComponent::class)
         ->fillForm([
@@ -157,11 +157,11 @@ it('shows error notification on simulated timeout', function () {
         ->callAction('generateSummary')
         ->assertNotified();
 
-    AiAction::assertCalled();
+    AiFormAction::assertCalled();
 });
 
 it('handles partial response with some null fields', function () {
-    AiAction::fakePartial([
+    AiFormAction::fakePartial([
         'summary' => 'Partial summary',
         'category' => null,  // AI couldn't determine category
         'is_featured' => true,
@@ -181,7 +181,7 @@ it('handles partial response with some null fields', function () {
 });
 
 it('tracks the number of AI calls', function () {
-    AiAction::fake(['summary' => 'First call']);
+    AiFormAction::fake(['summary' => 'First call']);
 
     $component = Livewire::test(AiFormComponent::class)
         ->fillForm([
@@ -192,11 +192,11 @@ it('tracks the number of AI calls', function () {
     $component->callAction('generateSummary');
     $component->callAction('generateSummary');
 
-    AiAction::assertCalledTimes(2);
+    AiFormAction::assertCalledTimes(2);
 });
 
 it('preserves existing form data for non-target fields', function () {
-    AiAction::fake(['summary' => 'Generated summary']);
+    AiFormAction::fake(['summary' => 'Generated summary']);
 
     Livewire::test(AiFormComponent::class)
         ->fillForm([

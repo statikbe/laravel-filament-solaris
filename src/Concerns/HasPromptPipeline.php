@@ -21,7 +21,7 @@ use Statikbe\FilamentSolaris\Prompts\Presets\Preset;
 use Statikbe\FilamentSolaris\Prompts\ViewPromptBuilder;
 use Statikbe\FilamentSolaris\Support\SolarisNotification;
 use Statikbe\FilamentSolaris\Support\SolarisPromptLogger;
-use Statikbe\FilamentSolaris\Testing\AiActionFake;
+use Statikbe\FilamentSolaris\Testing\AiFormActionFake;
 
 /**
  * Text-generation pipeline plumbing for Solaris actions.
@@ -205,7 +205,7 @@ trait HasPromptPipeline
      * Example with HTML Purifier:
      *
      * ```php
-     * AiAction::make('summarize')
+     * AiFormAction::make('summarize')
      *     ->targetField('summary')
      *     ->sanitize(fn (string $value) => \Mews\Purifier\Facades\Purifier::clean($value));
      * ```
@@ -373,7 +373,7 @@ trait HasPromptPipeline
      * Get the field names used to resolve a form schema component.
      *
      * Override this in consuming classes to include additional fields
-     * (e.g. source fields in AiAction).
+     * (e.g. source fields in AiFormAction).
      *
      * @return array<string>
      */
@@ -486,7 +486,7 @@ trait HasPromptPipeline
     {
         [$prompt, $factories] = $this->buildPrompt($sourceData, $userInput);
 
-        $fake = AiActionFake::getInstance();
+        $fake = AiFormActionFake::getInstance();
 
         ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
         $timeout = $this->resolveTimeout();
@@ -768,7 +768,7 @@ trait HasPromptPipeline
         ];
         $livewire->solarisPreviewData = $previewData;
 
-        if (AiActionFake::isActive()) {
+        if (AiFormActionFake::isActive()) {
             $this->runFakeRefinement($message, $previewData, $turnAttachments);
 
             return;
@@ -834,7 +834,7 @@ trait HasPromptPipeline
      */
     protected function runFakeRefinement(string $message, array $previewData, array $turnAttachments = []): void
     {
-        $fake = AiActionFake::getInstance();
+        $fake = AiFormActionFake::getInstance();
         $attachments = $this->resolveAttachmentsForTurn($previewData['userInput'] ?? [], $turnAttachments);
         $fake->recordRefinementCall($this->getName(), $message, $attachments);
 

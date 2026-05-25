@@ -35,12 +35,12 @@ If you have a free-text field whose value will be rendered as HTML elsewhere, pr
 
 ## Sanitization hook
 
-Each `AiAction` accepts an optional sanitizer that runs on every AI value before it's written to form state:
+Each `AiFormAction` accepts an optional sanitizer that runs on every AI value before it's written to form state:
 
 ```php
 use Mews\Purifier\Facades\Purifier;  // any HTML purifier of your choice
 
-AiAction::make('summarize')
+AiFormAction::make('summarize')
     ->targetFields(['summary', 'body_html'])
     ->prompt('…')
     ->sanitize(fn (mixed $value) => is_string($value) ? Purifier::clean($value) : $value);
@@ -49,7 +49,7 @@ AiAction::make('summarize')
 For different sanitization per field, use `sanitizeField()` to override per-action:
 
 ```php
-AiAction::make('fill')
+AiFormAction::make('fill')
     ->targetFields(['plain_summary', 'rich_body'])
     ->prompt('…')
     ->sanitizeField('plain_summary', fn (mixed $value) => is_string($value) ? strip_tags($value) : $value)
@@ -69,7 +69,7 @@ If a `sourceFields()` entry is user-controlled (TextInput, Textarea, etc.), that
 Use Filament's standard `Action::visible()` / `Action::authorize()` and your policy classes to gate AI actions per-user:
 
 ```php
-AiAction::make('rewrite-customer-message')
+AiFormAction::make('rewrite-customer-message')
     ->visible(fn () => auth()->user()->can('moderate', $record))
     ->sourceFields(['body'])
     ->targetField('body_clean');

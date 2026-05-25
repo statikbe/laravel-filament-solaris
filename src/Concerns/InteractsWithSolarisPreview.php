@@ -45,7 +45,7 @@ trait InteractsWithSolarisPreview
      * Accept the preview and apply values to the form.
      *
      * Delegates to the mounted action's acceptPreview() method, allowing
-     * each action type to handle acceptance differently (e.g. AiAction
+     * each action type to handle acceptance differently (e.g. AiFormAction
      * writes field values, ImageGenerationAction stores and writes images).
      *
      * @internal Dispatched from the preview modal's Accept button via Livewire.

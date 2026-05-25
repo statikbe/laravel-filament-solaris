@@ -5,14 +5,14 @@ The package provides a fake system that intercepts AI calls and returns predeter
 ## Basic Usage
 
 ```php
-use Statikbe\FilamentSolaris\Actions\AiAction;
+use Statikbe\FilamentSolaris\Actions\AiFormAction;
 
 it('fills the summary field', function () {
-    AiAction::fake(['summary' => 'A concise summary of the article.']);
+    AiFormAction::fake(['summary' => 'A concise summary of the article.']);
 
     // ... trigger the action via Livewire testing ...
 
-    AiAction::assertCalled();
+    AiFormAction::assertCalled();
 });
 ```
 
@@ -20,13 +20,13 @@ it('fills the summary field', function () {
 
 ```php
 // API error
-AiAction::fakeError('Service unavailable');
+AiFormAction::fakeError('Service unavailable');
 
 // Timeout
-AiAction::fakeTimeout();
+AiFormAction::fakeTimeout();
 
 // Partial failure (null values are treated as failed fields)
-AiAction::fakePartial([
+AiFormAction::fakePartial([
     'summary' => 'This worked',
     'category_id' => null,  // this field will fail
 ]);
@@ -36,22 +36,22 @@ AiAction::fakePartial([
 
 ```php
 // Assert the action was called
-AiAction::assertCalled();
+AiFormAction::assertCalled();
 
 // Assert it was called N times
-AiAction::assertCalledTimes(2);
+AiFormAction::assertCalledTimes(2);
 
 // Assert it was never called
-AiAction::assertNotCalled();
+AiFormAction::assertNotCalled();
 
 // Inspect source data and prompt
-AiAction::assertCalledWith(function (array $sourceData, string $prompt) {
+AiFormAction::assertCalledWith(function (array $sourceData, string $prompt) {
     expect($sourceData['title'])->toBe('My Article');
     expect($prompt)->toContain('summary');
 });
 
 // Inspect provider, model, and timeout
-AiAction::assertCalledWith(function (array $sourceData, string $prompt, $provider, $model, $timeout) {
+AiFormAction::assertCalledWith(function (array $sourceData, string $prompt, $provider, $model, $timeout) {
     expect($provider)->toBe('openai');
     expect($model)->toBe('gpt-4o');
     expect($timeout)->toBe(120);
@@ -61,7 +61,7 @@ AiAction::assertCalledWith(function (array $sourceData, string $prompt, $provide
 ## Per-Action Fakes
 
 ```php
-AiAction::fake(['summary' => 'Default summary'])
+AiFormAction::fake(['summary' => 'Default summary'])
     ->forAction('classify')  // override for a specific action name
     ->forAction('translate');
 ```
@@ -114,16 +114,16 @@ ImageGenerationAction::assertCalledWith(function (string $prompt, ?string $size,
 
 ## Auto-Reset Trait
 
-Use `WithAiActionFake` to automatically reset all fakes after each test:
+Use `WithAiFormActionFake` to automatically reset all fakes after each test:
 
 ```php
-use Statikbe\FilamentSolaris\Testing\WithAiActionFake;
+use Statikbe\FilamentSolaris\Testing\WithAiFormActionFake;
 
 class MyTest extends TestCase
 {
-    use WithAiActionFake;
+    use WithAiFormActionFake;
 
-    // AiActionFake, DictationFieldActionFake, and ImageGenerationActionFake
+    // AiFormActionFake, DictationFieldActionFake, and ImageGenerationActionFake
     // are all reset automatically after each test
 }
 ```

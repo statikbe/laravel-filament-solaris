@@ -4,21 +4,21 @@ use Illuminate\Support\Facades\Storage;
 use Laravel\Ai\Files\Base64Image;
 use Livewire\Features\SupportFileUploads\FileUploadConfiguration;
 use Livewire\Livewire;
-use Statikbe\FilamentSolaris\Actions\AiAction;
-use Statikbe\FilamentSolaris\Testing\AiActionFake;
+use Statikbe\FilamentSolaris\Actions\AiFormAction;
+use Statikbe\FilamentSolaris\Testing\AiFormActionFake;
 use Statikbe\FilamentSolaris\Tests\Fixtures\ConversationalFormComponent;
 
 beforeEach(function () {
-    AiActionFake::reset();
+    AiFormActionFake::reset();
     Storage::persistentFake(FileUploadConfiguration::disk());
 });
 
 afterEach(function () {
-    AiActionFake::reset();
+    AiFormActionFake::reset();
 });
 
 it('forwards a turn attachment to the refinement call', function () {
-    AiAction::fake(['summary' => 'Initial.'])
+    AiFormAction::fake(['summary' => 'Initial.'])
         ->fakeRefinement(['summary' => 'Refined.']);
 
     $tempFile = createTempUploadedFile('reference.png', 'image/png', 'fake-png-bytes');
@@ -30,7 +30,7 @@ it('forwards a turn attachment to the refinement call', function () {
     $component->set('solarisRefinementAttachments', [uniqid() => $tempFile])
         ->call('solarisRefinePreview', 'Use this image as reference');
 
-    AiActionFake::getInstance()->assertRefinedWith(function (string $message, array $attachments) {
+    AiFormActionFake::getInstance()->assertRefinedWith(function (string $message, array $attachments) {
         expect($message)->toBe('Use this image as reference')
             ->and($attachments)->toHaveCount(1)
             ->and($attachments[0])->toBeInstanceOf(Base64Image::class);
@@ -38,7 +38,7 @@ it('forwards a turn attachment to the refinement call', function () {
 });
 
 it('forwards multiple turn attachments to the refinement call', function () {
-    AiAction::fake(['summary' => 'Initial.'])
+    AiFormAction::fake(['summary' => 'Initial.'])
         ->fakeRefinement(['summary' => 'Refined.']);
 
     $first = createTempUploadedFile('a.png', 'image/png', 'a');
@@ -53,7 +53,7 @@ it('forwards multiple turn attachments to the refinement call', function () {
         ])
         ->call('solarisRefinePreview', 'See these two images');
 
-    AiActionFake::getInstance()->assertRefinedWith(function (string $message, array $attachments) {
+    AiFormActionFake::getInstance()->assertRefinedWith(function (string $message, array $attachments) {
         expect($attachments)->toHaveCount(2)
             ->and($attachments[0])->toBeInstanceOf(Base64Image::class)
             ->and($attachments[1])->toBeInstanceOf(Base64Image::class);
@@ -61,7 +61,7 @@ it('forwards multiple turn attachments to the refinement call', function () {
 });
 
 it('clears refinement attachments after a successful send', function () {
-    AiAction::fake(['summary' => 'Initial.'])
+    AiFormAction::fake(['summary' => 'Initial.'])
         ->fakeRefinement(['summary' => 'Refined.']);
 
     $tempFile = createTempUploadedFile('a.png', 'image/png', 'a');
@@ -76,7 +76,7 @@ it('clears refinement attachments after a successful send', function () {
 });
 
 it('appends attachment metadata to the user message bubble', function () {
-    AiAction::fake(['summary' => 'Initial.'])
+    AiFormAction::fake(['summary' => 'Initial.'])
         ->fakeRefinement(['summary' => 'Refined.']);
 
     $tempFile = createTempUploadedFile('hero.png', 'image/png', 'a');
@@ -96,7 +96,7 @@ it('appends attachment metadata to the user message bubble', function () {
 });
 
 it('records empty attachments when no turn files are attached', function () {
-    AiAction::fake(['summary' => 'Initial.'])
+    AiFormAction::fake(['summary' => 'Initial.'])
         ->fakeRefinement(['summary' => 'Refined.']);
 
     Livewire::test(ConversationalFormComponent::class)
@@ -104,7 +104,7 @@ it('records empty attachments when no turn files are attached', function () {
         ->callAction('generateSummary')
         ->call('solarisRefinePreview', 'No files this turn');
 
-    AiActionFake::getInstance()->assertRefinedWith(function (string $message, array $attachments) {
+    AiFormActionFake::getInstance()->assertRefinedWith(function (string $message, array $attachments) {
         expect($attachments)->toBe([]);
     });
 });

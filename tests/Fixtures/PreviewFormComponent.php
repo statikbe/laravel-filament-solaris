@@ -8,7 +8,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\FormsComponent;
 use Filament\Schemas\Schema;
-use Statikbe\FilamentSolaris\Actions\AiAction;
+use Statikbe\FilamentSolaris\Actions\AiFormAction;
 use Statikbe\FilamentSolaris\Concerns\InteractsWithSolarisPreview;
 
 class PreviewFormComponent extends FormsComponent
@@ -59,9 +59,9 @@ class PreviewFormComponent extends FormsComponent
     /**
      * AI action with preview enabled (single target).
      */
-    public function generateSummaryAction(): AiAction
+    public function generateSummaryAction(): AiFormAction
     {
-        return AiAction::make('generateSummary')
+        return AiFormAction::make('generateSummary')
             ->sourceFields(['title', 'body'])
             ->targetField('summary')
             ->prompt('Summarize the content in one sentence.')
@@ -71,9 +71,9 @@ class PreviewFormComponent extends FormsComponent
     /**
      * AI action with preview enabled (multiple targets).
      */
-    public function generateAllAction(): AiAction
+    public function generateAllAction(): AiFormAction
     {
-        return AiAction::make('generateAll')
+        return AiFormAction::make('generateAll')
             ->sourceFields(['title', 'body'])
             ->targetFields(['summary', 'category', 'is_featured'])
             ->prompt('Analyze the content and fill in the summary, category, and featured flag.')
@@ -83,9 +83,9 @@ class PreviewFormComponent extends FormsComponent
     /**
      * AI action without preview (for regression testing).
      */
-    public function generateDirectAction(): AiAction
+    public function generateDirectAction(): AiFormAction
     {
-        return AiAction::make('generateDirect')
+        return AiFormAction::make('generateDirect')
             ->sourceFields(['title', 'body'])
             ->targetField('summary')
             ->prompt('Summarize.');

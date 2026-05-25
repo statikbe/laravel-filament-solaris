@@ -1,17 +1,17 @@
 <?php
 
 use PHPUnit\Framework\ExpectationFailedException;
-use Statikbe\FilamentSolaris\Testing\AiActionFake;
+use Statikbe\FilamentSolaris\Testing\AiFormActionFake;
 use Statikbe\FilamentSolaris\Testing\DictationFieldActionFake;
 
 beforeEach(function () {
     DictationFieldActionFake::reset();
-    AiActionFake::reset();
+    AiFormActionFake::reset();
 });
 
 afterEach(function () {
     DictationFieldActionFake::reset();
-    AiActionFake::reset();
+    AiFormActionFake::reset();
 });
 
 it('is inactive by default', function () {
@@ -25,18 +25,18 @@ it('activates with a transcript', function () {
         ->and(DictationFieldActionFake::getInstance()->getTranscript())->toBe('Hello world');
 });
 
-it('activates AiActionFake when AI response is provided', function () {
+it('activates AiFormActionFake when AI response is provided', function () {
     DictationFieldActionFake::activate('Hello', ['summary' => 'Test']);
 
     expect(DictationFieldActionFake::isActive())->toBeTrue()
-        ->and(AiActionFake::isActive())->toBeTrue();
+        ->and(AiFormActionFake::isActive())->toBeTrue();
 });
 
-it('does not activate AiActionFake when no AI response is provided', function () {
+it('does not activate AiFormActionFake when no AI response is provided', function () {
     DictationFieldActionFake::activate('Hello');
 
     expect(DictationFieldActionFake::isActive())->toBeTrue()
-        ->and(AiActionFake::isActive())->toBeFalse();
+        ->and(AiFormActionFake::isActive())->toBeFalse();
 });
 
 it('resets both fakes when AI response was provided', function () {
@@ -44,7 +44,7 @@ it('resets both fakes when AI response was provided', function () {
     DictationFieldActionFake::reset();
 
     expect(DictationFieldActionFake::isActive())->toBeFalse()
-        ->and(AiActionFake::isActive())->toBeFalse();
+        ->and(AiFormActionFake::isActive())->toBeFalse();
 });
 
 it('records calls', function () {

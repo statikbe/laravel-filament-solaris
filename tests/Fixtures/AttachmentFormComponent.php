@@ -8,7 +8,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\FormsComponent;
 use Filament\Schemas\Schema;
 use Laravel\Ai\Files\Image;
-use Statikbe\FilamentSolaris\Actions\AiAction;
+use Statikbe\FilamentSolaris\Actions\AiFormAction;
 use Statikbe\FilamentSolaris\Support\UserInput;
 
 class AttachmentFormComponent extends FormsComponent
@@ -37,13 +37,13 @@ class AttachmentFormComponent extends FormsComponent
             ->statePath('data');
     }
 
-    public function summarizeAction(): AiAction
+    public function summarizeAction(): AiFormAction
     {
         return $this->aiAction('summarize')
             ->attachmentField('reference_image');
     }
 
-    public function summarizeFromUserInputAction(): AiAction
+    public function summarizeFromUserInputAction(): AiFormAction
     {
         // Modal field is a TextInput (not FileUpload) for testability — the
         // resolver reads `$userInput['extra_image']` regardless of which
@@ -57,13 +57,13 @@ class AttachmentFormComponent extends FormsComponent
             ->attachmentFromUserInput('extra_image');
     }
 
-    public function summarizeWithClosureAction(): AiAction
+    public function summarizeWithClosureAction(): AiFormAction
     {
         return $this->aiAction('summarizeWithClosure')
             ->attachments(fn () => [Image::fromUrl('https://example.com/logo.png')]);
     }
 
-    public function summarizeAllChannelsAction(): AiAction
+    public function summarizeAllChannelsAction(): AiFormAction
     {
         return $this->aiAction('summarizeAllChannels')
             ->attachmentField('reference_image')
@@ -76,19 +76,19 @@ class AttachmentFormComponent extends FormsComponent
             ->attachments(fn () => [Image::fromUrl('https://example.com/logo.png')]);
     }
 
-    public function summarizeWithClosureFieldAction(): AiAction
+    public function summarizeWithClosureFieldAction(): AiFormAction
     {
         return $this->aiAction('summarizeWithClosureField')
             ->attachmentField(fn () => 'reference_image');
     }
 
-    public function summarizeWithClosureFieldArrayAction(): AiAction
+    public function summarizeWithClosureFieldArrayAction(): AiFormAction
     {
         return $this->aiAction('summarizeWithClosureFieldArray')
             ->attachmentField(fn () => ['reference_image']);
     }
 
-    public function summarizeWithClosureUserInputAction(): AiAction
+    public function summarizeWithClosureUserInputAction(): AiFormAction
     {
         return $this->aiAction('summarizeWithClosureUserInput')
             ->userInput(
@@ -99,25 +99,25 @@ class AttachmentFormComponent extends FormsComponent
             ->attachmentFromUserInput(fn () => 'extra_image');
     }
 
-    public function summarizeWithStaticAttachmentArrayAction(): AiAction
+    public function summarizeWithStaticAttachmentArrayAction(): AiFormAction
     {
         return $this->aiAction('summarizeWithStaticAttachmentArray')
             ->attachments([Image::fromUrl('https://example.com/static.png')]);
     }
 
-    public function summarizeWithSingleFileInstanceAction(): AiAction
+    public function summarizeWithSingleFileInstanceAction(): AiFormAction
     {
         return $this->aiAction('summarizeWithSingleFileInstance')
             ->attachments(Image::fromUrl('https://example.com/single.png'));
     }
 
-    public function summarizeWithSingleUploadedFileAction(): AiAction
+    public function summarizeWithSingleUploadedFileAction(): AiFormAction
     {
         return $this->aiAction('summarizeWithSingleUploadedFile')
             ->attachments(createTempUploadedFile('cover.png', 'image/png', 'fake-png'));
     }
 
-    public function summarizeWithMixedArrayAction(): AiAction
+    public function summarizeWithMixedArrayAction(): AiFormAction
     {
         return $this->aiAction('summarizeWithMixedArray')
             ->attachments([
@@ -126,19 +126,19 @@ class AttachmentFormComponent extends FormsComponent
             ]);
     }
 
-    public function summarizeWithClosureReturningSingleFileAction(): AiAction
+    public function summarizeWithClosureReturningSingleFileAction(): AiFormAction
     {
         return $this->aiAction('summarizeWithClosureReturningSingleFile')
             ->attachments(fn () => Image::fromUrl('https://example.com/closure-single.png'));
     }
 
     /**
-     * Build the baseline AiAction used by every fixture method —
+     * Build the baseline AiFormAction used by every fixture method —
      * every action in this fixture shares the same source/target/prompt.
      */
-    private function aiAction(string $name): AiAction
+    private function aiAction(string $name): AiFormAction
     {
-        return AiAction::make($name)
+        return AiFormAction::make($name)
             ->sourceFields(['title'])
             ->targetField('summary')
             ->prompt('Summarize.');

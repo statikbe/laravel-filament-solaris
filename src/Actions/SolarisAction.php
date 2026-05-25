@@ -27,7 +27,7 @@ use Statikbe\FilamentSolaris\Support\SolarisPromptLogger;
  * their fluent setters, the AiException-aware call wrapper, the preview-modal
  * toggle, and the shared attachments / conversational / modal traits.
  *
- * Concrete actions (AiAction, ImageGenerationAction, DictationFieldAction)
+ * Concrete actions (AiFormAction, ImageGenerationAction, DictationFieldAction)
  * extend this and mix in pipeline-specific concerns. Future non-form actions
  * (data importers, report generators) can also extend it without inheriting
  * any form-field assumptions — those live in {@see HasFormPipeline}.
@@ -271,7 +271,7 @@ abstract class SolarisAction extends Action
      *
      * Used by {@see executeAiCall()} on the real path and called directly
      * by the fake pipelines so consumer-side listeners fire under
-     * `AiAction::fake()` / `ImageGenerationAction::fake()` /
+     * `AiFormAction::fake()` / `ImageGenerationAction::fake()` /
      * `DictationFieldAction::fake()` too. Fakes pass a zero-token Usage by
      * default since they bypass the real model.
      *

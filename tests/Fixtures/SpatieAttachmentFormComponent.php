@@ -7,7 +7,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\FormsComponent;
 use Filament\Schemas\Schema;
-use Statikbe\FilamentSolaris\Actions\AiAction;
+use Statikbe\FilamentSolaris\Actions\AiFormAction;
 
 class SpatieAttachmentFormComponent extends FormsComponent
 {
@@ -34,9 +34,9 @@ class SpatieAttachmentFormComponent extends FormsComponent
             ->statePath('data');
     }
 
-    public function summarizeWithSpatieAction(): AiAction
+    public function summarizeWithSpatieAction(): AiFormAction
     {
-        return AiAction::make('summarizeWithSpatie')
+        return AiFormAction::make('summarizeWithSpatie')
             ->sourceFields(['title'])
             ->targetField('summary')
             ->prompt('Summarize.')
