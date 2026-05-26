@@ -23,7 +23,7 @@ AiGenerateAction::make('seed-articles')
     ->forModel(Article::class)
     ->count(10)
     ->columnEnum('status', ['draft', 'review', 'published'])    // manual
-    ->columnHint('slug', 'kebab-case of the title, lowercase, no spaces')
+    ->columnHint('title', 'title-case, 50-60 characters, no clickbait')
     ->columnHint('summary', 'one sentence, max 160 chars')
     ->handleUsing(fn (array $records) => Article::query()->insert($records));
 ```

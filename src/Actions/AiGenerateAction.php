@@ -118,8 +118,9 @@ class AiGenerateAction extends SolarisAction
 
     /**
      * (forModel only) attach a free-text hint to a column — surfaces as the
-     * JSON-schema `description` so the model gets format guidance ("kebab-case",
-     * "max 160 chars", …). No-op for a column not in the resolved schema.
+     * JSON-schema `description` so the model gets editorial guidance
+     * ("conversational tone", "max 160 chars", …). No-op for a column not in
+     * the resolved schema.
      */
     public function columnHint(string $column, string $hint): static
     {
