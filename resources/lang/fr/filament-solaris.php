@@ -19,6 +19,8 @@ return [
         'microphone_denied' => 'L\'accès au microphone est requis pour la dictée.',
         'transcription_inserted' => 'Transcription insérée.',
         'handler_error' => 'Une erreur est survenue lors du traitement du résultat de l\'IA. Veuillez réessayer.',
+        'batch_completed' => ':count enregistrements traités.',
+        'batch_partial_failure' => ':count enregistrements traités, :failed en échec — voir les logs.',
     ],
 
     'preview' => [
