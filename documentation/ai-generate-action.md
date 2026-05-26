@@ -65,15 +65,31 @@ AiGenerateAction::make('seed-categories')
 - Maps DB types to JSON schema types: strings → `string`, integers → `integer`, booleans → `boolean`, decimals/floats → `number`, everything else → `string`.
 - Nullable columns become optional schema fields.
 - Casts on the model further refine the type (e.g. a `boolean` cast on an integer column yields a `boolean` schema field).
+- Backed-enum casts (e.g. `$casts['status'] = StatusEnum::class`) become typed `enum` constraints — string-backed enums produce a `string` field constrained to the case values; int-backed produce an `integer` field with the integer case values. Unit (non-backed) enums fall through to the plain mapped type (no `->value` to enumerate). MySQL `enum(…)` columns without a cast stay deferred (see below).
+
+### Per-column overrides
+
+Two setters refine the `forModel`-generated schema per column. Both no-op silently for columns not in the resolved schema (consistent with `targetHint()` on `AiFormAction`).
+
+```php
+AiGenerateAction::make('seed-articles')
+    ->forModel(Article::class)
+    ->count(10)
+    ->columnEnum('status', ['draft', 'review', 'published'])    // constrains values
+    ->columnHint('slug', 'kebab-case of the title, lowercase, no spaces')
+    ->columnHint('summary', 'one sentence, max 160 chars')
+    ->handleUsing(fn (array $records) => Article::query()->insert($records));
+```
+
+- `->columnEnum()` overrides cast-detected enums if both apply.
+- `->columnHint()` sets the column's JSON-schema `description` — the model uses it as guidance.
 
 ### Deferred for future versions
 
 The following will be added gradually:
 
-- Enum column value lists (constrain the field to the allowed values).
 - `json` / `jsonb` column handling.
 - `maxLength` from string column definitions.
-- Per-field description hints.
 - Foreign key / relationship resolution.
 - Casts-only (DB-less) inference.
 - Validation-rule constraints (e.g. `min`/`max` from `HasValidation`).

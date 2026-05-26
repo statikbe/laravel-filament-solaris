@@ -214,6 +214,8 @@ info-gathering without any form wiring. Tested via `AiGenerateAction::fake()`.
 
 See `specs/21-ai-generate-action.md` for the full design spec.
 
+- Follow-up: enum auto-detection from backed-enum casts + `->columnEnum()` / `->columnHint()` per-column overrides shipped per `specs/22-formodel-enums-hints.md`.
+
 ---
 
 ### 12. RichEditor toolbar dictation button ✅ Shipped
