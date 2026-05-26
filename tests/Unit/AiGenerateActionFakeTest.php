@@ -1,6 +1,7 @@
 <?php
 
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
+use Statikbe\FilamentSolaris\Testing\AiGenerateActionFakeException;
 
 afterEach(fn () => AiGenerateActionFake::reset());
 
@@ -47,4 +48,4 @@ it('throws when fakeEach() queue is exhausted', function () {
 
     $fake->getResponse();
     $fake->getResponse();
-})->throws(RuntimeException::class, 'fakeEach queue exhausted');
+})->throws(AiGenerateActionFakeException::class, 'fakeEach queue exhausted');

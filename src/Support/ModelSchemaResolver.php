@@ -112,7 +112,7 @@ class ModelSchemaResolver
     /**
      * @return array<string>
      */
-    protected function autoExcludedColumns(Model $model): array
+    public function autoExcludedColumns(Model $model): array
     {
         $excluded = [$model->getKeyName()];
 

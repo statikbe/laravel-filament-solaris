@@ -19,6 +19,7 @@ use Statikbe\FilamentSolaris\Agents\SolarisAgent;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\Support\ModelSchemaResolver;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
+use Statikbe\FilamentSolaris\Testing\AiGenerateActionFakeException;
 
 /**
  * Form-agnostic AI action: generates structured data against a schema you
@@ -402,6 +403,13 @@ class AiGenerateAction extends SolarisAction
         if ($this->writeTerminal === self::WRITE_UPDATE && $this->source === null) {
             throw new RuntimeException('AiGenerateAction ->updateRecords() requires ->records() — without a source there is nothing to update.');
         }
+
+        // count() drives the seed-from-scratch array size; with a real source,
+        // the source defines the iteration count, so count() is meaningless.
+        // recordCount defaults to 1; treat any non-1 with source set as misuse.
+        if ($this->source !== null && (int) $this->evaluate($this->recordCount) !== 1) {
+            throw new RuntimeException('AiGenerateAction ->count() is incompatible with ->records() — the source defines how many rows to process.');
+        }
     }
 
     /**
@@ -452,6 +460,9 @@ class AiGenerateAction extends SolarisAction
 
                 $this->writeRow($row, $attrs);
                 $succeeded++;
+            } catch (AiGenerateActionFakeException $e) {
+                // Test-config bug — surface it, don't count as a row failure.
+                throw $e;
             } catch (\Throwable $e) {
                 report($e);
                 $failed++;
@@ -501,6 +512,8 @@ class AiGenerateAction extends SolarisAction
             $fake->recordCall($this->getName(), $data);
 
             if ($fake->shouldSimulateError()) {
+                $this->dispatchFakeResponseFailed($fake->getErrorMessage(), $provider, $model);
+
                 return null;
             }
 
@@ -579,6 +592,11 @@ class AiGenerateAction extends SolarisAction
     protected function buildContextForRow(array|Model $row): array
     {
         $attrs = $row instanceof Model ? $row->getAttributes() : $row;
+
+        if ($row instanceof Model) {
+            $excluded = (new ModelSchemaResolver)->autoExcludedColumns($row);
+            $attrs = array_diff_key($attrs, array_flip($excluded));
+        }
 
         if ($this->promptContextColumns !== []) {
             $attrs = array_intersect_key($attrs, array_flip($this->promptContextColumns));
