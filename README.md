@@ -98,8 +98,8 @@ Solaris ships Blade views (preview modal, conversational refinement modal, dicta
 Add a `@source` directive to your [Filament theme CSS](https://filamentphp.com/docs/4.x/styling/overview):
 
 ```css
-/* resources/css/filament/admin/theme.css */
-@source "../../vendor/statikbe/laravel-filament-solaris/resources/views";
+/* e.g. in resources/css/filament/admin/theme.css */
+@source "../../../../vendor/statikbe/laravel-filament-solaris/resources/views";
 ```
 
 Then rebuild your Filament theme (`npm run build` or `php artisan filament:assets`). This is required for every consumer — not optional and not specific to any single action.
