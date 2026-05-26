@@ -22,6 +22,9 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
 
 ### Added
 
+- `AiGenerateAction->forModel()` schema accuracy: enum auto-detection from
+  backed-enum casts (string- or int-backed), plus `->columnEnum()` (manual
+  constraint) and `->columnHint()` (description) per-column overrides.
 - `AiGenerateAction` — a form-agnostic AI action that generates structured data
   (a custom `->outputSchema()` or model-derived `->forModel()`) and passes the
   parsed result to a `->handleUsing()` closure. Enables AI-driven seeding,
