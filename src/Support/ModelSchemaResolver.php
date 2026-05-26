@@ -121,10 +121,8 @@ class ModelSchemaResolver
             $excluded[] = $model->getUpdatedAtColumn();
         }
 
-        if (in_array(SoftDeletes::class, class_uses_recursive($model), true)) {
-            $excluded[] = method_exists($model, 'getDeletedAtColumn') && $model->getDeletedAtColumn()
-                ? $model->getDeletedAtColumn()
-                : 'deleted_at';
+        if (in_array(SoftDeletes::class, class_uses_recursive($model), true) && method_exists($model, 'getDeletedAtColumn')) {
+            $excluded[] = $model->getDeletedAtColumn();
         }
 
         return array_values(array_filter($excluded));
