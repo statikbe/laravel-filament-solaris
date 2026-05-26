@@ -151,3 +151,50 @@ it('continues past per-row failures and reports a partial-failure summary', func
 
     Schema::dropIfExists('seed_categories');
 });
+
+it('runs per-row updateRecords (enrich by key)', function () {
+    Schema::create('seed_categories', function ($table) {
+        $table->id();
+        $table->string('name');
+        $table->string('slug');
+        $table->timestamps();
+    });
+
+    SeedCategory::create(['name' => 'One', 'slug' => 'old-one']);
+    SeedCategory::create(['name' => 'Two', 'slug' => 'old-two']);
+
+    AiGenerateAction::fakeEach([
+        ['slug' => 'new-one'],
+        ['slug' => 'new-two'],
+    ]);
+
+    Livewire::test(GenerateFormComponent::class)->callAction('enrichCategories');
+
+    expect(SeedCategory::pluck('slug', 'id')->all())->toEqualCanonicalizing([
+        1 => 'new-one',
+        2 => 'new-two',
+    ]);
+
+    Schema::dropIfExists('seed_categories');
+});
+
+it('errors when updateRecords is called without ->records()', function () {
+    AiGenerateAction::fake(['x' => 1]);
+
+    expect(fn () => Livewire::test(GenerateFormComponent::class)->callAction('updateWithoutRecords'))
+        ->toThrow(RuntimeException::class);
+});
+
+it('errors when both create and update terminals are set', function () {
+    AiGenerateAction::fake(['x' => 1]);
+
+    expect(fn () => Livewire::test(GenerateFormComponent::class)->callAction('bothTerminals'))
+        ->toThrow(RuntimeException::class, 'mutually exclusive');
+});
+
+it('errors when createRecords is used without ->forModel()', function () {
+    AiGenerateAction::fake(['x' => 1]);
+
+    expect(fn () => Livewire::test(GenerateFormComponent::class)->callAction('createWithoutModel'))
+        ->toThrow(RuntimeException::class, 'require ->forModel()');
+});
