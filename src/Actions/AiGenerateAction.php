@@ -64,6 +64,8 @@ class AiGenerateAction extends SolarisAction
 
     protected ?string $writeTerminal = null;   // WRITE_CREATE | WRITE_UPDATE | null
 
+    protected int $writeTerminalCount = 0;     // guard against calling both createRecords()+updateRecords()
+
     /** @var array<string> */
     protected array $promptContextColumns = [];
 
@@ -181,6 +183,7 @@ class AiGenerateAction extends SolarisAction
     public function createRecords(): static
     {
         $this->writeTerminal = self::WRITE_CREATE;
+        $this->writeTerminalCount++;
 
         return $this;
     }
@@ -188,6 +191,7 @@ class AiGenerateAction extends SolarisAction
     public function updateRecords(): static
     {
         $this->writeTerminal = self::WRITE_UPDATE;
+        $this->writeTerminalCount++;
 
         return $this;
     }
@@ -379,20 +383,24 @@ class AiGenerateAction extends SolarisAction
 
         // Terminals are mutually exclusive.
         $terminals = (int) ($this->handler !== null)
-            + (int) ($this->writeTerminal === self::WRITE_CREATE)
-            + (int) ($this->writeTerminal === self::WRITE_UPDATE);
+            + (int) ($this->writeTerminalCount > 0);
 
         if ($terminals === 0) {
             throw new RuntimeException('AiGenerateAction requires a terminal: ->handleUsing(), ->createRecords(), or ->updateRecords().');
         }
 
-        if ($terminals > 1) {
+        if ($terminals > 1 || $this->writeTerminalCount > 1) {
             throw new RuntimeException('AiGenerateAction terminals are mutually exclusive: pick one of ->handleUsing(), ->createRecords(), ->updateRecords().');
         }
 
         // createRecords/updateRecords need forModel (no custom schema for write-back).
         if ($this->writeTerminal !== null && ! $hasModel) {
             throw new RuntimeException('AiGenerateAction ->createRecords()/->updateRecords() require ->forModel().');
+        }
+
+        // updateRecords needs a source — without records() there is nothing to update.
+        if ($this->writeTerminal === self::WRITE_UPDATE && $this->source === null) {
+            throw new RuntimeException('AiGenerateAction ->updateRecords() requires ->records() — without a source there is nothing to update.');
         }
     }
 

@@ -110,6 +110,41 @@ class GenerateFormComponent extends FormsComponent
             ->createRecords();
     }
 
+    public function enrichCategoriesAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('enrichCategories')
+            ->prompt('Improve the slug field of this category.')
+            ->forModel(SeedCategory::class)
+            ->records(fn () => SeedCategory::all())
+            ->updateRecords();
+    }
+
+    public function updateWithoutRecordsAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('updateWithoutRecords')
+            ->prompt('x')
+            ->forModel(SeedCategory::class)
+            ->updateRecords();   // missing ->records() — invalid
+    }
+
+    public function bothTerminalsAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('bothTerminals')
+            ->prompt('x')
+            ->forModel(SeedCategory::class)
+            ->records([['x' => 1]])
+            ->createRecords()
+            ->updateRecords();   // mutually exclusive
+    }
+
+    public function createWithoutModelAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('createWithoutModel')
+            ->prompt('x')
+            ->outputSchema(fn ($s) => ['records' => $s->array()->items($s->object(['name' => $s->string()]))])
+            ->createRecords();   // requires forModel
+    }
+
     public function render(): string
     {
         return '<div>{{ $this->form }}</div>';
