@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
 use Illuminate\Support\Facades\Schema;
+use ReflectionEnum;
+use Statikbe\FilamentSolaris\Contracts\ComponentFactory;
 
 /**
  * Introspects an Eloquent model's writable columns into a JSON-schema property
@@ -14,7 +16,8 @@ use Illuminate\Support\Facades\Schema;
  *
  * v1 "simplified blend": DB columns + light cast refinement, honouring
  * fillable/guarded and auto-excluding the primary key, timestamps, and the
- * soft-delete column.
+ * soft-delete column. Backed-enum casts produce a typed `enum` constraint.
+ * Per-column `$hints` / `$enums` overrides come from `AiGenerateAction`.
  */
 class ModelSchemaResolver
 {
@@ -22,10 +25,18 @@ class ModelSchemaResolver
      * @param  class-string<Model>  $modelClass
      * @param  array<string>  $only
      * @param  array<string>  $except
+     * @param  array<string, string>  $hints  column => description text
+     * @param  array<string, array<int, mixed>>  $enums  column => allowed values (manual override; beats cast)
      * @return array<string, Type>
      */
-    public function resolve(JsonSchemaTypeFactory $schema, string $modelClass, array $only = [], array $except = []): array
-    {
+    public function resolve(
+        JsonSchemaTypeFactory $schema,
+        string $modelClass,
+        array $only = [],
+        array $except = [],
+        array $hints = [],
+        array $enums = [],
+    ): array {
         $model = new $modelClass;
         $columns = Schema::getColumns($model->getTable());
 
@@ -55,7 +66,15 @@ class ModelSchemaResolver
                 continue;
             }
 
-            $type = $this->mapType($schema, $column['type_name'] ?? ($column['type'] ?? 'string'), $casts[$name] ?? null);
+            $type = $this->buildBaseType($schema, $column, $casts[$name] ?? null);
+
+            if (isset($enums[$name])) {
+                $type = $type->enum($enums[$name]);
+            }
+
+            if (isset($hints[$name])) {
+                $type = $type->description($hints[$name]);
+            }
 
             if (($column['nullable'] ?? false) === false) {
                 $type = $type->required();
@@ -65,6 +84,29 @@ class ModelSchemaResolver
         }
 
         return $properties;
+    }
+
+    /**
+     * Backed-enum cast → typed enum; otherwise the generic column/cast mapping.
+     *
+     * @param  array<string, mixed>  $column
+     */
+    protected function buildBaseType(JsonSchemaTypeFactory $schema, array $column, ?string $cast): Type
+    {
+        if ($cast !== null && enum_exists($cast)) {
+            $reflection = new ReflectionEnum($cast);
+
+            if ($reflection->isBacked()) {
+                $backing = $reflection->getBackingType()?->getName();
+                $type = $backing === 'int' ? $schema->integer() : $schema->string();
+
+                /** @var class-string<\BackedEnum> $cast */
+                return $type->enum($cast);
+            }
+            // Unit (non-backed) enums fall through to the generic mapping.
+        }
+
+        return $this->mapType($schema, $column['type_name'] ?? ($column['type'] ?? 'string'), $cast);
     }
 
     /**
@@ -79,8 +121,10 @@ class ModelSchemaResolver
             $excluded[] = $model->getUpdatedAtColumn();
         }
 
-        if (in_array(SoftDeletes::class, class_uses_recursive($model), true) && method_exists($model, 'getDeletedAtColumn')) {
-            $excluded[] = $model->getDeletedAtColumn();
+        if (in_array(SoftDeletes::class, class_uses_recursive($model), true)) {
+            $excluded[] = method_exists($model, 'getDeletedAtColumn') && $model->getDeletedAtColumn()
+                ? $model->getDeletedAtColumn()
+                : 'deleted_at';
         }
 
         return array_values(array_filter($excluded));
