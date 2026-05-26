@@ -224,3 +224,21 @@ it('injects $row into the prompt closure per iteration', function () {
 
     Schema::dropIfExists('seed_categories');
 });
+
+it('filters the row context to ->promptContextColumns() in the per-row instruction', function () {
+    $action = AiGenerateAction::make('x')
+        ->prompt('Do it.')
+        ->forModel(SeedCategory::class)
+        ->records([['visible' => 'v', 'secret' => 's']])
+        ->promptContextColumns(['visible'])
+        ->createRecords();
+
+    $ref = new ReflectionClass($action);
+    $method = $ref->getMethod('resolveInstructionForRow');
+    $method->setAccessible(true);
+
+    $instruction = $method->invoke($action, ['visible' => 'v', 'secret' => 's']);
+
+    expect($instruction)->toContain('"visible": "v"')
+        ->and($instruction)->not->toContain('"secret"');
+});
