@@ -145,6 +145,18 @@ class GenerateFormComponent extends FormsComponent
             ->createRecords();   // requires forModel
     }
 
+    public function importWithRowPromptAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('importWithRowPrompt')
+            ->prompt(fn (array $row) => "Process this row: tag={$row['tag']}.")
+            ->forModel(SeedCategory::class)
+            ->records([
+                ['tag' => 'alpha'],
+                ['tag' => 'beta'],
+            ])
+            ->createRecords();
+    }
+
     public function render(): string
     {
         return '<div>{{ $this->form }}</div>';
