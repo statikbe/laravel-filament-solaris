@@ -2,6 +2,15 @@
 
 All notable changes to `laravel-filament-solaris` will be documented in this file.
 
+## v0.2.0 - 2026-05-26
+
+- Transcribe/dictation toolbar button for the rich editor.
+- GenerateAiAction for AI actions outside of the form context
+- Refactor AiAction to AiFormAction for form input and output actions
+- Add closure support to manually process output
+
+**Full Changelog**: https://github.com/statikbe/laravel-filament-solaris/compare/0.1.0...0.2.0
+
 ## [Unreleased]
 
 ### Changed
