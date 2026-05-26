@@ -5,8 +5,12 @@ namespace Statikbe\FilamentSolaris\Actions;
 use Closure;
 use Filament\Notifications\Notification;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
+use Illuminate\Support\Collection;
 use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use LogicException;
@@ -27,6 +31,10 @@ use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 class AiGenerateAction extends SolarisAction
 {
     public const RECORDS_KEY = 'records';
+
+    public const WRITE_CREATE = 'create';
+
+    public const WRITE_UPDATE = 'update';
 
     protected string|View|Closure|null $instruction = null;
 
@@ -50,6 +58,14 @@ class AiGenerateAction extends SolarisAction
     protected array $columnEnums = [];
 
     protected ?Closure $handler = null;
+
+    /** @var Builder<Model>|Collection<int, array<string, mixed>>|EloquentCollection<int, Model>|array<int, array<string, mixed>|Model>|Closure|null */
+    protected Builder|Collection|EloquentCollection|array|Closure|null $source = null;
+
+    protected ?string $writeTerminal = null;   // WRITE_CREATE | WRITE_UPDATE | null
+
+    /** @var array<string> */
+    protected array $promptContextColumns = [];
 
     protected function setUp(): void
     {
@@ -152,9 +168,52 @@ class AiGenerateAction extends SolarisAction
         return $this;
     }
 
+    /**
+     * @param  Builder<Model>|Collection<int, array<string, mixed>>|EloquentCollection<int, Model>|array<int, array<string, mixed>|Model>|Closure  $source
+     */
+    public function records(Builder|Collection|EloquentCollection|array|Closure $source): static
+    {
+        $this->source = $source;
+
+        return $this;
+    }
+
+    public function createRecords(): static
+    {
+        $this->writeTerminal = self::WRITE_CREATE;
+
+        return $this;
+    }
+
+    public function updateRecords(): static
+    {
+        $this->writeTerminal = self::WRITE_UPDATE;
+
+        return $this;
+    }
+
+    /**
+     * Whitelist of column names sent into the per-row `## Current record`
+     * context block. Default = all the row's attributes (auto-exclusions aside).
+     *
+     * @param  array<string>  $columns
+     */
+    public function promptContextColumns(array $columns): static
+    {
+        $this->promptContextColumns = $columns;
+
+        return $this;
+    }
+
     public function execute(): void
     {
         $this->validateConfiguration();
+
+        if ($this->source !== null) {
+            $this->executeRecordsLoop();
+
+            return;
+        }
 
         if (AiGenerateActionFake::isActive()) {
             $this->executeFake();
@@ -181,7 +240,7 @@ class AiGenerateAction extends SolarisAction
             return;
         }
 
-        $this->dispatchToHandler($response->toArray());
+        $this->dispatchSingleResponse($response->toArray());
     }
 
     protected function executeFake(): void
@@ -200,15 +259,29 @@ class AiGenerateAction extends SolarisAction
         }
 
         $this->dispatchFakeResponseReceived($provider, $model);
-        $this->dispatchToHandler($data);
+        $this->dispatchSingleResponse($data);
     }
 
     /**
+     * Single-response dispatch (no records loop): hand to user handler, or
+     * for `createRecords` with no `->records()`, per-row create from
+     * `$data[RECORDS_KEY]`.
+     *
      * @param  array<string, mixed>  $data
      */
-    protected function dispatchToHandler(array $data): void
+    protected function dispatchSingleResponse(array $data): void
     {
         try {
+            if ($this->writeTerminal === self::WRITE_CREATE) {
+                /** @var array<int, array<string, mixed>> $records */
+                $records = $data[self::RECORDS_KEY] ?? [];
+                foreach ($records as $row) {
+                    $this->modelClass::create($row);
+                }
+
+                return;
+            }
+
             $this->evaluate($this->handler, [
                 'data' => $data,
                 'records' => $this->modelClass !== null ? ($data[self::RECORDS_KEY] ?? []) : null,
@@ -304,8 +377,22 @@ class AiGenerateAction extends SolarisAction
             throw new RuntimeException('AiGenerateAction requires a schema source: ->outputSchema() or ->forModel().');
         }
 
-        if ($this->handler === null) {
-            throw new RuntimeException('AiGenerateAction requires a ->handleUsing() handler.');
+        // Terminals are mutually exclusive.
+        $terminals = (int) ($this->handler !== null)
+            + (int) ($this->writeTerminal === self::WRITE_CREATE)
+            + (int) ($this->writeTerminal === self::WRITE_UPDATE);
+
+        if ($terminals === 0) {
+            throw new RuntimeException('AiGenerateAction requires a terminal: ->handleUsing(), ->createRecords(), or ->updateRecords().');
+        }
+
+        if ($terminals > 1) {
+            throw new RuntimeException('AiGenerateAction terminals are mutually exclusive: pick one of ->handleUsing(), ->createRecords(), ->updateRecords().');
+        }
+
+        // createRecords/updateRecords need forModel (no custom schema for write-back).
+        if ($this->writeTerminal !== null && ! $hasModel) {
+            throw new RuntimeException('AiGenerateAction ->createRecords()/->updateRecords() require ->forModel().');
         }
     }
 
@@ -332,6 +419,186 @@ class AiGenerateAction extends SolarisAction
         return false;
     }
 
+    // ── Records loop ─────────────────────────────────────────────
+
+    protected function executeRecordsLoop(): void
+    {
+        $rows = $this->resolveRecordsSource();
+        ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
+        $timeout = $this->resolveTimeout();
+
+        $resolver = $this->resolveSchemaResolver();
+
+        $succeeded = 0;
+        $failed = 0;
+
+        foreach ($rows as $row) {
+            try {
+                $attrs = $this->generateForRow($row, $resolver, $provider, $model, $timeout);
+
+                if ($attrs === null) {
+                    $failed++;
+
+                    continue;
+                }
+
+                $this->writeRow($row, $attrs);
+                $succeeded++;
+            } catch (\Throwable $e) {
+                report($e);
+                $failed++;
+            }
+        }
+
+        $this->sendBatchSummary($succeeded, $failed);
+    }
+
+    /**
+     * @return iterable<int, array<string, mixed>|Model>
+     */
+    protected function resolveRecordsSource(): iterable
+    {
+        $source = $this->source instanceof Closure ? $this->evaluate($this->source) : $this->source;
+
+        if ($source instanceof Builder) {
+            return $source->get();
+        }
+
+        if ($source instanceof EloquentCollection || $source instanceof Collection) {
+            return $source;
+        }
+
+        if (is_array($source)) {
+            return $source;
+        }
+
+        throw new RuntimeException('AiGenerateAction ->records() must yield a Builder, Collection, or array; got '.get_debug_type($source));
+    }
+
+    /**
+     * @param  array<string, mixed>|Model  $row
+     * @param  Closure(JsonSchemaTypeFactory): array<string, Type>  $resolver
+     * @return array<string, mixed>|null AI output, or null on AI error (already reported by executeAiCall)
+     */
+    protected function generateForRow(array|Model $row, Closure $resolver, mixed $provider, ?string $model, ?int $timeout): ?array
+    {
+        if (AiGenerateActionFake::isActive()) {
+            // Still resolve the per-row instruction so the prompt closure runs:
+            // surfaces undefined-variable / bad-template errors under ::fake(),
+            // and lets the `$row` named injection be exercised end-to-end in tests.
+            $this->resolveInstructionForRow($row);
+
+            $fake = AiGenerateActionFake::getInstance();
+            $data = $fake->getResponse();
+            $fake->recordCall($this->getName(), $data);
+
+            if ($fake->shouldSimulateError()) {
+                return null;
+            }
+
+            $this->dispatchFakeResponseReceived($provider, $model);
+
+            return $data;
+        }
+
+        $instruction = $this->resolveInstructionForRow($row);
+        $agent = (new SolarisAgent)->configure($instruction, [], $resolver);
+
+        /** @var StructuredAgentResponse|null $response */
+        $response = $this->executeAiCall(
+            fn () => $agent->prompt($instruction, [], $provider, $model, $timeout),
+            $provider,
+            $model,
+            static fn (): null => null,  // suppress per-row error notification; summary covers it
+        );
+
+        return $response?->toArray();
+    }
+
+    /**
+     * @param  array<string, mixed>|Model  $row
+     * @param  array<string, mixed>  $attrs
+     */
+    protected function writeRow(array|Model $row, array $attrs): void
+    {
+        if ($this->writeTerminal === self::WRITE_CREATE) {
+            $this->modelClass::create($attrs);
+
+            return;
+        }
+
+        // WRITE_UPDATE
+        if (! $row instanceof Model) {
+            throw new RuntimeException('updateRecords source items must be Eloquent models, got '.get_debug_type($row));
+        }
+
+        $row->update($attrs);
+    }
+
+    /**
+     * @param  array<string, mixed>|Model  $row
+     */
+    protected function resolveInstructionForRow(array|Model $row): string
+    {
+        $instruction = $this->instruction;
+
+        if ($instruction instanceof Closure) {
+            $instruction = $this->evaluate($instruction, [
+                'row' => $row instanceof Model ? $row->getAttributes() : $row,
+            ]);
+        }
+
+        if ($instruction instanceof View) {
+            $instruction = $instruction->render();
+        }
+
+        $instruction = (string) $instruction;
+
+        $context = $this->buildContextForRow($row);
+
+        if ($context !== []) {
+            $json = json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+            $instruction = trim($instruction)."\n\n## Current record\n```json\n{$json}\n```";
+        }
+
+        return $instruction;
+    }
+
+    /**
+     * @param  array<string, mixed>|Model  $row
+     * @return array<string, mixed>
+     */
+    protected function buildContextForRow(array|Model $row): array
+    {
+        $attrs = $row instanceof Model ? $row->getAttributes() : $row;
+
+        if ($this->promptContextColumns !== []) {
+            $attrs = array_intersect_key($attrs, array_flip($this->promptContextColumns));
+        }
+
+        return $attrs;
+    }
+
+    protected function sendBatchSummary(int $succeeded, int $failed): void
+    {
+        if ($failed === 0) {
+            Notification::make()
+                ->title(filament_solaris_trans('notifications.batch_completed', ['count' => $succeeded]))
+                ->success()
+                ->send();
+
+            return;
+        }
+
+        Notification::make()
+            ->title(filament_solaris_trans('notifications.batch_partial_failure', [
+                'count' => $succeeded,
+                'failed' => $failed,
+            ]))
+            ->warning()
+            ->send();
+    }
+
     // ── Testing ──────────────────────────────────────────────────
 
     /**
@@ -340,6 +607,14 @@ class AiGenerateAction extends SolarisAction
     public static function fake(array $response = []): AiGenerateActionFake
     {
         return AiGenerateActionFake::activate($response);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $responses
+     */
+    public static function fakeEach(array $responses): AiGenerateActionFake
+    {
+        return AiGenerateActionFake::fakeEach($responses);
     }
 
     public static function fakeError(string $message = 'AI service error'): AiGenerateActionFake

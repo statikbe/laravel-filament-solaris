@@ -23,6 +23,8 @@ return [
         'image_generation_store_failed' => 'Could not store the generated image.',
         'transcription_inserted' => 'Transcription inserted.',
         'handler_error' => 'Something went wrong processing the AI result. Please try again.',
+        'batch_completed' => 'Processed :count records.',
+        'batch_partial_failure' => 'Processed :count records, :failed failed — check logs.',
     ],
 
     'preview' => [

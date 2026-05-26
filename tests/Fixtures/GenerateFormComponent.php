@@ -97,6 +97,19 @@ class GenerateFormComponent extends FormsComponent
             ->handleUsing(fn (array $records) => collect($records)->each(fn (array $row) => SeedCategory::create($row)));
     }
 
+    public function importCategoriesAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('importCategories')
+            ->prompt('Transform this row into a SeedCategory.')
+            ->forModel(SeedCategory::class)
+            ->records([
+                ['raw_name' => 'tech'],
+                ['raw_name' => 'science'],
+                ['raw_name' => 'art'],
+            ])
+            ->createRecords();
+    }
+
     public function render(): string
     {
         return '<div>{{ $this->form }}</div>';

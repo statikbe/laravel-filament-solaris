@@ -24,7 +24,7 @@ it('errors when no handler is configured', function () {
     AiGenerateAction::fake(['a' => 'x']);
 
     expect(fn () => Livewire::test(GenerateFormComponent::class)->callAction('missingHandler'))
-        ->toThrow(RuntimeException::class, 'requires a ->handleUsing()');
+        ->toThrow(RuntimeException::class, 'requires a terminal: ->handleUsing()');
 });
 
 it('errors when no schema source is configured', function () {
@@ -104,4 +104,50 @@ it('stores columnHint and columnEnum on the action', function () {
 
     expect($hintsProp->getValue($action))->toBe(['slug' => 'kebab-case'])
         ->and($enumsProp->getValue($action))->toBe(['name' => ['A', 'B']]);
+});
+
+it('runs per-row createRecords via ->records() (import path)', function () {
+    Schema::create('seed_categories', function ($table) {
+        $table->id();
+        $table->string('name');
+        $table->string('slug');
+        $table->timestamps();
+    });
+
+    AiGenerateAction::fakeEach([
+        ['name' => 'Tech', 'slug' => 'tech'],
+        ['name' => 'Science', 'slug' => 'science'],
+        ['name' => 'Art', 'slug' => 'art'],
+    ]);
+
+    Livewire::test(GenerateFormComponent::class)
+        ->callAction('importCategories')
+        ->assertNotified();   // batch summary
+
+    expect(SeedCategory::count())->toBe(3)
+        ->and(SeedCategory::pluck('slug')->all())->toEqualCanonicalizing(['tech', 'science', 'art']);
+
+    Schema::dropIfExists('seed_categories');
+});
+
+it('continues past per-row failures and reports a partial-failure summary', function () {
+    Schema::create('seed_categories', function ($table) {
+        $table->id();
+        $table->string('name');
+        $table->string('slug');
+        $table->timestamps();
+    });
+
+    // Three responses, middle one missing the required 'name' to trigger a write error.
+    AiGenerateAction::fakeEach([
+        ['name' => 'A', 'slug' => 'a'],
+        ['slug' => 'b-missing-name'],          // SQLite NOT NULL on `name` will throw
+        ['name' => 'C', 'slug' => 'c'],
+    ]);
+
+    Livewire::test(GenerateFormComponent::class)->callAction('importCategories');
+
+    expect(SeedCategory::count())->toBe(2);
+
+    Schema::dropIfExists('seed_categories');
 });
