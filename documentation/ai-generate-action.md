@@ -101,7 +101,7 @@ Beyond the basic seed-from-scratch pattern, `AiGenerateAction` can iterate over 
 
 ### Operations matrix
 
-| | no `->records()` | with `->records()` |
+| | no `->sourceRecords()` | with `->sourceRecords()` |
 |---|---|---|
 | `->createRecords()` | **Seed** — generate N records from scratch | **Import** — transform rows into model records |
 | `->updateRecords()` | invalid (deferred — see `specs/24-userinput-on-aigenerateaction.md`) | **Enrich** — update existing models in place |
@@ -110,7 +110,7 @@ Beyond the basic seed-from-scratch pattern, `AiGenerateAction` can iterate over 
 
 **`->forModel()` is required** for both terminal methods — the schema is always model-derived.
 
-**`->updateRecords()` requires `->records()`** — there is nothing to update without a source of existing models.
+**`->updateRecords()` requires `->sourceRecords()`** — there is nothing to update without a source of existing models.
 
 ### Seed from scratch
 
@@ -135,7 +135,7 @@ Pass a source of raw rows (from a spreadsheet, an external API, a CSV, …) and 
 AiGenerateAction::make('import-prospects')
     ->prompt('Parse this contact into a sales prospect. Split full name; normalize email/phone; infer company from email domain.')
     ->forModel(Prospect::class)
-    ->records($rowsFromExcel)
+    ->sourceRecords($rowsFromExcel)
     ->createRecords();
 ```
 
@@ -147,14 +147,14 @@ Provide a source of existing Eloquent models. The AI is called once per model wi
 AiGenerateAction::make('enrich-articles')
     ->prompt('Write a concise SEO meta description for this article: 150-160 chars, leads with the main topic.')
     ->forModel(Article::class)
-    ->records(fn ($livewire) => $livewire->getSelectedTableRecords())
+    ->sourceRecords(fn ($livewire) => $livewire->getSelectedTableRecords())
     ->columnHint('meta_description', '150-160 chars, conversational, no clickbait')
     ->updateRecords();
 ```
 
-### `->records()` source types
+### `->sourceRecords()` source types
 
-`->records()` accepts:
+`->sourceRecords()` accepts:
 
 - **`Builder`** — executed lazily via `->get()` before iteration begins.
 - **`Collection` / `EloquentCollection`** — iterated as-is.
@@ -168,7 +168,7 @@ By default, every non-excluded column of the row is injected into the prompt as 
 ```php
 AiGenerateAction::make('enrich-articles')
     ->forModel(Article::class)
-    ->records(Article::all())
+    ->sourceRecords(Article::all())
     ->promptContextColumns(['title', 'author', 'published_at'])  // exclude 'body', 'raw_html', etc.
     ->columnHint('meta_description', '150-160 chars')
     ->updateRecords();
@@ -183,7 +183,7 @@ When `->prompt()` receives a `Closure`, it is called **once per iteration row** 
 ```php
 AiGenerateAction::make('personalise-subject-lines')
     ->forModel(EmailCampaign::class)
-    ->records(EmailCampaign::where('subject', null)->get())
+    ->sourceRecords(EmailCampaign::where('subject', null)->get())
     ->prompt(fn (array $row) => "Write a compelling email subject line for a campaign targeting {$row['segment']} subscribers. Product: {$row['product_name']}.")
     ->updateRecords();
 ```
@@ -272,7 +272,7 @@ The action validates its configuration at call time and throws a `RuntimeExcepti
 - None of `->handleUsing()`, `->createRecords()`, or `->updateRecords()` is set.
 - More than one of `->handleUsing()`, `->createRecords()`, `->updateRecords()` is set.
 - `->createRecords()` or `->updateRecords()` is used without `->forModel()`.
-- `->updateRecords()` is used without `->records()`.
+- `->updateRecords()` is used without `->sourceRecords()`.
 
 ## Provider, Model & Timeout
 

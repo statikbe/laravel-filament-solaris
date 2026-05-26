@@ -299,7 +299,7 @@ use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
 AiGenerateAction::make('enrich-articles')
     ->prompt('Write a concise SEO meta description: 150-160 chars, leads with the main topic.')
     ->forModel(Article::class)
-    ->records(fn ($livewire) => $livewire->getSelectedTableRecords())
+    ->sourceRecords(fn ($livewire) => $livewire->getSelectedTableRecords())
     ->columnHint('meta_description', '150-160 chars, conversational, no clickbait')
     ->updateRecords();
 ```

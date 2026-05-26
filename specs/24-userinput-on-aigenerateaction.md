@@ -4,7 +4,7 @@
 
 ## Summary
 
-Add `UserInput`-modal support to `AiGenerateAction`, mirroring the pattern already shipped on `AiFormAction` and `DictationFieldAction`. The most concrete unlock: runtime user-provided sources for `->records()` (paste/upload a CSV or Excel) without each consumer rolling its own Livewire modal.
+Add `UserInput`-modal support to `AiGenerateAction`, mirroring the pattern already shipped on `AiFormAction` and `DictationFieldAction`. The most concrete unlock: runtime user-provided sources for `->sourceRecords()` (paste/upload a CSV or Excel) without each consumer rolling its own Livewire modal.
 
 ## Motivation
 
@@ -12,11 +12,11 @@ Add `UserInput`-modal support to `AiGenerateAction`, mirroring the pattern alrea
 
 The matrix from spec 23 left one cell empty by design:
 
-| | no `->records()` | with `->records()` |
+| | no `->sourceRecords()` | with `->sourceRecords()` |
 |---|---|---|
 | `->updateRecords()` | **deferred → this spec** | enrich (shipped in 23) |
 
-"Paste a spreadsheet of `(id, payload)` rows and enrich each by id" is a real workflow (legacy migrations, batch ops against external data). Today you'd build a custom Livewire form to collect the file/paste, parse it, and call the action programmatically. With `UserInput` on `AiGenerateAction`, the user's `->records()` closure simply reads from the modal:
+"Paste a spreadsheet of `(id, payload)` rows and enrich each by id" is a real workflow (legacy migrations, batch ops against external data). Today you'd build a custom Livewire form to collect the file/paste, parse it, and call the action programmatically. With `UserInput` on `AiGenerateAction`, the user's `->sourceRecords()` closure simply reads from the modal:
 
 ```php
 AiGenerateAction::make('enrich-from-spreadsheet')
@@ -24,13 +24,13 @@ AiGenerateAction::make('enrich-from-spreadsheet')
         FileUpload::make('csv')->acceptedFileTypes(['text/csv']),
     ]))
     ->forModel(Article::class)
-    ->records(fn ($livewire) => Article::query()
+    ->sourceRecords(fn ($livewire) => Article::query()
         ->whereIn('id', collect(parseCsv($livewire->mountedActions[0]['data']['csv']))->pluck('id'))
         ->get())
     ->updateRecords();
 ```
 
-No new dedicated API needed — `UserInput` + the closure-based `->records()` (already polymorphic in spec 23) compose to fill the cell.
+No new dedicated API needed — `UserInput` + the closure-based `->sourceRecords()` (already polymorphic in spec 23) compose to fill the cell.
 
 ## Design sketch
 
@@ -38,12 +38,12 @@ No new dedicated API needed — `UserInput` + the closure-based `->records()` (a
   - Reuse the existing `HasUserInput` trait (or its replacement) — keep one source of truth.
   - `hasUserInput()` returns true when `->userInput()` is set, false otherwise.
   - The action gains a modal-on-click flow: when `UserInput` is set, Filament opens the modal with the user-input fields; submit triggers `execute()`. When unset (default), behaviour is unchanged from today (click → run).
-- Inject the user-input values into Filament `evaluate()` for `->prompt()`, `->records()`, and `->handleUsing()` closures — same pattern as the closure DI we added in spec 20.
+- Inject the user-input values into Filament `evaluate()` for `->prompt()`, `->sourceRecords()`, and `->handleUsing()` closures — same pattern as the closure DI we added in spec 20.
 - The `$row` named injection from spec 23 stays — orthogonal.
 
 ## Anchor use cases
 
-1. **Paste / upload → import**: `FileUpload` of CSV → `->records()` closure parses → `->createRecords()`.
+1. **Paste / upload → import**: `FileUpload` of CSV → `->sourceRecords()` closure parses → `->createRecords()`.
 2. **Paste / upload → enrich**: same input + an `id` column → `->updateRecords()`. This fills the empty matrix cell.
 3. **Free-text steering**: `Textarea` ("focus on SEO terms") → consumed by the prompt closure for interactive enrichment.
 
