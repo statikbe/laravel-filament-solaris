@@ -82,7 +82,7 @@ class AiGenerateActionFake
         }
 
         if ($this->responseQueue === []) {
-            throw new \RuntimeException('AiGenerateAction fakeEach queue exhausted — provide more responses for the per-row loop.');
+            throw new AiGenerateActionFakeException('AiGenerateAction fakeEach queue exhausted — provide more responses for the per-row loop.');
         }
 
         return array_shift($this->responseQueue);

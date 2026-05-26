@@ -145,7 +145,9 @@ it('continues past per-row failures and reports a partial-failure summary', func
         ['name' => 'C', 'slug' => 'c'],
     ]);
 
-    Livewire::test(GenerateFormComponent::class)->callAction('importCategories');
+    Livewire::test(GenerateFormComponent::class)
+        ->callAction('importCategories')
+        ->assertNotified(filament_solaris_trans('notifications.batch_partial_failure', ['count' => 2, 'failed' => 1]));
 
     expect(SeedCategory::count())->toBe(2);
 
@@ -221,6 +223,25 @@ it('injects $row into the prompt closure per iteration', function () {
         ->assertNotified(); // batch summary
 
     expect(SeedCategory::count())->toBe(2);
+
+    Schema::dropIfExists('seed_categories');
+});
+
+it('counts every iteration as failed when fakeError is set on a records loop', function () {
+    Schema::create('seed_categories', function ($table) {
+        $table->id();
+        $table->string('name');
+        $table->string('slug');
+        $table->timestamps();
+    });
+
+    AiGenerateAction::fakeError('provider down');
+
+    Livewire::test(GenerateFormComponent::class)
+        ->callAction('importCategories')
+        ->assertNotified(filament_solaris_trans('notifications.batch_partial_failure', ['count' => 0, 'failed' => 3]));
+
+    expect(SeedCategory::count())->toBe(0);
 
     Schema::dropIfExists('seed_categories');
 });
