@@ -198,3 +198,29 @@ it('errors when createRecords is used without ->forModel()', function () {
     expect(fn () => Livewire::test(GenerateFormComponent::class)->callAction('createWithoutModel'))
         ->toThrow(RuntimeException::class, 'require ->forModel()');
 });
+
+it('injects $row into the prompt closure per iteration', function () {
+    Schema::create('seed_categories', function ($table) {
+        $table->id();
+        $table->string('name');
+        $table->string('slug');
+        $table->timestamps();
+    });
+
+    // Two rows, two canned responses — both should succeed.
+    // The prompt closure references $row['tag'] — if $row weren't injected
+    // it'd throw ErrorException (undefined variable / undefined array key),
+    // failing both iterations and resulting in 0 rows created instead of 2.
+    AiGenerateAction::fakeEach([
+        ['name' => 'Alpha', 'slug' => 'alpha'],
+        ['name' => 'Beta', 'slug' => 'beta'],
+    ]);
+
+    Livewire::test(GenerateFormComponent::class)
+        ->callAction('importWithRowPrompt')
+        ->assertNotified(); // batch summary
+
+    expect(SeedCategory::count())->toBe(2);
+
+    Schema::dropIfExists('seed_categories');
+});
