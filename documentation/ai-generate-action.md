@@ -220,12 +220,12 @@ AiGenerateAction::fakeEach([
 AiGenerateAction::assertCalledTimes(2);
 ```
 
-Use `AiGenerateAction::assertHandledWith()` to inspect the data for a specific call by index:
+Use `AiGenerateAction::assertHandledWith()` to inspect the data the handler received on the most recent call:
 
 ```php
 AiGenerateAction::assertHandledWith(function (array $data) {
-    expect($data['meta_description'])->toStartWith('First');
-}, callIndex: 0);
+    expect($data['meta_description'])->toStartWith('Second');
+});
 ```
 
 ---
