@@ -13,6 +13,11 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
 
 ### Added
 
+- `AiGenerateAction` per-record write-back & enrichment: new `->createRecords()` /
+  `->updateRecords()` terminals + polymorphic `->records()` source +
+  `->promptContextColumns()` override. Imports rows → creates models; enriches
+  existing models in place. Per-row AI calls with partial-failure handling and a
+  single summary notification. Test with `AiGenerateAction::fakeEach([...])`.
 - `AiGenerateAction->forModel()` schema accuracy: enum auto-detection from
   backed-enum casts (string- or int-backed), plus `->columnEnum()` (manual
   constraint) and `->columnHint()` (description) per-column overrides.

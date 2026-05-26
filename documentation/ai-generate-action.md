@@ -95,9 +95,144 @@ The following will be added gradually:
 - Validation-rule constraints (e.g. `min`/`max` from `HasValidation`).
 - Dependency injection in the `->outputSchema()` closure.
 
+## Record Write-back & Enrichment
+
+Beyond the basic seed-from-scratch pattern, `AiGenerateAction` can iterate over a set of source rows, make one AI call per row, and write the result directly into the database — no `->handleUsing()` needed. Two terminal methods replace the handler: `->createRecords()` and `->updateRecords()`.
+
+### Operations matrix
+
+| | no `->records()` | with `->records()` |
+|---|---|---|
+| `->createRecords()` | **Seed** — generate N records from scratch | **Import** — transform rows into model records |
+| `->updateRecords()` | invalid (deferred — see `specs/24-userinput-on-aigenerateaction.md`) | **Enrich** — update existing models in place |
+
+**Mutual exclusivity:** exactly one of `->handleUsing()`, `->createRecords()`, or `->updateRecords()` is required. Providing more than one, or none, throws a `RuntimeException` at call time.
+
+**`->forModel()` is required** for both terminal methods — the schema is always model-derived.
+
+**`->updateRecords()` requires `->records()`** — there is nothing to update without a source of existing models.
+
+### Seed from scratch
+
+The simplest variant: no source rows, just a count. The AI generates `$n` records from scratch and `Model::create()` is called for each one.
+
+```php
+use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
+
+AiGenerateAction::make('seed-categories')
+    ->forModel(Category::class)
+    ->count(20)
+    ->createRecords();
+```
+
+This is sugar for the longhand `->handleUsing(fn (array $records) => Category::query()->insert($records))` but with per-record create semantics (model events fire, casts are applied).
+
+### Import: transform rows into model records
+
+Pass a source of raw rows (from a spreadsheet, an external API, a CSV, …) and the AI normalises each one into the model's shape, then `Model::create()` is called per row.
+
+```php
+AiGenerateAction::make('import-prospects')
+    ->prompt('Parse this contact into a sales prospect. Split full name; normalize email/phone; infer company from email domain.')
+    ->forModel(Prospect::class)
+    ->records($rowsFromExcel)
+    ->createRecords();
+```
+
+### Enrich: per-record AI update of existing models
+
+Provide a source of existing Eloquent models. The AI is called once per model with the row's attributes in context; `$row->update($aiOutput)` is called with the response.
+
+```php
+AiGenerateAction::make('enrich-articles')
+    ->prompt('Write a concise SEO meta description for this article: 150-160 chars, leads with the main topic.')
+    ->forModel(Article::class)
+    ->records(fn ($livewire) => $livewire->getSelectedTableRecords())
+    ->columnHint('meta_description', '150-160 chars, conversational, no clickbait')
+    ->updateRecords();
+```
+
+### `->records()` source types
+
+`->records()` accepts:
+
+- **`Builder`** — executed lazily via `->get()` before iteration begins.
+- **`Collection` / `EloquentCollection`** — iterated as-is.
+- **`array<Model>` or `array<array>`** — raw attribute arrays are supported for `->createRecords()`; `->updateRecords()` requires Model instances (needs `getKey()` for write-back).
+- **`Closure`** — resolved via Filament's `evaluate()` with DI: `$record` (the action's host), `$livewire`, `$get`, and any other standard Filament injected arguments. The Closure must return one of the types above.
+
+### `->promptContextColumns()`
+
+By default, every non-excluded column of the row is injected into the prompt as a `## Current record` context block. Whitelist specific columns to limit what the AI sees — useful for privacy (omit PII not needed for the task) and token cost (drop large HTML body columns when only metadata matters):
+
+```php
+AiGenerateAction::make('enrich-articles')
+    ->forModel(Article::class)
+    ->records(Article::all())
+    ->promptContextColumns(['title', 'author', 'published_at'])  // exclude 'body', 'raw_html', etc.
+    ->columnHint('meta_description', '150-160 chars')
+    ->updateRecords();
+```
+
+When `->promptContextColumns()` is not called, the full row (minus the primary key and auto-timestamps) is included.
+
+### Prompt closure `$row` injection
+
+When `->prompt()` receives a `Closure`, it is called **once per iteration row** with the row's attributes injected as `$row`. Filament's standard named arguments (`$record`, `$livewire`, `$get`, …) are unchanged — `$record` refers to the action's host, while `$row` is the current iteration item:
+
+```php
+AiGenerateAction::make('personalise-subject-lines')
+    ->forModel(EmailCampaign::class)
+    ->records(EmailCampaign::where('subject', null)->get())
+    ->prompt(fn (array $row) => "Write a compelling email subject line for a campaign targeting {$row['segment']} subscribers. Product: {$row['product_name']}.")
+    ->updateRecords();
+```
+
+### Partial-failure handling
+
+Each row is wrapped in its own `try/catch`. If the AI call or the write-back fails for a particular row, the exception is passed to `report()` and a failure counter is incremented. The loop continues with the next row.
+
+At the end of the loop a single **summary notification** is shown:
+
+- All succeeded → `"Processed N records."`
+- Some failed → `"Processed N records, M failed — check logs."`
+
+Per-row AI error toasts are suppressed to avoid notification spam on large batches.
+
+### Large imports — queue the work
+
+For more than ~50 rows, running AI calls synchronously in a web request will exceed timeouts and block the UI. A queued-execution mode (`->queued()`) is planned for a future version. Until then, dispatch a queued job from your `->handleUsing()` closure (single-call variant) or wrap the action invocation in a job yourself.
+
+### Testing
+
+Use `AiGenerateAction::fakeEach([...])` to queue a separate canned response per iteration row. The fake throws a `RuntimeException` if the action tries to make more calls than responses were provided.
+
+```php
+use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
+
+AiGenerateAction::fakeEach([
+    ['meta_description' => 'First article SEO description.'],
+    ['meta_description' => 'Second article SEO description.'],
+]);
+
+// … trigger the action …
+
+AiGenerateAction::assertCalledTimes(2);
+```
+
+Use `AiGenerateAction::assertHandledWith()` to inspect the data for a specific call by index:
+
+```php
+AiGenerateAction::assertHandledWith(function (array $data) {
+    expect($data['meta_description'])->toStartWith('First');
+}, callIndex: 0);
+```
+
+---
+
 ## Handler Contract
 
-`->handleUsing()` is **required**. The closure receives:
+`->handleUsing()` is **required** when not using `->createRecords()` or `->updateRecords()`. The closure receives:
 
 - `array $data` — the full decoded AI response, always available.
 - `array $records` — shorthand injected only when `->forModel()` is used; equals `$data['records']`.
@@ -134,7 +269,10 @@ The action validates its configuration at call time and throws a `RuntimeExcepti
 
 - Neither `->outputSchema()` nor `->forModel()` is provided.
 - Both `->outputSchema()` and `->forModel()` are provided at once.
-- `->handleUsing()` is not set.
+- None of `->handleUsing()`, `->createRecords()`, or `->updateRecords()` is set.
+- More than one of `->handleUsing()`, `->createRecords()`, `->updateRecords()` is set.
+- `->createRecords()` or `->updateRecords()` is used without `->forModel()`.
+- `->updateRecords()` is used without `->records()`.
 
 ## Provider, Model & Timeout
 

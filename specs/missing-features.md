@@ -215,6 +215,7 @@ info-gathering without any form wiring. Tested via `AiGenerateAction::fake()`.
 See `specs/21-ai-generate-action.md` for the full design spec.
 
 - Follow-up: enum auto-detection from backed-enum casts + `->columnEnum()` / `->columnHint()` per-column overrides shipped per `specs/22-formodel-enums-hints.md`.
+- Follow-up: per-record write-back & enrichment — `->createRecords()` / `->updateRecords()` terminals, polymorphic `->records()` source, `->promptContextColumns()`, per-row prompt `$row` injection, partial-failure handling, and `AiGenerateAction::fakeEach([...])` test helper shipped per `specs/23-record-writeback-enrichment.md`. Deferred follow-up: UserInput on AiGenerateAction (paste/upload variant) tracked in `specs/24-userinput-on-aigenerateaction.md`.
 
 ---
 

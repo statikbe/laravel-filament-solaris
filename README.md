@@ -291,6 +291,21 @@ AiGenerateAction::make('seed-categories')
 
 Or define the shape yourself with `->outputSchema()` and do anything in the handler. See [AiGenerateAction](documentation/ai-generate-action.md).
 
+### Enrich existing records
+
+```php
+use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
+
+AiGenerateAction::make('enrich-articles')
+    ->prompt('Write a concise SEO meta description: 150-160 chars, leads with the main topic.')
+    ->forModel(Article::class)
+    ->records(fn ($livewire) => $livewire->getSelectedTableRecords())
+    ->columnHint('meta_description', '150-160 chars, conversational, no clickbait')
+    ->updateRecords();
+```
+
+Per-record AI calls, partial-failure handling, single summary notification. See [AiGenerateAction](documentation/ai-generate-action.md).
+
 ### Preview before applying
 
 Let the user review the result in a modal and accept or cancel:
