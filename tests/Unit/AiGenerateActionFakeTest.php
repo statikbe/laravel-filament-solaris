@@ -31,3 +31,20 @@ it('asserts not called', function () {
 it('flags error simulation', function () {
     expect(AiGenerateActionFake::activateError('boom')->shouldSimulateError())->toBeTrue();
 });
+
+it('queues per-call responses with fakeEach()', function () {
+    $fake = AiGenerateActionFake::fakeEach([
+        ['name' => 'Alice'],
+        ['name' => 'Bob'],
+    ]);
+
+    expect($fake->getResponse())->toBe(['name' => 'Alice'])
+        ->and($fake->getResponse())->toBe(['name' => 'Bob']);
+});
+
+it('throws when fakeEach() queue is exhausted', function () {
+    $fake = AiGenerateActionFake::fakeEach([['x' => 1]]);
+
+    $fake->getResponse();
+    $fake->getResponse();
+})->throws(RuntimeException::class, 'fakeEach queue exhausted');
