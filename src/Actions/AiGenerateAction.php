@@ -62,9 +62,9 @@ class AiGenerateAction extends SolarisAction
     /** @var Builder<Model>|Collection<int, array<string, mixed>>|EloquentCollection<int, Model>|array<int, array<string, mixed>|Model>|Closure|null */
     protected Builder|Collection|EloquentCollection|array|Closure|null $source = null;
 
-    protected ?string $writeTerminal = null;   // WRITE_CREATE | WRITE_UPDATE | null
+    protected ?string $writeTerminal = null;
 
-    protected int $writeTerminalCount = 0;     // guard against calling both createRecords()+updateRecords()
+    protected int $writeTerminalCount = 0;
 
     /** @var array<string> */
     protected array $promptContextColumns = [];
@@ -381,15 +381,15 @@ class AiGenerateAction extends SolarisAction
             throw new RuntimeException('AiGenerateAction requires a schema source: ->outputSchema() or ->forModel().');
         }
 
-        // Terminals are mutually exclusive.
-        $terminals = (int) ($this->handler !== null)
-            + (int) ($this->writeTerminalCount > 0);
+        // Terminals are mutually exclusive: exactly one must be configured.
+        $hasHandler = $this->handler !== null;
+        $hasWriteTerminal = $this->writeTerminalCount > 0;
 
-        if ($terminals === 0) {
+        if (! $hasHandler && ! $hasWriteTerminal) {
             throw new RuntimeException('AiGenerateAction requires a terminal: ->handleUsing(), ->createRecords(), or ->updateRecords().');
         }
 
-        if ($terminals > 1 || $this->writeTerminalCount > 1) {
+        if (($hasHandler && $hasWriteTerminal) || $this->writeTerminalCount > 1) {
             throw new RuntimeException('AiGenerateAction terminals are mutually exclusive: pick one of ->handleUsing(), ->createRecords(), ->updateRecords().');
         }
 
