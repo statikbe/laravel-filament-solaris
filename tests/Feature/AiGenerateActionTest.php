@@ -88,3 +88,20 @@ it('shows an error notification and skips the handler under fakeError', function
         ->assertNotified()
         ->assertSet('handledData', []);
 });
+
+it('stores columnHint and columnEnum on the action', function () {
+    $action = AiGenerateAction::make('x')
+        ->prompt('y')
+        ->forModel(SeedCategory::class)
+        ->columnHint('slug', 'kebab-case')
+        ->columnEnum('name', ['A', 'B'])
+        ->handleUsing(fn () => null);
+
+    $ref = new ReflectionClass($action);
+
+    $hintsProp = $ref->getProperty('columnHints');
+    $enumsProp = $ref->getProperty('columnEnums');
+
+    expect($hintsProp->getValue($action))->toBe(['slug' => 'kebab-case'])
+        ->and($enumsProp->getValue($action))->toBe(['name' => ['A', 'B']]);
+});
