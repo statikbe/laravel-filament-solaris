@@ -12,6 +12,9 @@ class AiGenerateActionFake
     /** @var array<string, mixed> */
     protected array $response = [];
 
+    /** @var array<int, array<string, mixed>>|null */
+    protected ?array $responseQueue = null;
+
     protected ?string $errorMessage = null;
 
     /** @var array<int, array{name: string, data: array<string, mixed>}> */
@@ -24,6 +27,20 @@ class AiGenerateActionFake
     {
         static::$instance = new static;
         static::$instance->response = $response;
+
+        return static::$instance;
+    }
+
+    /**
+     * Activate the fake with a queue of responses, one consumed per call.
+     * Throws when exhausted (catches a test bug — too few canned responses).
+     *
+     * @param  array<int, array<string, mixed>>  $responses
+     */
+    public static function fakeEach(array $responses): static
+    {
+        static::$instance = new static;
+        static::$instance->responseQueue = $responses;
 
         return static::$instance;
     }
@@ -60,7 +77,15 @@ class AiGenerateActionFake
      */
     public function getResponse(): array
     {
-        return $this->response;
+        if ($this->responseQueue === null) {
+            return $this->response;
+        }
+
+        if ($this->responseQueue === []) {
+            throw new \RuntimeException('AiGenerateAction fakeEach queue exhausted — provide more responses for the per-row loop.');
+        }
+
+        return array_shift($this->responseQueue);
     }
 
     /**
