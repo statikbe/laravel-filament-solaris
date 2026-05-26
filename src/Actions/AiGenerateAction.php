@@ -174,7 +174,7 @@ class AiGenerateAction extends SolarisAction
     /**
      * @param  Builder<Model>|Collection<int, array<string, mixed>>|EloquentCollection<int, Model>|array<int, array<string, mixed>|Model>|Closure  $source
      */
-    public function records(Builder|Collection|EloquentCollection|array|Closure $source): static
+    public function sourceRecords(Builder|Collection|EloquentCollection|array|Closure $source): static
     {
         $this->source = $source;
 
@@ -269,7 +269,7 @@ class AiGenerateAction extends SolarisAction
 
     /**
      * Single-response dispatch (no records loop): hand to user handler, or
-     * for `createRecords` with no `->records()`, per-row create from
+     * for `createRecords` with no `->sourceRecords()`, per-row create from
      * `$data[RECORDS_KEY]`.
      *
      * @param  array<string, mixed>  $data
@@ -401,14 +401,14 @@ class AiGenerateAction extends SolarisAction
 
         // updateRecords needs a source — without records() there is nothing to update.
         if ($this->writeTerminal === self::WRITE_UPDATE && $this->source === null) {
-            throw new RuntimeException('AiGenerateAction ->updateRecords() requires ->records() — without a source there is nothing to update.');
+            throw new RuntimeException('AiGenerateAction ->updateRecords() requires ->sourceRecords() — without a source there is nothing to update.');
         }
 
         // count() drives the seed-from-scratch array size; with a real source,
         // the source defines the iteration count, so count() is meaningless.
         // recordCount defaults to 1; treat any non-1 with source set as misuse.
         if ($this->source !== null && (int) $this->evaluate($this->recordCount) !== 1) {
-            throw new RuntimeException('AiGenerateAction ->count() is incompatible with ->records() — the source defines how many rows to process.');
+            throw new RuntimeException('AiGenerateAction ->count() is incompatible with ->sourceRecords() — the source defines how many rows to process.');
         }
     }
 
@@ -491,7 +491,7 @@ class AiGenerateAction extends SolarisAction
             return $source;
         }
 
-        throw new RuntimeException('AiGenerateAction ->records() must yield a Builder, Collection, or array; got '.get_debug_type($source));
+        throw new RuntimeException('AiGenerateAction ->sourceRecords() must yield a Builder, Collection, or array; got '.get_debug_type($source));
     }
 
     /**

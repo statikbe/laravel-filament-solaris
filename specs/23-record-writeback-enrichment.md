@@ -15,14 +15,14 @@ AiGenerateAction::make('seed-categories')
 AiGenerateAction::make('import-prospects')
     ->prompt('Parse this contact into a sales prospect. Split full name; normalize email/phone; infer company from email domain.')
     ->forModel(Prospect::class)
-    ->records($rowsFromExcel)                  // array<array> of raw input rows
+    ->sourceRecords($rowsFromExcel)                  // array<array> of raw input rows
     ->createRecords();
 
 // Enrich: per-record AI update of existing rows
 AiGenerateAction::make('enrich-articles')
     ->prompt('Write a concise SEO meta description for this article: 150-160 chars, leads with the main topic.')
     ->forModel(Article::class)
-    ->records(fn ($livewire) => $livewire->getSelectedTableRecords())
+    ->sourceRecords(fn ($livewire) => $livewire->getSelectedTableRecords())
     ->columnHint('meta_description', '150-160 chars, conversational, no clickbait')
     ->updateRecords();
 ```
@@ -37,7 +37,7 @@ This builds directly on the primitives from spec 21 (`AiGenerateAction`, `ModelS
 
 | Method | Effect |
 |---|---|
-| `->records(Builder\|Collection\|array\|Closure $source)` | Per-row iteration source. Closure resolved via Filament `evaluate()` (gets `$record`/`$livewire`/`$get` DI). |
+| `->sourceRecords(Builder\|Collection\|array\|Closure $source)` | Per-row iteration source. Closure resolved via Filament `evaluate()` (gets `$record`/`$livewire`/`$get` DI). |
 | `->createRecords()` | Terminal: per row, call `Model::create($aiOutput)`. |
 | `->updateRecords()` | Terminal: per source record, call `$record->update($aiOutput)` (keyed by `getKey()`). |
 | `->promptContextColumns(array<string> $columns)` | Whitelist of column names that get serialised into the prompt as the row's context. Default = the whole row's attributes (auto-exclusions aside). |
@@ -46,16 +46,16 @@ Existing `->handleUsing()` is unchanged — the three terminals are **mutually e
 
 ## Operations matrix
 
-| | no `->records()` | with `->records()` |
+| | no `->sourceRecords()` | with `->sourceRecords()` |
 |---|---|---|
 | `->createRecords()` | seed N from scratch (one AI call → schema is `records: array.items(...)`) — current behaviour, just sugar over `handleUsing` | **import / transform**: per-row AI call → `Model::create()` |
-| `->updateRecords()` | **invalid** — runtime error: "updateRecords requires a `->records()` source" | **enrich**: per-record AI call → `$record->update()` |
+| `->updateRecords()` | **invalid** — runtime error: "updateRecords requires a `->sourceRecords()` source" | **enrich**: per-record AI call → `$record->update()` |
 
 (The "no records + updateRecords" cell — paste-a-spreadsheet workflow — is intentionally left for a follow-up; see `specs/24-userinput-on-aigenerateaction.md`.)
 
 ## Source contracts per terminal
 
-The polymorphic `->records()` accepts:
+The polymorphic `->sourceRecords()` accepts:
 - `Illuminate\Database\Eloquent\Builder` — executed lazily (`->get()`) at action time.
 - `Illuminate\Support\Collection` / `Illuminate\Database\Eloquent\Collection`.
 - `array<int, Model>` or `array<int, array<string, mixed>>` (raw attribute rows).
@@ -101,8 +101,8 @@ The default prompt path (no closure, just a string/View) is unchanged — the ro
 
 - Exactly one terminal: `createRecords` ^ `updateRecords` ^ `handleUsing`. None set → "AiGenerateAction requires …".
 - `createRecords` / `updateRecords` require `forModel()` (no custom `outputSchema` — the write-back needs a model).
-- `updateRecords` requires `->records()` (the "no source + update" cell is deferred).
-- `count()` is incompatible with `->records()` (the count comes from the source). Both set → runtime error.
+- `updateRecords` requires `->sourceRecords()` (the "no source + update" cell is deferred).
+- `count()` is incompatible with `->sourceRecords()` (the count comes from the source). Both set → runtime error.
 
 ## Errors & notifications
 
@@ -129,7 +129,7 @@ The fake holds a queue of responses, consuming one per `executeFake()` invocatio
 - **createRecords + records (import)**: source = `array<array>` of 3 rows; fakeEach 3 responses; assert 3 new `SeedCategory` rows created with the faked attributes.
 - **updateRecords + records (enrich)**: pre-seed 2 `SeedCategory` rows; source = `SeedCategory::all()`; fakeEach 2 responses; assert both rows updated by id with the faked attributes; assert original `id`/`created_at` preserved.
 - **Per-row partial failure**: 3 rows, middle row's AI call throws (use a fake that throws on the 2nd call); assert the other 2 succeed, failure is reported, summary notification has count "2 succeeded, 1 failed".
-- **Validation**: `updateRecords` without `->records()` throws. `createRecords` + `updateRecords` together throws. `createRecords` + `outputSchema` (no forModel) throws.
+- **Validation**: `updateRecords` without `->sourceRecords()` throws. `createRecords` + `updateRecords` together throws. `createRecords` + `outputSchema` (no forModel) throws.
 - **`promptContextColumns`**: assert that with `->promptContextColumns(['name'])`, only the `name` attribute appears in the `## Current record` block of the prompt (read via the fake's recorded `$instruction` argument — add capture if needed).
 - **`$row` prompt closure injection**: prompt closure using `$row['name']` produces an instruction containing the right value per iteration.
 - **Source types**: a `Closure` returning a `Collection`; a `Builder` directly (executed lazily); an `array<array>`.
@@ -138,7 +138,7 @@ The fake holds a queue of responses, consuming one per `executeFake()` invocatio
 
 ## Documentation
 
-- `documentation/ai-generate-action.md`: a new top-level section "Record write-back & enrichment" covering the matrix, examples for the three working cells, `->records()` source types, `promptContextColumns`, the prompt-closure `$row` injection, and partial-failure handling. Trim "createRecords sugar" and "updateRecords / enrichment" from the deferred list.
+- `documentation/ai-generate-action.md`: a new top-level section "Record write-back & enrichment" covering the matrix, examples for the three working cells, `->sourceRecords()` source types, `promptContextColumns`, the prompt-closure `$row` injection, and partial-failure handling. Trim "createRecords sugar" and "updateRecords / enrichment" from the deferred list.
 - `README.md`: a new recipe "Enrich existing records" (sits naturally next to "Seed records from AI").
 - `CHANGELOG.md` → `## [Unreleased]` → `### Added`.
 - `specs/missing-features.md`: mark createRecords/updateRecords shipped under the existing AiGenerateAction entry.
@@ -147,10 +147,10 @@ The fake holds a queue of responses, consuming one per `executeFake()` invocatio
 
 Listed verbatim so the deferred list stays explicit:
 
-- **UserInput on `AiGenerateAction`** — paste/upload CSV → `->records()` source. Sketched in `specs/24-userinput-on-aigenerateaction.md`.
+- **UserInput on `AiGenerateAction`** — paste/upload CSV → `->sourceRecords()` source. Sketched in `specs/24-userinput-on-aigenerateaction.md`.
 - **Batched mode** — one AI call returning N rows. Possible but harder (context window, key correlation). Tier-2.
 - **Queued/async execution** — big imports (>50 rows) should queue with progress + completion notification. Compositional with this feature once the queued-execution feature lands.
 - **`->quietly()` flag** — skip events/observers on create/update.
-- **Auto-detect Filament BulkAction `$records`** — pull selected records from the table-action context without explicit `->records()`. Compositional, small follow-up.
+- **Auto-detect Filament BulkAction `$records`** — pull selected records from the table-action context without explicit `->sourceRecords()`. Compositional, small follow-up.
 - **Cross-model collections** for `updateRecords` (each item could be a different model class) — out of scope; require homogeneous Models matching `forModel()`'s class.
 - **Concurrency** within v1's synchronous loop — sequential only; concurrency comes with the queued feature.

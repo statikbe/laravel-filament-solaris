@@ -106,7 +106,7 @@ it('stores columnHint and columnEnum on the action', function () {
         ->and($enumsProp->getValue($action))->toBe(['name' => ['A', 'B']]);
 });
 
-it('runs per-row createRecords via ->records() (import path)', function () {
+it('runs per-row createRecords via ->sourceRecords() (import path)', function () {
     Schema::create('seed_categories', function ($table) {
         $table->id();
         $table->string('name');
@@ -180,7 +180,7 @@ it('runs per-row updateRecords (enrich by key)', function () {
     Schema::dropIfExists('seed_categories');
 });
 
-it('errors when updateRecords is called without ->records()', function () {
+it('errors when updateRecords is called without ->sourceRecords()', function () {
     AiGenerateAction::fake(['x' => 1]);
 
     expect(fn () => Livewire::test(GenerateFormComponent::class)->callAction('updateWithoutRecords'))
@@ -250,7 +250,7 @@ it('filters the row context to ->promptContextColumns() in the per-row instructi
     $action = AiGenerateAction::make('x')
         ->prompt('Do it.')
         ->forModel(SeedCategory::class)
-        ->records([['visible' => 'v', 'secret' => 's']])
+        ->sourceRecords([['visible' => 'v', 'secret' => 's']])
         ->promptContextColumns(['visible'])
         ->createRecords();
 

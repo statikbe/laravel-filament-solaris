@@ -102,7 +102,7 @@ class GenerateFormComponent extends FormsComponent
         return AiGenerateAction::make('importCategories')
             ->prompt('Transform this row into a SeedCategory.')
             ->forModel(SeedCategory::class)
-            ->records([
+            ->sourceRecords([
                 ['raw_name' => 'tech'],
                 ['raw_name' => 'science'],
                 ['raw_name' => 'art'],
@@ -115,7 +115,7 @@ class GenerateFormComponent extends FormsComponent
         return AiGenerateAction::make('enrichCategories')
             ->prompt('Improve the slug field of this category.')
             ->forModel(SeedCategory::class)
-            ->records(fn () => SeedCategory::all())
+            ->sourceRecords(fn () => SeedCategory::all())
             ->updateRecords();
     }
 
@@ -124,7 +124,7 @@ class GenerateFormComponent extends FormsComponent
         return AiGenerateAction::make('updateWithoutRecords')
             ->prompt('x')
             ->forModel(SeedCategory::class)
-            ->updateRecords();   // missing ->records() — invalid
+            ->updateRecords();   // missing ->sourceRecords() — invalid
     }
 
     public function bothTerminalsAction(): AiGenerateAction
@@ -132,7 +132,7 @@ class GenerateFormComponent extends FormsComponent
         return AiGenerateAction::make('bothTerminals')
             ->prompt('x')
             ->forModel(SeedCategory::class)
-            ->records([['x' => 1]])
+            ->sourceRecords([['x' => 1]])
             ->createRecords()
             ->updateRecords();   // mutually exclusive
     }
@@ -150,7 +150,7 @@ class GenerateFormComponent extends FormsComponent
         return AiGenerateAction::make('importWithRowPrompt')
             ->prompt(fn (array $row) => "Process this row: tag={$row['tag']}.")
             ->forModel(SeedCategory::class)
-            ->records([
+            ->sourceRecords([
                 ['tag' => 'alpha'],
                 ['tag' => 'beta'],
             ])
