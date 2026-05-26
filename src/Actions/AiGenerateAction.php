@@ -43,6 +43,12 @@ class AiGenerateAction extends SolarisAction
     /** @var array<string> */
     protected array $exceptColumns = [];
 
+    /** @var array<string, string> */
+    protected array $columnHints = [];
+
+    /** @var array<string, array<int, mixed>> */
+    protected array $columnEnums = [];
+
     protected ?Closure $handler = null;
 
     protected function setUp(): void
@@ -106,6 +112,31 @@ class AiGenerateAction extends SolarisAction
     public function except(array $columns): static
     {
         $this->exceptColumns = $columns;
+
+        return $this;
+    }
+
+    /**
+     * (forModel only) attach a free-text hint to a column — surfaces as the
+     * JSON-schema `description` so the model gets format guidance ("kebab-case",
+     * "max 160 chars", …). No-op for a column not in the resolved schema.
+     */
+    public function columnHint(string $column, string $hint): static
+    {
+        $this->columnHints[$column] = $hint;
+
+        return $this;
+    }
+
+    /**
+     * (forModel only) constrain a column to a fixed set of values. Overrides
+     * cast-detected enums when both apply. No-op for a column not in the schema.
+     *
+     * @param  array<int, mixed>  $values
+     */
+    public function columnEnum(string $column, array $values): static
+    {
+        $this->columnEnums[$column] = $values;
 
         return $this;
     }
@@ -225,7 +256,14 @@ class AiGenerateAction extends SolarisAction
         assert($this->modelClass !== null);
 
         return function (JsonSchemaTypeFactory $schema): array {
-            $properties = (new ModelSchemaResolver)->resolve($schema, $this->modelClass, $this->onlyColumns, $this->exceptColumns);
+            $properties = (new ModelSchemaResolver)->resolve(
+                $schema,
+                $this->modelClass,
+                $this->onlyColumns,
+                $this->exceptColumns,
+                $this->columnHints,
+                $this->columnEnums,
+            );
 
             return [self::RECORDS_KEY => $schema->array()->items($schema->object($properties))];
         };
