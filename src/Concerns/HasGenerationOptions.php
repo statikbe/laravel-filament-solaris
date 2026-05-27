@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Statikbe\FilamentSolaris\Concerns;
 
 use Closure;
+use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
 use Statikbe\FilamentSolaris\Agents\SolarisAgent;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 
@@ -12,7 +13,7 @@ use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
  * Shared text-generation option setters + resolution + application.
  *
  * Used by {@see HasPromptPipeline} (which overrides resolveGenerationOptions()
- * for preset-aware fallback) and by {@see \Statikbe\FilamentSolaris\Actions\AiGenerateAction}.
+ * for preset-aware fallback) and by {@see AiGenerateAction}.
  *
  * Setters accept Closure for runtime resolution via Filament's evaluate().
  * The base resolveGenerationOptions() falls back action → config default → null
