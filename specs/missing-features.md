@@ -22,18 +22,15 @@ Implemented in full. See specs 09, 11, 14, 15 for details.
 
 ---
 
-### 2. Preview modal (`withPreview()`)
+### 2. Preview modal (`withPreview()`) ✅ Shipped
 
-The `withPreview()` setter exists in `HasTargetFields` and stores `$preview`, but nothing reads it. The spec (11-ai-action.md) describes a confirmation modal showing proposed AI values before applying them.
+A confirmation modal showing proposed AI values before applying them, via
+`->withPreview()` + the `InteractsWithSolarisPreview` trait on the host
+Livewire component. Works for `AiFormAction` and `ImageGenerationAction`
+(image refinement); `DictationFieldAction` writes its transcript directly.
 
-**TODO:**
-- [ ] After AI response, if `$preview` is true, show a modal with the proposed values per field
-- [ ] User can accept (apply) or cancel (discard)
-- [ ] Requires a Blade view for the preview modal content
-- [ ] `applyResults()` should be split: transform first, then conditionally apply
-- [ ] Works for both `AiAction` and `DictationAction` (in AI processing mode)
-
-**Target spec file:** `11-ai-action.md`
+**Shipped:** `HasPreviewModal` trait + `InteractsWithSolarisPreview` —
+see `specs/16-preview-modal.md`.
 
 ---
 
@@ -65,42 +62,38 @@ Spec says: "Given multiple target fields but no PromptBuilder → only the first
 
 ---
 
-### 5. Retry / timeout configuration
+### 5. Retry / timeout configuration ✅ Shipped (timeout)
 
-`laravel/ai` supports timeout parameters and the `#[Timeout(n)]` attribute. The package has no way to configure per-action timeouts. A long summarization needs more time than a quick classification.
+Per-action `->timeout(seconds)` (on `SolarisAction`, inherited by every
+action) and `->transcriptionTimeout()` (on `HandlesDictation`). Resolution
+chain: action-level → preset (where applicable) → config defaults
+(`ai.default_timeout`, `transcription.default_timeout`,
+`image_generation.default_timeout`).
 
-**API sketch:**
-```php
-AiAction::make('summarize')
-    ->timeout(60); // seconds
+**Shipped:**
+- [x] `$timeout` (int|Closure|null) on `SolarisAction` — applies to text
+      generation, image generation, and dictation AI processing
+- [x] `$transcriptionTimeout` on `HandlesDictation`
+- [x] Config defaults across `ai.*`, `transcription.*`, `image_generation.*`
 
-DictationAction::make('voice')
-    ->transcriptionTimeout(30)
-    ->timeout(60); // AI pipeline timeout
-```
-
-**TODO:**
-- [ ] Add `$timeout` (int|Closure|null) to `HasPromptPipeline`
-- [ ] Add `$transcriptionTimeout` to `DictationAction`
-- [ ] Pass to `SolarisAgent::prompt()` and `Transcription::generate()`
-- [ ] Add config defaults
-
-**Target spec file:** `11-ai-action.md`, `15-dictation-action.md`
+**Still deferred:** automatic retry policy (the original "retry" half of
+this section). `laravel/ai`'s `#[Retries(n)]` attribute is available but
+not yet exposed via Solaris setters — open if you want a retry knob.
 
 ---
 
 ## P2 — Nice to have, polish
 
-### 6. Filament Plugin interface
+### 6. Filament Plugin interface ✅ Shipped
 
-The service provider doesn't implement `Filament\Contracts\Plugin`. No `->plugin(FilamentSolaris::make())` registration in panels. Works via autodiscovery but isn't idiomatic Filament v4/v5.
+`FilamentSolarisPlugin implements Plugin` enables per-panel configuration
+and an auth gate. Every Tier-1/2 config key has a fluent setter; the
+visibility gate registers `->hidden(...)` on every action so user
+`->visible()` calls can't bypass it.
 
-**TODO:**
-- [ ] Create a `FilamentSolarisPlugin` class implementing `Plugin`
-- [ ] Allow per-panel configuration (e.g. different defaults per panel)
-- [ ] Keep service provider for non-panel features (config, translations, assets)
-
-**Target spec file:** new spec
+**Shipped:** see `src/FilamentSolarisPlugin.php` and the README "Panel
+Setup" section. Service provider stays for non-panel features (config,
+translations, assets, autodiscovery).
 
 ---
 
@@ -230,3 +223,18 @@ override / opt-out via `->plugins([DictationRichEditorPlugin::make()->visible(fa
 
 **Shipped:** see `specs/19-dictation-toolbar-action.md`. AI-chaining for the
 toolbar variant remains deferred.
+
+---
+
+### 14. Shared AI-call plumbing ✅ Shipped
+
+`HasGenerationOptions` trait + `SolarisAction`-level provider/timeout
+resolution share the text-generation plumbing between `HasPromptPipeline`
+(preset-aware via override) and `AiGenerateAction`. Side effect:
+`AiGenerateAction` gained `->temperature()` / `->maxTokens()` /
+`->maxSteps()` / `->topP()`. Resolved options travel as a
+`GenerationOptions` value object (final readonly) with `applyTo($agent)`
+— so the `$options` arg on `AiFormAction::assertCalledWith()` closures
+is now a DTO, not an array (`$options->temperature`, not `$options['temperature']`).
+
+**Shipped:** see `specs/25-shared-ai-call-plumbing.md`.
