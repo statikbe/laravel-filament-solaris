@@ -19,6 +19,7 @@ use Statikbe\FilamentSolaris\Factories\ComponentFactory;
 use Statikbe\FilamentSolaris\Prompts\InlinePromptBuilder;
 use Statikbe\FilamentSolaris\Prompts\Presets\Preset;
 use Statikbe\FilamentSolaris\Prompts\ViewPromptBuilder;
+use Statikbe\FilamentSolaris\Support\GenerationOptions;
 use Statikbe\FilamentSolaris\Support\SolarisNotification;
 use Statikbe\FilamentSolaris\Support\SolarisPromptLogger;
 use Statikbe\FilamentSolaris\Testing\AiFormActionFake;
@@ -227,10 +228,8 @@ trait HasPromptPipeline
      * 3. Config preset_providers[class].{temperature|max_tokens|max_steps|top_p}
      * 4. Config default_{temperature|max_tokens|max_steps|top_p}
      * 5. null (laravel/ai falls back to its own attribute defaults)
-     *
-     * @return array{temperature: ?float, max_tokens: ?int, max_steps: ?int, top_p: ?float}
      */
-    protected function resolveGenerationOptions(): array
+    protected function resolveGenerationOptions(): GenerationOptions
     {
         $config = FilamentSolaris::config();
         $preset = $this->promptBuilder instanceof Preset ? $this->promptBuilder : null;
@@ -256,12 +255,12 @@ trait HasPromptPipeline
             ?? $presetConfig['top_p']
             ?? $config->getDefaultTopP();
 
-        return [
-            'temperature' => $temperature !== null ? (float) $temperature : null,
-            'max_tokens' => $maxTokens,
-            'max_steps' => $maxSteps,
-            'top_p' => $topP !== null ? (float) $topP : null,
-        ];
+        return new GenerationOptions(
+            temperature: $temperature !== null ? (float) $temperature : null,
+            maxTokens: $maxTokens,
+            maxSteps: $maxSteps,
+            topP: $topP !== null ? (float) $topP : null,
+        );
     }
 
     /**

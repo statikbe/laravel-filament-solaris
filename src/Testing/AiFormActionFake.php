@@ -5,6 +5,7 @@ namespace Statikbe\FilamentSolaris\Testing;
 use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Files\File;
 use PHPUnit\Framework\Assert;
+use Statikbe\FilamentSolaris\Support\GenerationOptions;
 
 class AiFormActionFake
 {
@@ -149,10 +150,9 @@ class AiFormActionFake
      *
      * @param  array<string, mixed>  $sourceData
      * @param  Lab|array<string, string>|array<int, string>|string|null  $provider
-     * @param  array{temperature?: ?float, max_tokens?: ?int, max_steps?: ?int, top_p?: ?float}  $options
      * @param  array<File>  $attachments
      */
-    public function recordCall(string $actionName, array $sourceData, string $prompt, Lab|array|string|null $provider = null, ?string $model = null, ?int $timeout = null, array $options = [], array $attachments = []): void
+    public function recordCall(string $actionName, array $sourceData, string $prompt, Lab|array|string|null $provider = null, ?string $model = null, ?int $timeout = null, ?GenerationOptions $options = null, array $attachments = []): void
     {
         $this->calls[] = [
             'name' => $actionName,
@@ -161,12 +161,7 @@ class AiFormActionFake
             'provider' => $provider,
             'model' => $model,
             'timeout' => $timeout,
-            'options' => [
-                'temperature' => $options['temperature'] ?? null,
-                'max_tokens' => $options['max_tokens'] ?? null,
-                'max_steps' => $options['max_steps'] ?? null,
-                'top_p' => $options['top_p'] ?? null,
-            ],
+            'options' => $options ?? new GenerationOptions,
             'attachments' => $attachments,
         ];
     }

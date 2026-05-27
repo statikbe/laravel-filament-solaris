@@ -1,13 +1,12 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Statikbe\FilamentSolaris\Concerns;
 
 use Closure;
 use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
 use Statikbe\FilamentSolaris\Agents\SolarisAgent;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
+use Statikbe\FilamentSolaris\Support\GenerationOptions;
 
 /**
  * Shared text-generation option setters + resolution + application.
@@ -66,10 +65,8 @@ trait HasGenerationOptions
      * 3. null (laravel/ai falls back to its own attribute defaults)
      *
      * Consumers with richer chains (e.g. preset-aware) override this.
-     *
-     * @return array{temperature: ?float, max_tokens: ?int, max_steps: ?int, top_p: ?float}
      */
-    protected function resolveGenerationOptions(): array
+    protected function resolveGenerationOptions(): GenerationOptions
     {
         $config = FilamentSolaris::config();
 
@@ -78,12 +75,12 @@ trait HasGenerationOptions
         $maxSteps = $this->evaluate($this->maxSteps) ?? $config->getDefaultMaxSteps();
         $topP = $this->evaluate($this->topP) ?? $config->getDefaultTopP();
 
-        return [
-            'temperature' => $temperature !== null ? (float) $temperature : null,
-            'max_tokens' => $maxTokens,
-            'max_steps' => $maxSteps,
-            'top_p' => $topP !== null ? (float) $topP : null,
-        ];
+        return new GenerationOptions(
+            temperature: $temperature !== null ? (float) $temperature : null,
+            maxTokens: $maxTokens,
+            maxSteps: $maxSteps,
+            topP: $topP !== null ? (float) $topP : null,
+        );
     }
 
     /**
@@ -91,12 +88,6 @@ trait HasGenerationOptions
      */
     protected function applyGenerationOptions(SolarisAgent $agent): void
     {
-        $opts = $this->resolveGenerationOptions();
-
-        $agent
-            ->withTemperature($opts['temperature'])
-            ->withMaxTokens($opts['max_tokens'])
-            ->withMaxSteps($opts['max_steps'])
-            ->withTopP($opts['top_p']);
+        $this->resolveGenerationOptions()->applyTo($agent);
     }
 }

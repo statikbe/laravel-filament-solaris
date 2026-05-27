@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;
 use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
 use Statikbe\FilamentSolaris\Agents\SolarisAgent;
+use Statikbe\FilamentSolaris\Support\GenerationOptions;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 use Statikbe\FilamentSolaris\Tests\Fixtures\GenerateFormComponent;
 use Statikbe\FilamentSolaris\Tests\Fixtures\SeedCategory;
@@ -324,10 +325,11 @@ it('falls back to config defaults for AiGenerateAction generation options when n
     $ref = new ReflectionMethod($action, 'resolveGenerationOptions');
     $ref->setAccessible(true);
 
-    expect($ref->invoke($action))->toBe([
-        'temperature' => 0.5,
-        'max_tokens' => 1500,
-        'max_steps' => 4,
-        'top_p' => 0.9,
-    ]);
+    $opts = $ref->invoke($action);
+
+    expect($opts)->toBeInstanceOf(GenerationOptions::class)
+        ->and($opts->temperature)->toBe(0.5)
+        ->and($opts->maxTokens)->toBe(1500)
+        ->and($opts->maxSteps)->toBe(4)
+        ->and($opts->topP)->toBe(0.9);
 });

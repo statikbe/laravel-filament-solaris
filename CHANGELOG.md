@@ -26,7 +26,10 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
   and `->topP()` via the new shared `HasGenerationOptions` trait. Internal refactor:
   `HasPromptPipeline` and `AiGenerateAction` share generation-options +
   provider/timeout resolution machinery via the trait + a `SolarisAction` base;
-  `HasPromptPipeline` keeps its preset-aware overrides.
+  `HasPromptPipeline` keeps its preset-aware overrides. Resolved options are
+  carried in a new `GenerationOptions` value object — the `$options` closure
+  arg in `AiFormAction::assertCalledWith()` is now a `GenerationOptions`
+  instance (read via `$options->temperature` etc., **not** `$options['temperature']`).
 - `AiGenerateAction` per-record write-back & enrichment: new `->createRecords()` /
   `->updateRecords()` terminals + polymorphic `->sourceRecords()` source +
   `->promptContextColumns()` override. Imports rows → creates models; enriches
