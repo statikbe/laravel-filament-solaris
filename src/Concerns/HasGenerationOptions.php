@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Statikbe\FilamentSolaris\Concerns;
 
 use Closure;
-use Statikbe\FilamentSolaris\FilamentSolaris;
-use Statikbe\FilamentSolaris\Support\SolarisAgent;
+use Statikbe\FilamentSolaris\Agents\SolarisAgent;
+use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 
 /**
  * Shared text-generation option setters + resolution + application.
