@@ -11,11 +11,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
 use Illuminate\Support\Collection;
-use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use LogicException;
 use RuntimeException;
 use Statikbe\FilamentSolaris\Agents\SolarisAgent;
+use Statikbe\FilamentSolaris\Concerns\HasGenerationOptions;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\Support\ModelSchemaResolver;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
@@ -31,6 +31,8 @@ use Statikbe\FilamentSolaris\Testing\AiGenerateActionFakeException;
  */
 class AiGenerateAction extends SolarisAction
 {
+    use HasGenerationOptions;
+
     public const RECORDS_KEY = 'records';
 
     public const WRITE_CREATE = 'create';
@@ -233,6 +235,7 @@ class AiGenerateAction extends SolarisAction
         $timeout = $this->resolveTimeout();
 
         $agent = (new SolarisAgent)->configure($instruction, [], $resolver);
+        $this->applyGenerationOptions($agent);
 
         /** @var StructuredAgentResponse|null $response */
         $response = $this->executeAiCall(
@@ -346,27 +349,6 @@ class AiGenerateAction extends SolarisAction
 
             return [self::RECORDS_KEY => $schema->array()->items($schema->object($properties))];
         };
-    }
-
-    /**
-     * @return array{provider: Lab|array<int|string, string>|string|null, model: ?string}
-     */
-    protected function resolveProviderAndModel(): array
-    {
-        $action = $this->resolveActionProvider();
-
-        if ($action !== null) {
-            return $action;
-        }
-
-        $config = FilamentSolaris::config();
-
-        return ['provider' => $config->getDefaultProvider(), 'model' => $config->getDefaultModel()];
-    }
-
-    protected function resolveTimeout(): ?int
-    {
-        return $this->resolveActionTimeout() ?? FilamentSolaris::config()->getDefaultTimeout();
     }
 
     private function validateConfiguration(): void
@@ -524,6 +506,7 @@ class AiGenerateAction extends SolarisAction
 
         $instruction = $this->resolveInstructionForRow($row);
         $agent = (new SolarisAgent)->configure($instruction, [], $resolver);
+        $this->applyGenerationOptions($agent);
 
         /** @var StructuredAgentResponse|null $response */
         $response = $this->executeAiCall(
