@@ -290,8 +290,32 @@ AiGenerateAction::make('seed-categories')
 
 See [Configuration](configuration.md) for package-wide defaults.
 
+## Generation Options
+
+Tune the underlying text generation. All four options are optional — when not set, the resolver falls back to the config `default_*` keys, and ultimately to `laravel/ai`'s own attribute defaults.
+
+```php
+AiGenerateAction::make('seed-articles')
+    ->forModel(Article::class)
+    ->count(20)
+    ->temperature(0.9)   // creativity for diverse seed data
+    ->maxTokens(2000)
+    ->maxSteps(5)
+    ->topP(0.95)
+    ->createRecords();
+```
+
+Setters accept `Closure` for runtime values:
+
+```php
+AiGenerateAction::make('seed-articles')
+    ->temperature(fn () => auth()->user()->ai_creativity ?? 0.7)
+```
+
+Resolution chain per option (highest wins): action → config `default_*` → `laravel/ai` default. See [Configuration](configuration.md) for the package-wide `default_temperature` / `default_max_tokens` / `default_max_steps` / `default_top_p` keys.
+
 > [!NOTE]
-> **Generation options** (`->temperature()`, `->maxTokens()`, `->maxSteps()`, `->topP()`) are not available on `AiGenerateAction` in v1. **Preview and conversational refinement** are also not supported — the action executes, calls your handler, and returns. These features may be added in a later version.
+> **Preview and conversational refinement** are not supported on `AiGenerateAction` — the action executes, calls your handler, and returns. These may be added in a later version.
 
 ## Testing
 
