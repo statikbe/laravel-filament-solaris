@@ -263,3 +263,29 @@ it('filters the row context to ->promptContextColumns() in the per-row instructi
     expect($instruction)->toContain('"visible": "v"')
         ->and($instruction)->not->toContain('"secret"');
 });
+
+it('falls back to config default_provider/default_model when no action override is set', function () {
+    config([
+        'filament-solaris.ai.default_provider' => ['anthropic'],
+        'filament-solaris.ai.default_model' => 'claude-opus-4-7',
+    ]);
+
+    $action = AiGenerateAction::make('test')->outputSchema(fn ($schema) => ['x' => $schema->string()]);
+
+    $ref = new ReflectionMethod($action, 'resolveProviderAndModel');
+    $ref->setAccessible(true);
+    $result = $ref->invoke($action);
+
+    expect($result)->toBe(['provider' => ['anthropic'], 'model' => 'claude-opus-4-7']);
+});
+
+it('falls back to config default_timeout when no action override is set', function () {
+    config(['filament-solaris.ai.default_timeout' => 42]);
+
+    $action = AiGenerateAction::make('test')->outputSchema(fn ($schema) => ['x' => $schema->string()]);
+
+    $ref = new ReflectionMethod($action, 'resolveTimeout');
+    $ref->setAccessible(true);
+
+    expect($ref->invoke($action))->toBe(42);
+});
