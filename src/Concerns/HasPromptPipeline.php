@@ -19,6 +19,7 @@ use Statikbe\FilamentSolaris\Factories\ComponentFactory;
 use Statikbe\FilamentSolaris\Prompts\InlinePromptBuilder;
 use Statikbe\FilamentSolaris\Prompts\Presets\Preset;
 use Statikbe\FilamentSolaris\Prompts\ViewPromptBuilder;
+use Statikbe\FilamentSolaris\Support\GenerationOptions;
 use Statikbe\FilamentSolaris\Support\SolarisNotification;
 use Statikbe\FilamentSolaris\Support\SolarisPromptLogger;
 use Statikbe\FilamentSolaris\Testing\AiFormActionFake;
@@ -37,6 +38,7 @@ use Statikbe\FilamentSolaris\Testing\AiFormActionFake;
  */
 trait HasPromptPipeline
 {
+    use HasGenerationOptions;
     use HasTargetFields;
     use HasUserInput;
 
@@ -48,14 +50,6 @@ trait HasPromptPipeline
 
     /** @var array<Tool|ProviderTool>|Closure|null */
     protected array|Closure|null $pipelineTools = null;
-
-    protected float|int|Closure|null $pipelineTemperature = null;
-
-    protected int|Closure|null $pipelineMaxTokens = null;
-
-    protected int|Closure|null $pipelineMaxSteps = null;
-
-    protected float|int|Closure|null $pipelineTopP = null;
 
     /**
      * Per-action sanitizer applied to every AI value before it's written to
@@ -151,46 +145,6 @@ trait HasPromptPipeline
     }
 
     /**
-     * Set the sampling temperature for this action.
-     */
-    public function temperature(float|int|Closure|null $temperature): static
-    {
-        $this->pipelineTemperature = $temperature;
-
-        return $this;
-    }
-
-    /**
-     * Set the max output tokens for this action.
-     */
-    public function maxTokens(int|Closure|null $maxTokens): static
-    {
-        $this->pipelineMaxTokens = $maxTokens;
-
-        return $this;
-    }
-
-    /**
-     * Set the max tool-call steps for this action.
-     */
-    public function maxSteps(int|Closure|null $maxSteps): static
-    {
-        $this->pipelineMaxSteps = $maxSteps;
-
-        return $this;
-    }
-
-    /**
-     * Set the nucleus sampling top_p for this action.
-     */
-    public function topP(float|int|Closure|null $topP): static
-    {
-        $this->pipelineTopP = $topP;
-
-        return $this;
-    }
-
-    /**
      * Sanitize every AI value before it's written to form state.
      *
      * The closure receives the value returned by the factory's
@@ -274,41 +228,39 @@ trait HasPromptPipeline
      * 3. Config preset_providers[class].{temperature|max_tokens|max_steps|top_p}
      * 4. Config default_{temperature|max_tokens|max_steps|top_p}
      * 5. null (laravel/ai falls back to its own attribute defaults)
-     *
-     * @return array{temperature: ?float, max_tokens: ?int, max_steps: ?int, top_p: ?float}
      */
-    protected function resolveOptions(): array
+    protected function resolveGenerationOptions(): GenerationOptions
     {
         $config = FilamentSolaris::config();
         $preset = $this->promptBuilder instanceof Preset ? $this->promptBuilder : null;
         $presetConfig = $preset !== null ? $config->getPresetProvider(get_class($preset)) : [];
 
-        $temperature = $this->evaluate($this->pipelineTemperature)
+        $temperature = $this->evaluate($this->temperature)
             ?? $preset?->getTemperature()
             ?? $presetConfig['temperature']
             ?? $config->getDefaultTemperature();
 
-        $maxTokens = $this->evaluate($this->pipelineMaxTokens)
+        $maxTokens = $this->evaluate($this->maxTokens)
             ?? $preset?->getMaxTokens()
             ?? $presetConfig['max_tokens']
             ?? $config->getDefaultMaxTokens();
 
-        $maxSteps = $this->evaluate($this->pipelineMaxSteps)
+        $maxSteps = $this->evaluate($this->maxSteps)
             ?? $preset?->getMaxSteps()
             ?? $presetConfig['max_steps']
             ?? $config->getDefaultMaxSteps();
 
-        $topP = $this->evaluate($this->pipelineTopP)
+        $topP = $this->evaluate($this->topP)
             ?? $preset?->getTopP()
             ?? $presetConfig['top_p']
             ?? $config->getDefaultTopP();
 
-        return [
-            'temperature' => $temperature !== null ? (float) $temperature : null,
-            'max_tokens' => $maxTokens,
-            'max_steps' => $maxSteps,
-            'top_p' => $topP !== null ? (float) $topP : null,
-        ];
+        return new GenerationOptions(
+            temperature: $temperature !== null ? (float) $temperature : null,
+            maxTokens: $maxTokens,
+            maxSteps: $maxSteps,
+            topP: $topP !== null ? (float) $topP : null,
+        );
     }
 
     /**
@@ -441,7 +393,7 @@ trait HasPromptPipeline
             $agent->withTools($this->evaluate($this->pipelineTools));
         }
 
-        $this->applyOptionsToAgent($agent);
+        $this->applyGenerationOptions($agent);
 
         if ($agent instanceof ConversationalSolarisAgent && auth()->user() !== null) {
             $agent->forUser(auth()->user());
@@ -490,7 +442,7 @@ trait HasPromptPipeline
 
         ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
         $timeout = $this->resolveTimeout();
-        $options = $this->resolveOptions();
+        $options = $this->resolveGenerationOptions();
         $attachments = $this->resolveAttachments($userInput);
         $fake->recordCall($this->getName(), $sourceData, $prompt, $provider, $model, $timeout, $options, $attachments);
 
@@ -539,20 +491,6 @@ trait HasPromptPipeline
         }
 
         return new SolarisAgent;
-    }
-
-    /**
-     * Apply resolved text-generation options to the agent.
-     */
-    protected function applyOptionsToAgent(SolarisAgent $agent): void
-    {
-        $options = $this->resolveOptions();
-
-        $agent
-            ->withTemperature($options['temperature'])
-            ->withMaxTokens($options['max_tokens'])
-            ->withMaxSteps($options['max_steps'])
-            ->withTopP($options['top_p']);
     }
 
     /**
@@ -793,7 +731,7 @@ trait HasPromptPipeline
         $agent = new ConversationalSolarisAgent;
         $agent->configure($prompt, $factories);
 
-        $this->applyOptionsToAgent($agent);
+        $this->applyGenerationOptions($agent);
 
         $user = auth()->user();
 

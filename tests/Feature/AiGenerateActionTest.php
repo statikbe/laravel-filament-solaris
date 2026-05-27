@@ -3,6 +3,8 @@
 use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;
 use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
+use Statikbe\FilamentSolaris\Agents\SolarisAgent;
+use Statikbe\FilamentSolaris\Support\GenerationOptions;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 use Statikbe\FilamentSolaris\Tests\Fixtures\GenerateFormComponent;
 use Statikbe\FilamentSolaris\Tests\Fixtures\SeedCategory;
@@ -262,4 +264,72 @@ it('filters the row context to ->promptContextColumns() in the per-row instructi
 
     expect($instruction)->toContain('"visible": "v"')
         ->and($instruction)->not->toContain('"secret"');
+});
+
+it('falls back to config default_provider/default_model when no action override is set', function () {
+    config([
+        'filament-solaris.ai.default_provider' => ['anthropic'],
+        'filament-solaris.ai.default_model' => 'claude-opus-4-7',
+    ]);
+
+    $action = AiGenerateAction::make('test')->outputSchema(fn ($schema) => ['x' => $schema->string()]);
+
+    $ref = new ReflectionMethod($action, 'resolveProviderAndModel');
+    $ref->setAccessible(true);
+    $result = $ref->invoke($action);
+
+    expect($result)->toBe(['provider' => ['anthropic'], 'model' => 'claude-opus-4-7']);
+});
+
+it('falls back to config default_timeout when no action override is set', function () {
+    config(['filament-solaris.ai.default_timeout' => 42]);
+
+    $action = AiGenerateAction::make('test')->outputSchema(fn ($schema) => ['x' => $schema->string()]);
+
+    $ref = new ReflectionMethod($action, 'resolveTimeout');
+    $ref->setAccessible(true);
+
+    expect($ref->invoke($action))->toBe(42);
+});
+
+it('applies temperature, maxTokens, maxSteps, and topP to the agent', function () {
+    $action = AiGenerateAction::make('test')
+        ->outputSchema(fn ($schema) => ['x' => $schema->string()])
+        ->temperature(0.9)
+        ->maxTokens(2000)
+        ->maxSteps(7)
+        ->topP(0.85);
+
+    $agent = new SolarisAgent;
+
+    $ref = new ReflectionMethod($action, 'applyGenerationOptions');
+    $ref->setAccessible(true);
+    $ref->invoke($action, $agent);
+
+    expect($agent->temperature())->toBe(0.9)
+        ->and($agent->maxTokens())->toBe(2000)
+        ->and($agent->maxSteps())->toBe(7)
+        ->and($agent->topP())->toBe(0.85);
+});
+
+it('falls back to config defaults for AiGenerateAction generation options when not set', function () {
+    config([
+        'filament-solaris.ai.default_temperature' => 0.5,
+        'filament-solaris.ai.default_max_tokens' => 1500,
+        'filament-solaris.ai.default_max_steps' => 4,
+        'filament-solaris.ai.default_top_p' => 0.9,
+    ]);
+
+    $action = AiGenerateAction::make('test')->outputSchema(fn ($schema) => ['x' => $schema->string()]);
+
+    $ref = new ReflectionMethod($action, 'resolveGenerationOptions');
+    $ref->setAccessible(true);
+
+    $opts = $ref->invoke($action);
+
+    expect($opts)->toBeInstanceOf(GenerationOptions::class)
+        ->and($opts->temperature)->toBe(0.5)
+        ->and($opts->maxTokens)->toBe(1500)
+        ->and($opts->maxSteps)->toBe(4)
+        ->and($opts->topP)->toBe(0.9);
 });

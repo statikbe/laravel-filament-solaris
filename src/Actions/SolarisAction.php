@@ -16,6 +16,7 @@ use Statikbe\FilamentSolaris\Concerns\HasPreviewModal;
 use Statikbe\FilamentSolaris\Concerns\InteractsWithSolarisPreview;
 use Statikbe\FilamentSolaris\Events\SolarisResponseFailed;
 use Statikbe\FilamentSolaris\Events\SolarisResponseReceived;
+use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\FilamentSolarisPlugin;
 use Statikbe\FilamentSolaris\Support\SolarisNotification;
 use Statikbe\FilamentSolaris\Support\SolarisPromptLogger;
@@ -193,6 +194,34 @@ abstract class SolarisAction extends Action
     protected function resolveActionTimeout(): ?int
     {
         return $this->evaluate($this->timeout);
+    }
+
+    /**
+     * Resolve provider+model: action-level override falls back to config defaults.
+     * Subclasses with richer chains (e.g. preset-aware) override this.
+     *
+     * @return array{provider: Lab|array<int|string, string>|string|null, model: ?string}
+     */
+    protected function resolveProviderAndModel(): array
+    {
+        $action = $this->resolveActionProvider();
+
+        if ($action !== null) {
+            return $action;
+        }
+
+        $config = FilamentSolaris::config();
+
+        return ['provider' => $config->getDefaultProvider(), 'model' => $config->getDefaultModel()];
+    }
+
+    /**
+     * Resolve timeout: action-level override falls back to config default.
+     * Subclasses with richer chains (e.g. preset-aware) override this.
+     */
+    protected function resolveTimeout(): ?int
+    {
+        return $this->resolveActionTimeout() ?? FilamentSolaris::config()->getDefaultTimeout();
     }
 
     /**

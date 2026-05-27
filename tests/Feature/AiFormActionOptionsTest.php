@@ -27,10 +27,10 @@ it('records null options when none configured', function () {
         ->callAction('generateSummary');
 
     AiFormAction::assertCalledWith(function ($sourceData, $prompt, $provider, $model, $timeout, $options) {
-        expect($options['temperature'])->toBeNull()
-            ->and($options['max_tokens'])->toBeNull()
-            ->and($options['max_steps'])->toBeNull()
-            ->and($options['top_p'])->toBeNull();
+        expect($options->temperature)->toBeNull()
+            ->and($options->maxTokens)->toBeNull()
+            ->and($options->maxSteps)->toBeNull()
+            ->and($options->topP)->toBeNull();
     });
 });
 
@@ -42,10 +42,10 @@ it('records action-level options', function () {
         ->callAction('generateWithOptions');
 
     AiFormAction::assertCalledWith(function ($sourceData, $prompt, $provider, $model, $timeout, $options) {
-        expect($options['temperature'])->toBe(0.7)
-            ->and($options['max_tokens'])->toBe(2048)
-            ->and($options['max_steps'])->toBe(5)
-            ->and($options['top_p'])->toBe(0.95);
+        expect($options->temperature)->toBe(0.7)
+            ->and($options->maxTokens)->toBe(2048)
+            ->and($options->maxSteps)->toBe(5)
+            ->and($options->topP)->toBe(0.95);
     });
 });
 
@@ -57,10 +57,10 @@ it('records preset-level options', function () {
         ->callAction('generateWithPresetOptions');
 
     AiFormAction::assertCalledWith(function ($sourceData, $prompt, $provider, $model, $timeout, $options) {
-        expect($options['temperature'])->toBe(0.3)
-            ->and($options['max_tokens'])->toBe(512)
-            ->and($options['max_steps'])->toBeNull()
-            ->and($options['top_p'])->toBeNull();
+        expect($options->temperature)->toBe(0.3)
+            ->and($options->maxTokens)->toBe(512)
+            ->and($options->maxSteps)->toBeNull()
+            ->and($options->topP)->toBeNull();
     });
 });
 
@@ -72,8 +72,8 @@ it('action options override preset options', function () {
         ->callAction('generateWithBothOptions');
 
     AiFormAction::assertCalledWith(function ($sourceData, $prompt, $provider, $model, $timeout, $options) {
-        expect($options['temperature'])->toBe(0.9)        // action wins
-            ->and($options['max_tokens'])->toBe(512);     // preset value passes through (action didn't set)
+        expect($options->temperature)->toBe(0.9)        // action wins
+            ->and($options->maxTokens)->toBe(512);     // preset value passes through (action didn't set)
     });
 });
 
@@ -92,8 +92,8 @@ it('records preset_providers config options', function () {
         ->callAction('generateWithPreset');
 
     AiFormAction::assertCalledWith(function ($sourceData, $prompt, $provider, $model, $timeout, $options) {
-        expect($options['temperature'])->toBe(0.5)
-            ->and($options['max_tokens'])->toBe(256);
+        expect($options->temperature)->toBe(0.5)
+            ->and($options->maxTokens)->toBe(256);
     });
 });
 
@@ -110,10 +110,10 @@ it('records config defaults when nothing else set', function () {
         ->callAction('generateSummary');
 
     AiFormAction::assertCalledWith(function ($sourceData, $prompt, $provider, $model, $timeout, $options) {
-        expect($options['temperature'])->toBe(0.42)
-            ->and($options['max_tokens'])->toBe(1234)
-            ->and($options['max_steps'])->toBe(7)
-            ->and($options['top_p'])->toBe(0.85);
+        expect($options->temperature)->toBe(0.42)
+            ->and($options->maxTokens)->toBe(1234)
+            ->and($options->maxSteps)->toBe(7)
+            ->and($options->topP)->toBe(0.85);
     });
 });
 
@@ -127,7 +127,7 @@ it('preset overrides config default', function () {
         ->callAction('generateWithPresetOptions');
 
     AiFormAction::assertCalledWith(function ($sourceData, $prompt, $provider, $model, $timeout, $options) {
-        expect($options['temperature'])->toBe(0.3); // preset wins over config default
+        expect($options->temperature)->toBe(0.3); // preset wins over config default
     });
 });
 
@@ -145,7 +145,7 @@ it('preset_providers config overrides config default but loses to preset method'
         ->callAction('generateWithPresetOptions');
 
     AiFormAction::assertCalledWith(function ($sourceData, $prompt, $provider, $model, $timeout, $options) {
-        expect($options['temperature'])->toBe(0.3); // preset method wins over preset_providers config
+        expect($options->temperature)->toBe(0.3); // preset method wins over preset_providers config
     });
 });
 
@@ -162,7 +162,7 @@ it('preset_providers config wins over config default', function () {
         ->callAction('generateWithPreset');
 
     AiFormAction::assertCalledWith(function ($sourceData, $prompt, $provider, $model, $timeout, $options) {
-        expect($options['temperature'])->toBe(0.2);
+        expect($options->temperature)->toBe(0.2);
     });
 });
 
@@ -174,6 +174,6 @@ it('resolves Closure temperature at call time', function () {
         ->callAction('generateWithClosureTemperature');
 
     AiFormAction::assertCalledWith(function ($sourceData, $prompt, $provider, $model, $timeout, $options) {
-        expect($options['temperature'])->toBe(0.42);
+        expect($options->temperature)->toBe(0.42);
     });
 });
