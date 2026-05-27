@@ -277,7 +277,7 @@ trait HasPromptPipeline
      *
      * @return array{temperature: ?float, max_tokens: ?int, max_steps: ?int, top_p: ?float}
      */
-    protected function resolveOptions(): array
+    protected function resolveGenerationOptions(): array
     {
         $config = FilamentSolaris::config();
         $preset = $this->promptBuilder instanceof Preset ? $this->promptBuilder : null;
@@ -441,7 +441,7 @@ trait HasPromptPipeline
             $agent->withTools($this->evaluate($this->pipelineTools));
         }
 
-        $this->applyOptionsToAgent($agent);
+        $this->applyGenerationOptions($agent);
 
         if ($agent instanceof ConversationalSolarisAgent && auth()->user() !== null) {
             $agent->forUser(auth()->user());
@@ -490,7 +490,7 @@ trait HasPromptPipeline
 
         ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
         $timeout = $this->resolveTimeout();
-        $options = $this->resolveOptions();
+        $options = $this->resolveGenerationOptions();
         $attachments = $this->resolveAttachments($userInput);
         $fake->recordCall($this->getName(), $sourceData, $prompt, $provider, $model, $timeout, $options, $attachments);
 
@@ -544,9 +544,9 @@ trait HasPromptPipeline
     /**
      * Apply resolved text-generation options to the agent.
      */
-    protected function applyOptionsToAgent(SolarisAgent $agent): void
+    protected function applyGenerationOptions(SolarisAgent $agent): void
     {
-        $options = $this->resolveOptions();
+        $options = $this->resolveGenerationOptions();
 
         $agent
             ->withTemperature($options['temperature'])
@@ -793,7 +793,7 @@ trait HasPromptPipeline
         $agent = new ConversationalSolarisAgent;
         $agent->configure($prompt, $factories);
 
-        $this->applyOptionsToAgent($agent);
+        $this->applyGenerationOptions($agent);
 
         $user = auth()->user();
 
