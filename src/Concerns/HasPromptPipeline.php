@@ -37,6 +37,7 @@ use Statikbe\FilamentSolaris\Testing\AiFormActionFake;
  */
 trait HasPromptPipeline
 {
+    use HasGenerationOptions;
     use HasTargetFields;
     use HasUserInput;
 
@@ -48,14 +49,6 @@ trait HasPromptPipeline
 
     /** @var array<Tool|ProviderTool>|Closure|null */
     protected array|Closure|null $pipelineTools = null;
-
-    protected float|int|Closure|null $pipelineTemperature = null;
-
-    protected int|Closure|null $pipelineMaxTokens = null;
-
-    protected int|Closure|null $pipelineMaxSteps = null;
-
-    protected float|int|Closure|null $pipelineTopP = null;
 
     /**
      * Per-action sanitizer applied to every AI value before it's written to
@@ -146,46 +139,6 @@ trait HasPromptPipeline
     public function tools(array|Closure $tools): static
     {
         $this->pipelineTools = $tools;
-
-        return $this;
-    }
-
-    /**
-     * Set the sampling temperature for this action.
-     */
-    public function temperature(float|int|Closure|null $temperature): static
-    {
-        $this->pipelineTemperature = $temperature;
-
-        return $this;
-    }
-
-    /**
-     * Set the max output tokens for this action.
-     */
-    public function maxTokens(int|Closure|null $maxTokens): static
-    {
-        $this->pipelineMaxTokens = $maxTokens;
-
-        return $this;
-    }
-
-    /**
-     * Set the max tool-call steps for this action.
-     */
-    public function maxSteps(int|Closure|null $maxSteps): static
-    {
-        $this->pipelineMaxSteps = $maxSteps;
-
-        return $this;
-    }
-
-    /**
-     * Set the nucleus sampling top_p for this action.
-     */
-    public function topP(float|int|Closure|null $topP): static
-    {
-        $this->pipelineTopP = $topP;
 
         return $this;
     }
@@ -283,22 +236,22 @@ trait HasPromptPipeline
         $preset = $this->promptBuilder instanceof Preset ? $this->promptBuilder : null;
         $presetConfig = $preset !== null ? $config->getPresetProvider(get_class($preset)) : [];
 
-        $temperature = $this->evaluate($this->pipelineTemperature)
+        $temperature = $this->evaluate($this->temperature)
             ?? $preset?->getTemperature()
             ?? $presetConfig['temperature']
             ?? $config->getDefaultTemperature();
 
-        $maxTokens = $this->evaluate($this->pipelineMaxTokens)
+        $maxTokens = $this->evaluate($this->maxTokens)
             ?? $preset?->getMaxTokens()
             ?? $presetConfig['max_tokens']
             ?? $config->getDefaultMaxTokens();
 
-        $maxSteps = $this->evaluate($this->pipelineMaxSteps)
+        $maxSteps = $this->evaluate($this->maxSteps)
             ?? $preset?->getMaxSteps()
             ?? $presetConfig['max_steps']
             ?? $config->getDefaultMaxSteps();
 
-        $topP = $this->evaluate($this->pipelineTopP)
+        $topP = $this->evaluate($this->topP)
             ?? $preset?->getTopP()
             ?? $presetConfig['top_p']
             ?? $config->getDefaultTopP();
@@ -539,20 +492,6 @@ trait HasPromptPipeline
         }
 
         return new SolarisAgent;
-    }
-
-    /**
-     * Apply resolved text-generation options to the agent.
-     */
-    protected function applyGenerationOptions(SolarisAgent $agent): void
-    {
-        $options = $this->resolveGenerationOptions();
-
-        $agent
-            ->withTemperature($options['temperature'])
-            ->withMaxTokens($options['max_tokens'])
-            ->withMaxSteps($options['max_steps'])
-            ->withTopP($options['top_p']);
     }
 
     /**
