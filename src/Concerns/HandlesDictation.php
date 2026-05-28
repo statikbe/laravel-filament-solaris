@@ -11,7 +11,7 @@ use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Exceptions\AiException;
 use Laravel\Ai\Exceptions\ProviderOverloadedException;
 use Laravel\Ai\Exceptions\RateLimitedException;
-use Laravel\Ai\Transcription;
+use Laravel\Ai\Files\Base64Audio;
 use Statikbe\FilamentSolaris\Actions\DictationFieldAction;
 use Statikbe\FilamentSolaris\Actions\SolarisAction;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
@@ -45,7 +45,28 @@ trait HandlesDictation
      * Addressed as `mountedActions.{nestingIndex}.data.{KEY}` from the
      * browser side — see {@see resolveAudioStatePath()}.
      */
-    public const AUDIO_FIELD = 'solaris_dictation_audio';
+    public const string AUDIO_FIELD = 'solaris_dictation_audio';
+
+    /**
+     * Allowlisted audio MIMEs the transcription gateways recognise, keyed by the
+     * file extension the recorder JS emits.
+     *
+     * MediaRecorder writes WebM (Chromium/Firefox) or MP4 (Safari) Blobs, which
+     * `dictation.js` persists under `recording.{ext}`. The OpenRouter gateway
+     * (and others) compare MIME with a strict `match`, so we normalise to a
+     * clean `audio/*` value here.
+     */
+    private const array AUDIO_MIME_BY_EXTENSION = [
+        'webm' => 'audio/webm',
+        'ogg' => 'audio/ogg',
+        'oga' => 'audio/ogg',
+        'mp3' => 'audio/mpeg',
+        'mp4' => 'audio/mp4',
+        'm4a' => 'audio/m4a',
+        'wav' => 'audio/wav',
+        'flac' => 'audio/flac',
+        'aac' => 'audio/aac',
+    ];
 
     protected string|Closure|null $transcriptionLang = null;
 
@@ -268,7 +289,10 @@ trait HandlesDictation
         ['provider' => $provider, 'model' => $model] = $this->resolveTranscriptionProviderAndModel();
         $timeout = $this->resolveTranscriptionTimeout();
 
-        $pending = Transcription::fromUpload($audioFile)
+        $mimeType = $this->resolveAudioMimeType($audioFile);
+
+        $pending = Base64Audio::fromUpload($audioFile, mimeType: $mimeType)
+            ->transcription()
             ->language($this->getTranscriptionLang());
 
         if ($timeout !== null) {
@@ -311,5 +335,39 @@ trait HandlesDictation
         }
 
         return $text;
+    }
+
+    /**
+     * Resolve a gateway-friendly audio MIME for the upload.
+     *
+     * Livewire's TemporaryUploadedFile commonly degrades the client MIME to
+     * `application/octet-stream` or appends codec parameters like
+     * `audio/webm;codecs=opus`. Neither hits the OpenRouter gateway's strict
+     * `audio/*` allowlist, so we probe three sources — filename extension,
+     * framework MIME guess, raw client MIME — and return the first usable value.
+     */
+    protected function resolveAudioMimeType(UploadedFile $file): string
+    {
+        $extension = strtolower($file->getClientOriginalExtension());
+
+        if (isset(self::AUDIO_MIME_BY_EXTENSION[$extension])) {
+            return self::AUDIO_MIME_BY_EXTENSION[$extension];
+        }
+
+        // MediaRecorder writes an audio-only stream into a WebM container, but
+        // Symfony's MIME guesser sniffs the container and reports `video/webm`
+        // — normalise.
+        $sniffed = $file->getMimeType() ?? '';
+        $sniffed = $sniffed === 'video/webm' ? 'audio/webm' : $sniffed;
+
+        if (str_starts_with($sniffed, 'audio/')) {
+            return $sniffed;
+        }
+
+        // Last resort: the raw client MIME, stripped of codec parameters that
+        // the gateway's allowlist doesn't include.
+        $clientMime = $file->getClientMimeType();
+
+        return trim(strstr($clientMime, ';', true) ?: $clientMime);
     }
 }
