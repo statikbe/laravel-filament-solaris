@@ -16,6 +16,7 @@ use LogicException;
 use RuntimeException;
 use Statikbe\FilamentSolaris\Agents\SolarisAgent;
 use Statikbe\FilamentSolaris\Concerns\HasGenerationOptions;
+use Statikbe\FilamentSolaris\Concerns\HasUserInput;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\Support\ModelSchemaResolver;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
@@ -32,6 +33,7 @@ use Statikbe\FilamentSolaris\Testing\AiGenerateActionFakeException;
 class AiGenerateAction extends SolarisAction
 {
     use HasGenerationOptions;
+    use HasUserInput;
 
     public const RECORDS_KEY = 'records';
 
@@ -410,11 +412,6 @@ class AiGenerateAction extends SolarisAction
     public function refine(string $message, array $turnAttachments = []): void
     {
         throw new LogicException('AiGenerateAction does not support conversational refinement.');
-    }
-
-    public function hasUserInput(): bool
-    {
-        return false;
     }
 
     // ── Records loop ─────────────────────────────────────────────
