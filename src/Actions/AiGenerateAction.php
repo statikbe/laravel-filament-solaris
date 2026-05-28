@@ -217,12 +217,10 @@ class AiGenerateAction extends SolarisAction
     }
 
     /**
-     * @param  array<string, mixed>  $data
+     * @param  array<string, mixed>  $userInput
      */
-    public function execute(array $data = []): void
+    public function execute(array $userInput = []): void
     {
-        $userInput = $data;
-
         $this->validateConfiguration();
 
         if ($this->source !== null) {
