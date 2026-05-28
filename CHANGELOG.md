@@ -2,6 +2,18 @@
 
 All notable changes to `laravel-filament-solaris` will be documented in this file.
 
+## 0.3.0 - 2026-05-28
+
+### What's Changed
+
+* Fix openrouter voice transcription by @kristofser in https://github.com/statikbe/laravel-filament-solaris/pull/11
+
+### New Contributors
+
+* @kristofser made their first contribution in https://github.com/statikbe/laravel-filament-solaris/pull/11
+
+**Full Changelog**: https://github.com/statikbe/laravel-filament-solaris/compare/0.2.0...0.3.0
+
 ## v0.2.0 - 2026-05-26
 
 - Transcribe/dictation toolbar button for the rich editor.
