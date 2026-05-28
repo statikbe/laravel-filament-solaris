@@ -38,9 +38,11 @@ use Statikbe\FilamentSolaris\Testing\AiFormActionFake;
  */
 trait HasPromptPipeline
 {
+    use HasDefaultUserInput, HasUserInput {
+        HasDefaultUserInput::getDefaultUserInputFromBuilder insteadof HasUserInput;
+    }
     use HasGenerationOptions;
     use HasTargetFields;
-    use HasUserInput;
 
     protected ?PromptBuilder $promptBuilder = null;
 

@@ -16,6 +16,7 @@ use LogicException;
 use RuntimeException;
 use Statikbe\FilamentSolaris\Agents\SolarisAgent;
 use Statikbe\FilamentSolaris\Concerns\HasGenerationOptions;
+use Statikbe\FilamentSolaris\Concerns\HasUserInput;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\Support\ModelSchemaResolver;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
@@ -32,6 +33,7 @@ use Statikbe\FilamentSolaris\Testing\AiGenerateActionFakeException;
 class AiGenerateAction extends SolarisAction
 {
     use HasGenerationOptions;
+    use HasUserInput;
 
     public const RECORDS_KEY = 'records';
 
@@ -78,8 +80,10 @@ class AiGenerateAction extends SolarisAction
 
         $this->icon(FilamentSolaris::config()->getActionIcon());
 
-        $this->action(function (AiGenerateAction $action): void {
-            $action->execute();
+        $this->schema(fn (AiGenerateAction $action): array => $action->getUserInputFormSchema());
+
+        $this->action(function (AiGenerateAction $action, array $data = []): void {
+            $action->execute($data);
         });
     }
 
@@ -212,23 +216,26 @@ class AiGenerateAction extends SolarisAction
         return $this;
     }
 
-    public function execute(): void
+    /**
+     * @param  array<string, mixed>  $userInput
+     */
+    public function execute(array $userInput = []): void
     {
         $this->validateConfiguration();
 
         if ($this->source !== null) {
-            $this->executeRecordsLoop();
+            $this->executeRecordsLoop($userInput);
 
             return;
         }
 
         if (AiGenerateActionFake::isActive()) {
-            $this->executeFake();
+            $this->executeFake($userInput);
 
             return;
         }
 
-        $instruction = $this->resolveInstruction();
+        $instruction = $this->resolveInstruction($userInput);
         $resolver = $this->resolveSchemaResolver();
 
         ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
@@ -248,14 +255,17 @@ class AiGenerateAction extends SolarisAction
             return;
         }
 
-        $this->dispatchSingleResponse($response->toArray());
+        $this->dispatchSingleResponse($response->toArray(), $userInput);
     }
 
-    protected function executeFake(): void
+    /**
+     * @param  array<string, mixed>  $userInput
+     */
+    protected function executeFake(array $userInput = []): void
     {
         $fake = AiGenerateActionFake::getInstance();
         $data = $fake->getResponse();
-        $fake->recordCall($this->getName(), $data);
+        $fake->recordCall($this->getName(), $data, $userInput);
 
         ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
 
@@ -267,7 +277,7 @@ class AiGenerateAction extends SolarisAction
         }
 
         $this->dispatchFakeResponseReceived($provider, $model);
-        $this->dispatchSingleResponse($data);
+        $this->dispatchSingleResponse($data, $userInput);
     }
 
     /**
@@ -276,8 +286,9 @@ class AiGenerateAction extends SolarisAction
      * `$data[RECORDS_KEY]`.
      *
      * @param  array<string, mixed>  $data
+     * @param  array<string, mixed>  $userInput
      */
-    protected function dispatchSingleResponse(array $data): void
+    protected function dispatchSingleResponse(array $data, array $userInput = []): void
     {
         try {
             if ($this->writeTerminal === self::WRITE_CREATE) {
@@ -293,6 +304,7 @@ class AiGenerateAction extends SolarisAction
             $this->evaluate($this->handler, [
                 'data' => $data,
                 'records' => $this->modelClass !== null ? ($data[self::RECORDS_KEY] ?? []) : null,
+                'userInput' => $userInput,
             ]);
         } catch (\Throwable $e) {
             report($e);
@@ -303,12 +315,15 @@ class AiGenerateAction extends SolarisAction
         }
     }
 
-    protected function resolveInstruction(): string
+    /**
+     * @param  array<string, mixed>  $userInput
+     */
+    protected function resolveInstruction(array $userInput = []): string
     {
         $instruction = $this->instruction;
 
         if ($instruction instanceof Closure) {
-            $instruction = $this->evaluate($instruction);
+            $instruction = $this->evaluate($instruction, ['userInput' => $userInput]);
         }
 
         if ($instruction instanceof View) {
@@ -322,7 +337,26 @@ class AiGenerateAction extends SolarisAction
             $instruction = trim($instruction."\n\nGenerate {$count} records.");
         }
 
-        return $instruction;
+        return $this->appendUserContext($instruction, $userInput);
+    }
+
+    /**
+     * Append a `## User context` JSON block to the instruction when the
+     * user-input modal yielded any filled values. No-op for empty input.
+     *
+     * @param  array<string, mixed>  $userInput
+     */
+    protected function appendUserContext(string $instruction, array $userInput): string
+    {
+        $filtered = array_filter($userInput, static fn ($v): bool => filled($v));
+
+        if ($filtered === []) {
+            return $instruction;
+        }
+
+        $json = json_encode($filtered, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+
+        return trim($instruction)."\n\n## User context\n```json\n{$json}\n```";
     }
 
     /**
@@ -412,16 +446,14 @@ class AiGenerateAction extends SolarisAction
         throw new LogicException('AiGenerateAction does not support conversational refinement.');
     }
 
-    public function hasUserInput(): bool
-    {
-        return false;
-    }
-
     // ── Records loop ─────────────────────────────────────────────
 
-    protected function executeRecordsLoop(): void
+    /**
+     * @param  array<string, mixed>  $userInput
+     */
+    protected function executeRecordsLoop(array $userInput = []): void
     {
-        $rows = $this->resolveRecordsSource();
+        $rows = $this->resolveRecordsSource($userInput);
         ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
         $timeout = $this->resolveTimeout();
 
@@ -432,7 +464,7 @@ class AiGenerateAction extends SolarisAction
 
         foreach ($rows as $row) {
             try {
-                $attrs = $this->generateForRow($row, $resolver, $provider, $model, $timeout);
+                $attrs = $this->generateForRow($row, $resolver, $provider, $model, $timeout, $userInput);
 
                 if ($attrs === null) {
                     $failed++;
@@ -455,11 +487,14 @@ class AiGenerateAction extends SolarisAction
     }
 
     /**
+     * @param  array<string, mixed>  $userInput
      * @return iterable<int, array<string, mixed>|Model>
      */
-    protected function resolveRecordsSource(): iterable
+    protected function resolveRecordsSource(array $userInput = []): iterable
     {
-        $source = $this->source instanceof Closure ? $this->evaluate($this->source) : $this->source;
+        $source = $this->source instanceof Closure
+            ? $this->evaluate($this->source, ['userInput' => $userInput])
+            : $this->source;
 
         if ($source instanceof Builder) {
             return $source->get();
@@ -479,19 +514,20 @@ class AiGenerateAction extends SolarisAction
     /**
      * @param  array<string, mixed>|Model  $row
      * @param  Closure(JsonSchemaTypeFactory): array<string, Type>  $resolver
+     * @param  array<string, mixed>  $userInput
      * @return array<string, mixed>|null AI output, or null on AI error (already reported by executeAiCall)
      */
-    protected function generateForRow(array|Model $row, Closure $resolver, mixed $provider, ?string $model, ?int $timeout): ?array
+    protected function generateForRow(array|Model $row, Closure $resolver, mixed $provider, ?string $model, ?int $timeout, array $userInput = []): ?array
     {
         if (AiGenerateActionFake::isActive()) {
             // Still resolve the per-row instruction so the prompt closure runs:
             // surfaces undefined-variable / bad-template errors under ::fake(),
             // and lets the `$row` named injection be exercised end-to-end in tests.
-            $this->resolveInstructionForRow($row);
+            $this->resolveInstructionForRow($row, $userInput);
 
             $fake = AiGenerateActionFake::getInstance();
             $data = $fake->getResponse();
-            $fake->recordCall($this->getName(), $data);
+            $fake->recordCall($this->getName(), $data, $userInput);
 
             if ($fake->shouldSimulateError()) {
                 $this->dispatchFakeResponseFailed($fake->getErrorMessage(), $provider, $model);
@@ -504,7 +540,7 @@ class AiGenerateAction extends SolarisAction
             return $data;
         }
 
-        $instruction = $this->resolveInstructionForRow($row);
+        $instruction = $this->resolveInstructionForRow($row, $userInput);
         $agent = (new SolarisAgent)->configure($instruction, [], $resolver);
         $this->applyGenerationOptions($agent);
 
@@ -541,14 +577,16 @@ class AiGenerateAction extends SolarisAction
 
     /**
      * @param  array<string, mixed>|Model  $row
+     * @param  array<string, mixed>  $userInput
      */
-    protected function resolveInstructionForRow(array|Model $row): string
+    protected function resolveInstructionForRow(array|Model $row, array $userInput = []): string
     {
         $instruction = $this->instruction;
 
         if ($instruction instanceof Closure) {
             $instruction = $this->evaluate($instruction, [
                 'row' => $row instanceof Model ? $row->getAttributes() : $row,
+                'userInput' => $userInput,
             ]);
         }
 
@@ -557,6 +595,8 @@ class AiGenerateAction extends SolarisAction
         }
 
         $instruction = (string) $instruction;
+
+        $instruction = $this->appendUserContext($instruction, $userInput);
 
         $context = $this->buildContextForRow($row);
 
@@ -649,5 +689,10 @@ class AiGenerateAction extends SolarisAction
     public static function assertHandledWith(Closure $callback): void
     {
         AiGenerateActionFake::getInstance()->assertHandledWith($callback);
+    }
+
+    public static function assertCalledWithUserInput(Closure $callback): void
+    {
+        AiGenerateActionFake::getInstance()->assertCalledWithUserInput($callback);
     }
 }

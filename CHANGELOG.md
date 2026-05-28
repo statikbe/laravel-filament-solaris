@@ -34,6 +34,16 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
 
 ### Added
 
+- `AiGenerateAction` now supports `UserInput` modals: `->userInput(UserInput::make()->fields([...]))`
+  opens a Filament modal before the action runs, with modal values (a) auto-injected
+  into the prompt as a `## User context` JSON block (top-level and per-row in the
+  records loop), and (b) available as a `$userInput` closure named-arg in
+  `->prompt()`, `->handleUsing()`, and `->sourceRecords()`. Internal: `HasUserInput`
+  trait split — `HasDefaultUserInput` extracted for the preset-default branch (only
+  `HasPromptPipeline` consumers adopt it via `insteadof`; `AiGenerateAction` adopts
+  the slim `HasUserInput` only). `AiGenerateActionFake::recordCall` signature gains
+  an `array $userInput = []` third arg, with a new `assertCalledWithUserInput(Closure)`
+  helper (forwarded via `AiGenerateAction::assertCalledWithUserInput()`).
 - `AiGenerateAction` now supports `->temperature()`, `->maxTokens()`, `->maxSteps()`,
   and `->topP()` via the new shared `HasGenerationOptions` trait. Internal refactor:
   `HasPromptPipeline` and `AiGenerateAction` share generation-options +

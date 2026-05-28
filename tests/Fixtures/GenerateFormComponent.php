@@ -3,10 +3,12 @@
 namespace Statikbe\FilamentSolaris\Tests\Fixtures;
 
 use Filament\Actions\Action;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\FormsComponent;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
 use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
+use Statikbe\FilamentSolaris\Support\UserInput;
 
 class GenerateFormComponent extends FormsComponent
 {
@@ -155,6 +157,50 @@ class GenerateFormComponent extends FormsComponent
                 ['tag' => 'beta'],
             ])
             ->createRecords();
+    }
+
+    public function userInputSingleCallAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('userInputSingleCall')
+            ->userInput(UserInput::make()->fields([Textarea::make('focus')]))
+            ->prompt(fn (array $userInput) => 'Generate for focus: '.($userInput['focus'] ?? 'none'))
+            ->outputSchema(fn ($s) => ['x' => $s->string()])
+            ->handleUsing(fn (array $data, array $userInput, $livewire) => $livewire->handledData = [
+                'data' => $data,
+                'userInput' => $userInput,
+            ]);
+    }
+
+    public function userInputCreateRecordsLoopAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('userInputCreateRecordsLoop')
+            ->userInput(UserInput::make()->fields([Textarea::make('focus')]))
+            ->forModel(SeedCategory::class)
+            ->prompt(fn (array $row, array $userInput) => "Process row {$row['name']} with focus: ".($userInput['focus'] ?? 'none'))
+            ->sourceRecords([['name' => 'A', 'slug' => 'a'], ['name' => 'B', 'slug' => 'b']])
+            ->createRecords();
+    }
+
+    public function userInputSourceRecordsClosureAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('userInputSourceRecordsClosure')
+            ->userInput(UserInput::make()->fields([Textarea::make('count_hint')]))
+            ->forModel(SeedCategory::class)
+            ->prompt('Process.')
+            ->sourceRecords(function (array $userInput) {
+                $count = (int) ($userInput['count_hint'] ?? 1);
+
+                return array_map(static fn (int $i): array => ['name' => "Row{$i}", 'slug' => "row-{$i}"], range(1, $count));
+            })
+            ->createRecords();
+    }
+
+    public function noUserInputAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('noUserInput')
+            ->prompt('Static prompt.')
+            ->outputSchema(fn ($s) => ['x' => $s->string()])
+            ->handleUsing(fn (array $data, $livewire) => $livewire->handledData = $data);
     }
 
     public function render(): string

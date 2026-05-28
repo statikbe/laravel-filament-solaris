@@ -17,7 +17,7 @@ class AiGenerateActionFake
 
     protected ?string $errorMessage = null;
 
-    /** @var array<int, array{name: string, data: array<string, mixed>}> */
+    /** @var array<int, array{name: string, data: array<string, mixed>, userInput: array<string, mixed>}> */
     protected array $calls = [];
 
     /**
@@ -90,10 +90,11 @@ class AiGenerateActionFake
 
     /**
      * @param  array<string, mixed>  $data
+     * @param  array<string, mixed>  $userInput
      */
-    public function recordCall(string $actionName, array $data): void
+    public function recordCall(string $actionName, array $data, array $userInput = []): void
     {
-        $this->calls[] = ['name' => $actionName, 'data' => $data];
+        $this->calls[] = ['name' => $actionName, 'data' => $data, 'userInput' => $userInput];
     }
 
     public function shouldSimulateError(): bool
@@ -119,6 +120,24 @@ class AiGenerateActionFake
     public function assertCalledTimes(int $count): void
     {
         Assert::assertCount($count, $this->calls, "Expected {$count} AiGenerateAction calls, got ".count($this->calls).'.');
+    }
+
+    /**
+     * Assert that at least one recorded call's $userInput satisfies the callback.
+     *
+     * @param  Closure(array<string, mixed>): bool  $callback
+     */
+    public function assertCalledWithUserInput(Closure $callback): void
+    {
+        Assert::assertNotEmpty($this->calls, 'Expected an AiGenerateAction call with userInput, but none was recorded.');
+
+        foreach ($this->calls as $call) {
+            if ($callback($call['userInput']) === true) {
+                return;
+            }
+        }
+
+        Assert::fail('No AiGenerateAction call matched the userInput callback.');
     }
 
     public function assertHandledWith(Closure $callback): void
