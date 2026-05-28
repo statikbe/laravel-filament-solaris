@@ -10,29 +10,12 @@ trait HasUserInput
 {
     protected UserInput|Closure|null $userInput = null;
 
-    protected bool $useDefaultUserInput = false;
-
     /**
      * Set the user input configuration.
      */
     public function userInput(UserInput|Closure $userInput): static
     {
         $this->userInput = $userInput;
-
-        return $this;
-    }
-
-    /**
-     * Opt in to the prompt builder's default user input.
-     *
-     * Resolution is deferred to {@see getUserInput()} so call order doesn't
-     * matter — `->withDefaultUserInput()` works whether it runs before or
-     * after `->prompt()` / `->preset()` (which set `$this->promptBuilder`).
-     * An explicit `->userInput()` always takes precedence over the default.
-     */
-    public function withDefaultUserInput(): static
-    {
-        $this->useDefaultUserInput = true;
 
         return $this;
     }
@@ -51,10 +34,18 @@ trait HasUserInput
             return value($this->userInput);
         }
 
-        if ($this->useDefaultUserInput && isset($this->promptBuilder)) {
-            return $this->promptBuilder->defaultUserInput();
-        }
+        return $this->getDefaultUserInputFromBuilder();
+    }
 
+    /**
+     * Hook for optional preset-default user-input resolution.
+     *
+     * Returns null by default. Replaced via `insteadof` by
+     * {@see HasDefaultUserInput::getDefaultUserInputFromBuilder()} on consumers
+     * that adopt both traits (i.e. {@see HasPromptPipeline}).
+     */
+    protected function getDefaultUserInputFromBuilder(): ?UserInput
+    {
         return null;
     }
 
