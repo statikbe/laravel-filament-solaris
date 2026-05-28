@@ -267,7 +267,7 @@ class AiGenerateAction extends SolarisAction
     {
         $fake = AiGenerateActionFake::getInstance();
         $data = $fake->getResponse();
-        $fake->recordCall($this->getName(), $data);
+        $fake->recordCall($this->getName(), $data, $userInput);
 
         ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
 
@@ -529,7 +529,7 @@ class AiGenerateAction extends SolarisAction
 
             $fake = AiGenerateActionFake::getInstance();
             $data = $fake->getResponse();
-            $fake->recordCall($this->getName(), $data);
+            $fake->recordCall($this->getName(), $data, $userInput);
 
             if ($fake->shouldSimulateError()) {
                 $this->dispatchFakeResponseFailed($fake->getErrorMessage(), $provider, $model);
@@ -691,5 +691,10 @@ class AiGenerateAction extends SolarisAction
     public static function assertHandledWith(Closure $callback): void
     {
         AiGenerateActionFake::getInstance()->assertHandledWith($callback);
+    }
+
+    public static function assertCalledWithUserInput(Closure $callback): void
+    {
+        AiGenerateActionFake::getInstance()->assertCalledWithUserInput($callback);
     }
 }
