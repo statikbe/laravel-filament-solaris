@@ -109,6 +109,10 @@ RichEditor::make('body')
             ->lang('nl'),
     ]);
 ```
+#### Extending the RichEditor
+> If you extended the RichEditor class with your own CustomRichEditor to have custom toolbar buttons,
+make sure that you use the `getDefaultToolbarButtons` function for this. Else the plugins function won't work.
+
 
 ### Globally (every RichEditor)
 
