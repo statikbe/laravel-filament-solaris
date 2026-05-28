@@ -306,6 +306,7 @@ class AiGenerateAction extends SolarisAction
             $this->evaluate($this->handler, [
                 'data' => $data,
                 'records' => $this->modelClass !== null ? ($data[self::RECORDS_KEY] ?? []) : null,
+                'userInput' => $userInput,
             ]);
         } catch (\Throwable $e) {
             report($e);
@@ -324,7 +325,7 @@ class AiGenerateAction extends SolarisAction
         $instruction = $this->instruction;
 
         if ($instruction instanceof Closure) {
-            $instruction = $this->evaluate($instruction);
+            $instruction = $this->evaluate($instruction, ['userInput' => $userInput]);
         }
 
         if ($instruction instanceof View) {
@@ -338,7 +339,26 @@ class AiGenerateAction extends SolarisAction
             $instruction = trim($instruction."\n\nGenerate {$count} records.");
         }
 
-        return $instruction;
+        return $this->appendUserContext($instruction, $userInput);
+    }
+
+    /**
+     * Append a `## User context` JSON block to the instruction when the
+     * user-input modal yielded any filled values. No-op for empty input.
+     *
+     * @param  array<string, mixed>  $userInput
+     */
+    protected function appendUserContext(string $instruction, array $userInput): string
+    {
+        $filtered = array_filter($userInput, static fn ($v): bool => filled($v));
+
+        if ($filtered === []) {
+            return $instruction;
+        }
+
+        $json = json_encode($filtered, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+
+        return trim($instruction)."\n\n## User context\n```json\n{$json}\n```";
     }
 
     /**
@@ -474,7 +494,9 @@ class AiGenerateAction extends SolarisAction
      */
     protected function resolveRecordsSource(array $userInput = []): iterable
     {
-        $source = $this->source instanceof Closure ? $this->evaluate($this->source) : $this->source;
+        $source = $this->source instanceof Closure
+            ? $this->evaluate($this->source, ['userInput' => $userInput])
+            : $this->source;
 
         if ($source instanceof Builder) {
             return $source->get();
@@ -566,6 +588,7 @@ class AiGenerateAction extends SolarisAction
         if ($instruction instanceof Closure) {
             $instruction = $this->evaluate($instruction, [
                 'row' => $row instanceof Model ? $row->getAttributes() : $row,
+                'userInput' => $userInput,
             ]);
         }
 
@@ -574,6 +597,8 @@ class AiGenerateAction extends SolarisAction
         }
 
         $instruction = (string) $instruction;
+
+        $instruction = $this->appendUserContext($instruction, $userInput);
 
         $context = $this->buildContextForRow($row);
 
