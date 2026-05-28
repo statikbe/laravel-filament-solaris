@@ -290,6 +290,47 @@ AiGenerateAction::make('seed-categories')
 
 See [Configuration](configuration.md) for package-wide defaults.
 
+## User Input
+
+Open a Filament modal before the action runs to collect runtime values (steering text, file paths, structured selections). Modal data is:
+
+1. Auto-injected into the prompt as a `## User context` JSON block (top-level and per-row in the records loop, alongside `## Current record`).
+2. Available as a `$userInput` named-arg in `->prompt()`, `->handleUsing()`, and `->sourceRecords()` closures (Filament-style DI — declare the arg to receive it; omit it if you don't need it).
+
+### Free-text steering for single-call generation
+
+```php
+AiGenerateAction::make('generate-meta')
+    ->userInput(UserInput::make()->fields([Textarea::make('focus')]))
+    ->prompt(fn (array $userInput) => "Generate SEO meta. Focus: {$userInput['focus']}")
+    ->outputSchema(fn ($schema) => [
+        'title' => $schema->string(),
+        'description' => $schema->string(),
+    ])
+    ->handleUsing(fn (array $data, array $userInput) => Cache::put('meta', $data));
+```
+
+### Spreadsheet-driven enrichment
+
+```php
+AiGenerateAction::make('enrich-from-spreadsheet')
+    ->userInput(UserInput::make()->fields([
+        FileUpload::make('csv')->acceptedFileTypes(['text/csv'])->required(),
+        Textarea::make('focus')->placeholder('Tone, style, audience…'),
+    ]))
+    ->forModel(Article::class)
+    ->prompt('Enrich each article for the requested audience.')
+    ->sourceRecords(fn (array $userInput) => Article::query()
+        ->whereIn('id', collect(parseCsv($userInput['csv']))->pluck('id'))
+        ->get())
+    ->updateRecords();
+```
+
+### Notes
+
+- File uploads in the modal surface as path strings in `$userInput['<field>']` — your `->sourceRecords()` or `->prompt()` closure parses from there. Sending uploaded files to the AI as Image/Audio/Document attachments is a planned follow-up (separate spec).
+- `->withDefaultUserInput()` (pulling a preset's default modal config) is not available on `AiGenerateAction` — presets aren't yet a concept on this action. Calling it throws `BadMethodCallException`.
+
 ## Generation Options
 
 Tune the underlying text generation. All four options are optional — when not set, the resolver falls back to the config `default_*` keys, and ultimately to `laravel/ai`'s own attribute defaults.
