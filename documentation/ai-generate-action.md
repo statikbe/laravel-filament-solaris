@@ -328,8 +328,30 @@ AiGenerateAction::make('enrich-from-spreadsheet')
 
 ### Notes
 
-- File uploads in the modal surface as path strings in `$userInput['<field>']` — your `->sourceRecords()` or `->prompt()` closure parses from there. Sending uploaded files to the AI as Image/Audio/Document attachments is a planned follow-up (separate spec).
+- For sending uploaded files to the AI as Image/Audio/Document attachments instead of just exposing their paths in `$userInput`, see [Attachments](#attachments) below.
 - `->withDefaultUserInput()` (pulling a preset's default modal config) is not available on `AiGenerateAction` — presets aren't yet a concept on this action. Calling it throws `BadMethodCallException`.
+
+## Attachments
+
+`AiGenerateAction` sends user-uploaded files (or any `Files\File` instance) to the AI as native attachments — Image, Audio, or Document, auto-detected by MIME. Same three-channel API as `AiFormAction`:
+
+```php
+AiGenerateAction::make('enrich-from-spreadsheet')
+    ->userInput(UserInput::make()->fields([
+        FileUpload::make('csv')->acceptedFileTypes(['text/csv'])->required(),
+    ]))
+    ->attachmentFromUserInput('csv')   // ← send the file directly to the AI
+    ->forModel(Article::class)
+    ->prompt('Enrich each article using the rows in the attached spreadsheet.')
+    ->sourceRecords(fn (array $userInput) => Article::all())
+    ->updateRecords();
+```
+
+- `->attachmentField('upload')` — bind a parent-form `FileUpload` field.
+- `->attachmentFromUserInput('csv')` — bind a key from the UserInput modal.
+- `->attachments(fn () => Image::fromUrl(...))` — supply files programmatically.
+
+Resolution is **job-level**: the same `Files\File[]` flows to every per-row AI call in the records loop. Disk resolution uses `config('filesystems.default')`.
 
 ## Generation Options
 
