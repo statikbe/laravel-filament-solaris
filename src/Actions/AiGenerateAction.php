@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
 use Illuminate\Support\Collection;
+use Laravel\Ai\Files\File;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use LogicException;
 use RuntimeException;
@@ -244,9 +245,11 @@ class AiGenerateAction extends SolarisAction
         $agent = (new SolarisAgent)->configure($instruction, [], $resolver);
         $this->applyGenerationOptions($agent);
 
+        $attachments = $this->resolveAttachments($userInput);
+
         /** @var StructuredAgentResponse|null $response */
         $response = $this->executeAiCall(
-            fn () => $agent->prompt($instruction, [], $provider, $model, $timeout),
+            fn () => $agent->prompt($instruction, $attachments, $provider, $model, $timeout),
             $provider,
             $model,
         );
@@ -265,7 +268,8 @@ class AiGenerateAction extends SolarisAction
     {
         $fake = AiGenerateActionFake::getInstance();
         $data = $fake->getResponse();
-        $fake->recordCall($this->getName(), $data, $userInput);
+        $attachments = $this->resolveAttachments($userInput);
+        $fake->recordCall($this->getName(), $data, $userInput, $attachments);
 
         ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
 
@@ -458,13 +462,14 @@ class AiGenerateAction extends SolarisAction
         $timeout = $this->resolveTimeout();
 
         $resolver = $this->resolveSchemaResolver();
+        $attachments = $this->resolveAttachments($userInput);
 
         $succeeded = 0;
         $failed = 0;
 
         foreach ($rows as $row) {
             try {
-                $attrs = $this->generateForRow($row, $resolver, $provider, $model, $timeout, $userInput);
+                $attrs = $this->generateForRow($row, $resolver, $provider, $model, $timeout, $userInput, $attachments);
 
                 if ($attrs === null) {
                     $failed++;
@@ -515,10 +520,18 @@ class AiGenerateAction extends SolarisAction
      * @param  array<string, mixed>|Model  $row
      * @param  Closure(JsonSchemaTypeFactory): array<string, Type>  $resolver
      * @param  array<string, mixed>  $userInput
+     * @param  array<int, File>  $attachments
      * @return array<string, mixed>|null AI output, or null on AI error (already reported by executeAiCall)
      */
-    protected function generateForRow(array|Model $row, Closure $resolver, mixed $provider, ?string $model, ?int $timeout, array $userInput = []): ?array
-    {
+    protected function generateForRow(
+        array|Model $row,
+        Closure $resolver,
+        mixed $provider,
+        ?string $model,
+        ?int $timeout,
+        array $userInput = [],
+        array $attachments = [],
+    ): ?array {
         if (AiGenerateActionFake::isActive()) {
             // Still resolve the per-row instruction so the prompt closure runs:
             // surfaces undefined-variable / bad-template errors under ::fake(),
@@ -527,7 +540,7 @@ class AiGenerateAction extends SolarisAction
 
             $fake = AiGenerateActionFake::getInstance();
             $data = $fake->getResponse();
-            $fake->recordCall($this->getName(), $data, $userInput);
+            $fake->recordCall($this->getName(), $data, $userInput, $attachments);
 
             if ($fake->shouldSimulateError()) {
                 $this->dispatchFakeResponseFailed($fake->getErrorMessage(), $provider, $model);
@@ -546,7 +559,7 @@ class AiGenerateAction extends SolarisAction
 
         /** @var StructuredAgentResponse|null $response */
         $response = $this->executeAiCall(
-            fn () => $agent->prompt($instruction, [], $provider, $model, $timeout),
+            fn () => $agent->prompt($instruction, $attachments, $provider, $model, $timeout),
             $provider,
             $model,
             static fn (): null => null,  // suppress per-row error notification; summary covers it
@@ -694,5 +707,10 @@ class AiGenerateAction extends SolarisAction
     public static function assertCalledWithUserInput(Closure $callback): void
     {
         AiGenerateActionFake::getInstance()->assertCalledWithUserInput($callback);
+    }
+
+    public static function assertCalledWithAttachments(Closure $callback): void
+    {
+        AiGenerateActionFake::getInstance()->assertCalledWithAttachments($callback);
     }
 }
