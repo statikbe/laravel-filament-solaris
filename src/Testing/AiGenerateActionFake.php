@@ -3,6 +3,7 @@
 namespace Statikbe\FilamentSolaris\Testing;
 
 use Closure;
+use Laravel\Ai\Files\File;
 use PHPUnit\Framework\Assert;
 
 class AiGenerateActionFake
@@ -17,7 +18,7 @@ class AiGenerateActionFake
 
     protected ?string $errorMessage = null;
 
-    /** @var array<int, array{name: string, data: array<string, mixed>, userInput: array<string, mixed>}> */
+    /** @var array<int, array{name: string, data: array<string, mixed>, userInput: array<string, mixed>, attachments: array<int, File>}> */
     protected array $calls = [];
 
     /**
@@ -91,10 +92,16 @@ class AiGenerateActionFake
     /**
      * @param  array<string, mixed>  $data
      * @param  array<string, mixed>  $userInput
+     * @param  array<int, File>  $attachments
      */
-    public function recordCall(string $actionName, array $data, array $userInput = []): void
+    public function recordCall(string $actionName, array $data, array $userInput = [], array $attachments = []): void
     {
-        $this->calls[] = ['name' => $actionName, 'data' => $data, 'userInput' => $userInput];
+        $this->calls[] = [
+            'name' => $actionName,
+            'data' => $data,
+            'userInput' => $userInput,
+            'attachments' => $attachments,
+        ];
     }
 
     public function shouldSimulateError(): bool
@@ -138,6 +145,24 @@ class AiGenerateActionFake
         }
 
         Assert::fail('No AiGenerateAction call matched the userInput callback.');
+    }
+
+    /**
+     * Assert that at least one recorded call's $attachments satisfies the callback.
+     *
+     * @param  Closure(array<int, File>): bool  $callback
+     */
+    public function assertCalledWithAttachments(Closure $callback): void
+    {
+        Assert::assertNotEmpty($this->calls, 'Expected an AiGenerateAction to be called, but none was.');
+
+        foreach ($this->calls as $call) {
+            if ($callback($call['attachments']) === true) {
+                return;
+            }
+        }
+
+        Assert::fail('No AiGenerateAction call matched the attachments callback.');
     }
 
     public function assertHandledWith(Closure $callback): void
