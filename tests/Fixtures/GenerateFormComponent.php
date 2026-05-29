@@ -3,10 +3,12 @@
 namespace Statikbe\FilamentSolaris\Tests\Fixtures;
 
 use Filament\Actions\Action;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\FormsComponent;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
+use Laravel\Ai\Files\Image;
 use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
 use Statikbe\FilamentSolaris\Support\UserInput;
 
@@ -35,7 +37,9 @@ class GenerateFormComponent extends FormsComponent
 
     public function form(Schema $form): Schema
     {
-        return $form->schema([])->statePath('data');
+        return $form->schema([
+            FileUpload::make('upload'),
+        ])->statePath('data');
     }
 
     public function buildTaxonomyAction(): AiGenerateAction
@@ -201,6 +205,45 @@ class GenerateFormComponent extends FormsComponent
             ->prompt('Static prompt.')
             ->outputSchema(fn ($s) => ['x' => $s->string()])
             ->handleUsing(fn (array $data, $livewire) => $livewire->handledData = $data);
+    }
+
+    public function staticAttachmentsAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('staticAttachments')
+            ->attachments(fn () => Image::fromUrl('https://example.com/seed.png'))
+            ->prompt('Describe the seed image.')
+            ->outputSchema(fn ($s) => ['description' => $s->string()])
+            ->handleUsing(fn (array $data, $livewire) => $livewire->handledData = $data);
+    }
+
+    public function userInputAttachmentAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('userInputAttachment')
+            ->userInput(UserInput::make()->fields([Textarea::make('csv_path')]))
+            ->attachmentFromUserInput('csv_path')
+            ->prompt('Process the attached CSV.')
+            ->outputSchema(fn ($s) => ['ok' => $s->string()])
+            ->handleUsing(fn (array $data, $livewire) => $livewire->handledData = $data);
+    }
+
+    public function parentFormAttachmentAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('parentFormAttachment')
+            ->attachmentField('upload')
+            ->prompt('Process the form-supplied file.')
+            ->outputSchema(fn ($s) => ['ok' => $s->string()])
+            ->handleUsing(fn (array $data, $livewire) => $livewire->handledData = $data);
+    }
+
+    public function userInputAttachmentRecordsLoopAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('userInputAttachmentRecordsLoop')
+            ->userInput(UserInput::make()->fields([Textarea::make('csv_path')]))
+            ->attachmentFromUserInput('csv_path')
+            ->forModel(SeedCategory::class)
+            ->prompt('Process row {row.name} using the attached CSV.')
+            ->sourceRecords([['name' => 'A', 'slug' => 'a'], ['name' => 'B', 'slug' => 'b'], ['name' => 'C', 'slug' => 'c']])
+            ->createRecords();
     }
 
     public function render(): string
