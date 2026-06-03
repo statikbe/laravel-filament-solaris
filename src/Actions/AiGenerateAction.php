@@ -19,6 +19,9 @@ use Statikbe\FilamentSolaris\Agents\SolarisAgent;
 use Statikbe\FilamentSolaris\Concerns\HasGenerationOptions;
 use Statikbe\FilamentSolaris\Concerns\HasUserInput;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
+use Statikbe\FilamentSolaris\Support\BatchOutcome;
+use Statikbe\FilamentSolaris\Support\BatchResponse;
+use Statikbe\FilamentSolaris\Support\FailedRecord;
 use Statikbe\FilamentSolaris\Support\ModelSchemaResolver;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFakeException;
@@ -648,6 +651,176 @@ class AiGenerateAction extends SolarisAction
     }
 
     /**
+     * @param  iterable<int, array<string, mixed>|Model>  $rows
+     * @return iterable<int, array<int, array<string, mixed>|Model>>
+     */
+    protected function chunkRows(iterable $rows, int $batchSize): iterable
+    {
+        if ($rows instanceof Collection || $rows instanceof EloquentCollection) {
+            foreach ($rows->chunk($batchSize) as $chunk) {
+                yield array_values($chunk->all());
+            }
+
+            return;
+        }
+
+        $rowsArray = is_array($rows) ? $rows : iterator_to_array($rows);
+        foreach (array_chunk($rowsArray, $batchSize) as $chunk) {
+            yield $chunk;
+        }
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>|Model>  $batch
+     * @return array<int, FailedRecord>
+     */
+    protected function markBatchFailed(array $batch, string $reason): array
+    {
+        $identifierKey = $this->resolveIdentifierKey();
+
+        return array_map(function ($row) use ($identifierKey, $reason): FailedRecord {
+            $id = $identifierKey === '_index'
+                ? null  // index unrecoverable outside the foreach
+                : ($row instanceof Model ? $row->getKey() : null);
+
+            return new FailedRecord(identifier: $id, reason: $reason);
+        }, $batch);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>|Model>  $batch
+     */
+    protected function reconcileBatch(array $batch, BatchResponse $response): BatchOutcome
+    {
+        $identifierKey = $this->resolveIdentifierKey();
+
+        // Build identifier -> input row lookup.
+        $lookup = [];
+        foreach ($batch as $index => $row) {
+            $id = $identifierKey === '_index'
+                ? $index
+                : ($row instanceof Model ? $row->getKey() : null);
+            $lookup[(string) $id] = $row;
+        }
+
+        $succeeded = 0;
+        $failures = [];
+
+        foreach ($response->records as $outputRecord) {
+            $id = $outputRecord[$identifierKey] ?? null;
+
+            if ($id === null || ! isset($lookup[(string) $id])) {
+                report(new RuntimeException('AiGenerateAction: hallucinated or missing identifier in records output: '.json_encode($outputRecord)));
+
+                continue;
+            }
+
+            $row = $lookup[(string) $id];
+            unset($lookup[(string) $id]);
+
+            $attrs = $outputRecord;
+            unset($attrs[$identifierKey]);
+
+            try {
+                $this->writeRow($row, $attrs);
+                $succeeded++;
+            } catch (\Throwable $e) {
+                report($e);
+                $failures[] = new FailedRecord(identifier: $id, reason: 'write error: '.$e->getMessage());
+            }
+        }
+
+        foreach ($response->failed as $failure) {
+            $id = $failure->identifier;
+            if ($id !== null && isset($lookup[(string) $id])) {
+                unset($lookup[(string) $id]);
+            }
+            $failures[] = $failure;
+        }
+
+        foreach ($lookup as $id => $row) {
+            $failures[] = new FailedRecord(identifier: $id, reason: 'no response from AI');
+        }
+
+        return new BatchOutcome($succeeded, $failures);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>|Model>  $batch
+     * @param  Closure(JsonSchemaTypeFactory): array<string, Type>  $resolver
+     * @param  array<string, mixed>  $userInput
+     * @param  array<int, File>  $attachments
+     */
+    protected function processBatch(
+        array $batch,
+        Closure $resolver,
+        mixed $provider,
+        ?string $model,
+        ?int $timeout,
+        array $userInput,
+        array $attachments,
+    ): BatchOutcome {
+        if (AiGenerateActionFake::isActive()) {
+            return $this->processFakeBatch($batch, $userInput, $attachments, $provider, $model);
+        }
+
+        $instruction = $this->buildBatchInstruction($batch, $userInput);
+        $agent = (new SolarisAgent)->configure($instruction, [], $resolver);
+        $this->applyGenerationOptions($agent);
+
+        /** @var StructuredAgentResponse|null $response */
+        $response = $this->executeAiCall(
+            fn () => $agent->prompt($instruction, $attachments, $provider, $model, $timeout),
+            $provider,
+            $model,
+            static fn (): null => null,
+        );
+
+        if ($response === null) {
+            return new BatchOutcome(0, $this->markBatchFailed($batch, 'AI call error'));
+        }
+
+        $batchResponse = BatchResponse::fromArray($response->toArray());
+
+        return $this->reconcileBatch($batch, $batchResponse);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>|Model>  $batch
+     * @param  array<string, mixed>  $userInput
+     * @param  array<int, File>  $attachments
+     */
+    protected function processFakeBatch(
+        array $batch,
+        array $userInput,
+        array $attachments,
+        mixed $provider,
+        ?string $model,
+    ): BatchOutcome {
+        // Resolve the instruction so closure errors and DI mistakes surface in tests.
+        $this->buildBatchInstruction($batch, $userInput);
+
+        $fake = AiGenerateActionFake::getInstance();
+        $rawResponse = $fake->getResponse();
+
+        // Build the rows array passed to the fake's recordCall for assertions.
+        [, $rows] = $this->enrichBatchWithIdentifier($batch);
+        $fake->recordCall($this->getName(), $rawResponse, $userInput, $attachments, $rows);
+
+        if ($fake->shouldSimulateError()) {
+            $this->dispatchFakeResponseFailed($fake->getErrorMessage(), $provider, $model);
+
+            return new BatchOutcome(0, $this->markBatchFailed($batch, $fake->getErrorMessage()));
+        }
+
+        $this->dispatchFakeResponseReceived($provider, $model);
+
+        $batchResponse = BatchResponse::fromArray($rawResponse);
+
+        return $this->reconcileBatch($batch, $batchResponse);
+    }
+
+    /**
      * @param  array<string, mixed>|Model  $row
      * @param  array<string, mixed>  $userInput
      */
@@ -873,5 +1046,10 @@ TXT;
     public static function assertCalledWithAttachments(Closure $callback): void
     {
         AiGenerateActionFake::getInstance()->assertCalledWithAttachments($callback);
+    }
+
+    public static function assertCalledWithBatch(Closure $callback): void
+    {
+        AiGenerateActionFake::getInstance()->assertCalledWithBatch($callback);
     }
 }
