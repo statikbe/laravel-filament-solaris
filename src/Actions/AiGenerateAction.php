@@ -406,7 +406,9 @@ class AiGenerateAction extends SolarisAction
         // validateConfiguration() guarantees a model when no outputSchema is set.
         assert($this->modelClass !== null);
 
-        return function (JsonSchemaTypeFactory $schema): array {
+        $identifierKey = $this->resolveIdentifierKey();
+
+        return function (JsonSchemaTypeFactory $schema) use ($identifierKey): array {
             $properties = (new ModelSchemaResolver)->resolve(
                 $schema,
                 $this->modelClass,
@@ -416,8 +418,34 @@ class AiGenerateAction extends SolarisAction
                 $this->columnEnums,
             );
 
-            return [self::RECORDS_KEY => $schema->array()->items($schema->object($properties))];
+            $properties[$identifierKey] = $identifierKey === '_index'
+                ? $schema->integer()->description('The _index field from the input record. Echo unchanged.')
+                : $schema->integer()->description('The primary key. Echo unchanged.');
+
+            return [
+                self::RECORDS_KEY => $schema->array()->items($schema->object($properties)),
+                'failed' => $schema->array()->items($schema->object([
+                    'identifier' => $schema->string()->description('Identifier of the failed input row (or freeform description in single-call mode).'),
+                    'reason' => $schema->string()->description('Short reason for the failure (max 200 chars).'),
+                ])),
+            ];
         };
+    }
+
+    /**
+     * Identifier key for the records-loop and single-call createRecords paths.
+     * - updateRecords: the model's primary key column name (validated upstream that source rows are Models).
+     * - createRecords (with or without source): `_index`.
+     */
+    protected function resolveIdentifierKey(): string
+    {
+        if ($this->writeTerminal === self::WRITE_UPDATE) {
+            assert($this->modelClass !== null);
+
+            return (new ($this->modelClass)())->getKeyName();
+        }
+
+        return '_index';
     }
 
     private function validateConfiguration(): void
