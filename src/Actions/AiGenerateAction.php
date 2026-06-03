@@ -700,6 +700,108 @@ class AiGenerateAction extends SolarisAction
         return $attrs;
     }
 
+    /**
+     * @param  array<int, array<string, mixed>|Model>  $batch
+     * @return array{0: string, 1: array<int, array<string, mixed>>}
+     */
+    protected function enrichBatchWithIdentifier(array $batch): array
+    {
+        $identifierKey = $this->resolveIdentifierKey();
+
+        if ($identifierKey !== '_index') {
+            // updateRecords: PK echo. Source rows are always Models (validated upstream).
+            $rows = array_map(function ($row) use ($identifierKey): array {
+                assert($row instanceof Model);
+                $attrs = $this->buildContextForRow($row);
+                $attrs[$identifierKey] = $row->getKey();
+
+                return $attrs;
+            }, $batch);
+
+            return [$identifierKey, $rows];
+        }
+
+        $rows = [];
+        foreach ($batch as $index => $row) {
+            $attrs = $this->buildContextForRow($row);
+            $attrs[$identifierKey] = $index;
+            $rows[] = $attrs;
+        }
+
+        return [$identifierKey, $rows];
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>|Model>  $batch
+     */
+    protected function appendRecordsBlock(string $instruction, array $batch): string
+    {
+        [, $rows] = $this->enrichBatchWithIdentifier($batch);
+
+        $json = json_encode($rows, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+
+        return trim($instruction)."\n\n## Records\n```json\n{$json}\n```";
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>|Model>  $batch
+     */
+    protected function appendBatchInstructions(string $instruction, array $batch): string
+    {
+        [$identifierKey] = $this->enrichBatchWithIdentifier($batch);
+
+        $boilerplate = <<<TXT
+## Instructions
+For each record above, return an entry in `records` echoing the `{$identifierKey}` field unchanged with the processed fields.
+For any record you cannot process, add an entry to `failed` with the `identifier` set to the `{$identifierKey}` value and a short `reason` (max 200 chars).
+Preserve input order in the `records` array.
+TXT;
+
+        return trim($instruction)."\n\n".$boilerplate;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>|Model>  $batch
+     * @param  array<string, mixed>  $userInput
+     */
+    protected function buildBatchInstruction(array $batch, array $userInput): string
+    {
+        $instruction = $this->instruction;
+
+        if ($instruction instanceof Closure) {
+            $rows = array_map(
+                fn ($row): array => $row instanceof Model ? $row->getAttributes() : $row,
+                $batch,
+            );
+            $instruction = $this->evaluate($instruction, [
+                'rows' => $rows,
+                'userInput' => $userInput,
+            ]);
+        }
+
+        if ($instruction instanceof View) {
+            $instruction = $instruction->render();
+        }
+
+        $instruction = (string) $instruction;
+        $instruction = $this->appendUserContext($instruction, $userInput);
+        $instruction = $this->appendRecordsBlock($instruction, $batch);
+        $instruction = $this->appendBatchInstructions($instruction, $batch);
+
+        return $instruction;
+    }
+
+    protected function appendSingleCallInstructions(string $instruction): string
+    {
+        $boilerplate = <<<'TXT'
+## Instructions
+Return generated records in the `records` array.
+For any input you cannot process (e.g., malformed line, ambiguous source data), add an entry to `failed` with an `identifier` describing the failed input (line number, source excerpt) and a short `reason`.
+TXT;
+
+        return trim($instruction)."\n\n".$boilerplate;
+    }
+
     protected function sendBatchSummary(int $succeeded, int $failed): void
     {
         if ($failed === 0) {
