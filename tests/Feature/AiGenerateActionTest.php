@@ -117,9 +117,14 @@ it('runs per-row createRecords via ->sourceRecords() (import path)', function ()
     });
 
     AiGenerateAction::fakeEach([
-        ['name' => 'Tech', 'slug' => 'tech'],
-        ['name' => 'Science', 'slug' => 'science'],
-        ['name' => 'Art', 'slug' => 'art'],
+        [
+            'records' => [
+                ['_index' => 0, 'name' => 'Tech', 'slug' => 'tech'],
+                ['_index' => 1, 'name' => 'Science', 'slug' => 'science'],
+                ['_index' => 2, 'name' => 'Art', 'slug' => 'art'],
+            ],
+            'failed' => [],
+        ],
     ]);
 
     Livewire::test(GenerateFormComponent::class)
@@ -140,11 +145,15 @@ it('continues past per-row failures and reports a partial-failure summary', func
         $table->timestamps();
     });
 
-    // Three responses, middle one missing the required 'name' to trigger a write error.
     AiGenerateAction::fakeEach([
-        ['name' => 'A', 'slug' => 'a'],
-        ['slug' => 'b-missing-name'],          // SQLite NOT NULL on `name` will throw
-        ['name' => 'C', 'slug' => 'c'],
+        [
+            'records' => [
+                ['_index' => 0, 'name' => 'A', 'slug' => 'a'],
+                ['_index' => 1, 'slug' => 'b-missing-name'],   // NOT NULL on name → write error
+                ['_index' => 2, 'name' => 'C', 'slug' => 'c'],
+            ],
+            'failed' => [],
+        ],
     ]);
 
     Livewire::test(GenerateFormComponent::class)
@@ -168,8 +177,13 @@ it('runs per-row updateRecords (enrich by key)', function () {
     SeedCategory::create(['name' => 'Two', 'slug' => 'old-two']);
 
     AiGenerateAction::fakeEach([
-        ['slug' => 'new-one'],
-        ['slug' => 'new-two'],
+        [
+            'records' => [
+                ['id' => 1, 'slug' => 'new-one'],
+                ['id' => 2, 'slug' => 'new-two'],
+            ],
+            'failed' => [],
+        ],
     ]);
 
     Livewire::test(GenerateFormComponent::class)->callAction('enrichCategories');
@@ -203,7 +217,7 @@ it('errors when createRecords is used without ->forModel()', function () {
         ->toThrow(RuntimeException::class, 'require ->forModel()');
 });
 
-it('injects $row into the prompt closure per iteration', function () {
+it('passes the batch as $rows to the prompt closure per records loop', function () {
     Schema::create('seed_categories', function ($table) {
         $table->id();
         $table->string('name');
@@ -211,13 +225,18 @@ it('injects $row into the prompt closure per iteration', function () {
         $table->timestamps();
     });
 
-    // Two rows, two canned responses — both should succeed.
-    // The prompt closure references $row['tag'] — if $row weren't injected
-    // it'd throw ErrorException (undefined variable / undefined array key),
-    // failing both iterations and resulting in 0 rows created instead of 2.
+    // Two rows, one canned batch response — both should succeed.
+    // The prompt closure references $rows (plural) — if it weren't injected
+    // it'd throw ErrorException (undefined variable), failing the batch and
+    // resulting in 0 rows created instead of 2.
     AiGenerateAction::fakeEach([
-        ['name' => 'Alpha', 'slug' => 'alpha'],
-        ['name' => 'Beta', 'slug' => 'beta'],
+        [
+            'records' => [
+                ['_index' => 0, 'name' => 'Alpha', 'slug' => 'alpha'],
+                ['_index' => 1, 'name' => 'Beta', 'slug' => 'beta'],
+            ],
+            'failed' => [],
+        ],
     ]);
 
     Livewire::test(GenerateFormComponent::class)
@@ -248,7 +267,7 @@ it('counts every iteration as failed when fakeError is set on a records loop', f
     Schema::dropIfExists('seed_categories');
 });
 
-it('filters the row context to ->promptContextColumns() in the per-row instruction', function () {
+it('filters the row context to ->promptContextColumns() in the records block', function () {
     $action = AiGenerateAction::make('x')
         ->prompt('Do it.')
         ->forModel(SeedCategory::class)
@@ -257,10 +276,10 @@ it('filters the row context to ->promptContextColumns() in the per-row instructi
         ->createRecords();
 
     $ref = new ReflectionClass($action);
-    $method = $ref->getMethod('resolveInstructionForRow');
+    $method = $ref->getMethod('appendRecordsBlock');
     $method->setAccessible(true);
 
-    $instruction = $method->invoke($action, ['visible' => 'v', 'secret' => 's']);
+    $instruction = $method->invoke($action, 'Do it.', [['visible' => 'v', 'secret' => 's']]);
 
     expect($instruction)->toContain('"visible": "v"')
         ->and($instruction)->not->toContain('"secret"');

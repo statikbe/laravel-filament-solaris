@@ -210,8 +210,8 @@ class AiGenerateAction extends SolarisAction
     }
 
     /**
-     * Whitelist of column names sent into the per-row `## Current record`
-     * context block. Default = all the row's attributes (auto-exclusions aside).
+     * Whitelist of column names sent into the `## Records` context block.
+     * Default = all the row's attributes (auto-exclusions aside).
      *
      * @param  array<string>  $columns
      */
@@ -301,9 +301,10 @@ class AiGenerateAction extends SolarisAction
     }
 
     /**
-     * Single-response dispatch (no records loop): hand to user handler, or
-     * for `createRecords` with no `->sourceRecords()`, per-row create from
-     * `$data[RECORDS_KEY]`.
+     * Single-response dispatch (no records loop). In forModel mode the payload
+     * is parsed as a BatchResponse for unified handling; failures are surfaced
+     * via the batch summary. In custom-outputSchema mode the raw assoc array is
+     * handed to the user handler unchanged.
      *
      * @param  array<string, mixed>  $data
      * @param  array<string, mixed>  $userInput
@@ -311,19 +312,43 @@ class AiGenerateAction extends SolarisAction
     protected function dispatchSingleResponse(array $data, array $userInput = []): void
     {
         try {
-            if ($this->writeTerminal === self::WRITE_CREATE) {
-                /** @var array<int, array<string, mixed>> $records */
-                $records = $data[self::RECORDS_KEY] ?? [];
-                foreach ($records as $row) {
-                    $this->modelClass::create($row);
+            if ($this->modelClass !== null) {
+                $batchResponse = BatchResponse::fromArray($data);
+
+                if ($this->writeTerminal === self::WRITE_CREATE) {
+                    $identifierKey = $this->resolveIdentifierKey();
+                    $succeeded = 0;
+
+                    foreach ($batchResponse->records as $row) {
+                        unset($row[$identifierKey]);
+
+                        try {
+                            $this->modelClass::create($row);
+                            $succeeded++;
+                        } catch (\Throwable $e) {
+                            report($e);
+                        }
+                    }
+
+                    if ($batchResponse->failed !== []) {
+                        $this->sendBatchSummary($succeeded, count($batchResponse->failed));
+                    }
+
+                    return;
                 }
+
+                // handler mode in forModel: pass the BatchResponse DTO.
+                $this->evaluate($this->handler, [
+                    'data' => $batchResponse,
+                    'userInput' => $userInput,
+                ]);
 
                 return;
             }
 
+            // custom outputSchema mode: raw assoc, unchanged.
             $this->evaluate($this->handler, [
                 'data' => $data,
-                'records' => $this->modelClass !== null ? ($data[self::RECORDS_KEY] ?? []) : null,
                 'userInput' => $userInput,
             ]);
         } catch (\Throwable $e) {
@@ -357,7 +382,13 @@ class AiGenerateAction extends SolarisAction
             $instruction = trim($instruction."\n\nGenerate {$count} records.");
         }
 
-        return $this->appendUserContext($instruction, $userInput);
+        $instruction = $this->appendUserContext($instruction, $userInput);
+
+        if ($this->modelClass !== null) {
+            $instruction = $this->appendSingleCallInstructions($instruction);
+        }
+
+        return $instruction;
     }
 
     /**
@@ -495,6 +526,32 @@ class AiGenerateAction extends SolarisAction
     }
 
     /**
+     * Throws if any dev-supplied closure declares `$row` (singular).
+     * Spec 27 removed the per-row code path; closures now always receive `$rows` (plural).
+     */
+    protected function guardClosureArgs(): void
+    {
+        $closures = array_filter([
+            $this->instruction instanceof Closure ? $this->instruction : null,
+            $this->handler,
+            $this->source instanceof Closure ? $this->source : null,
+        ]);
+
+        foreach ($closures as $closure) {
+            $reflection = new \ReflectionFunction($closure);
+            foreach ($reflection->getParameters() as $param) {
+                if ($param->getName() === 'row') {
+                    throw new LogicException(
+                        'AiGenerateAction closures must declare `$rows` (plural), not `$row`. '.
+                        'The single-row code path was removed in spec 27; even at batchSize=1, '.
+                        'closures receive a batch (array of rows). See documentation/ai-generate-action.md#batching.'
+                    );
+                }
+            }
+        }
+    }
+
+    /**
      * Preview/conversational are unsupported — unreachable guards required by SolarisAction.
      *
      * @param  array<string, mixed>  $data
@@ -519,38 +576,32 @@ class AiGenerateAction extends SolarisAction
      */
     protected function executeRecordsLoop(array $userInput = []): void
     {
+        $this->guardClosureArgs();
+
         $rows = $this->resolveRecordsSource($userInput);
         ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
         $timeout = $this->resolveTimeout();
-
         $resolver = $this->resolveSchemaResolver();
         $attachments = $this->resolveAttachments($userInput);
+        $batchSize = $this->resolveBatchSize($userInput);
 
         $succeeded = 0;
-        $failed = 0;
+        $failures = [];
 
-        foreach ($rows as $row) {
+        foreach ($this->chunkRows($rows, $batchSize) as $batch) {
             try {
-                $attrs = $this->generateForRow($row, $resolver, $provider, $model, $timeout, $userInput, $attachments);
-
-                if ($attrs === null) {
-                    $failed++;
-
-                    continue;
-                }
-
-                $this->writeRow($row, $attrs);
-                $succeeded++;
+                $outcome = $this->processBatch($batch, $resolver, $provider, $model, $timeout, $userInput, $attachments);
+                $succeeded += $outcome->succeeded;
+                $failures = array_merge($failures, $outcome->failures);
             } catch (AiGenerateActionFakeException $e) {
-                // Test-config bug — surface it, don't count as a row failure.
                 throw $e;
             } catch (\Throwable $e) {
                 report($e);
-                $failed++;
+                $failures = array_merge($failures, $this->markBatchFailed($batch, 'AI call error'));
             }
         }
 
-        $this->sendBatchSummary($succeeded, $failed);
+        $this->sendBatchSummary($succeeded, count($failures));
     }
 
     /**
@@ -576,58 +627,6 @@ class AiGenerateAction extends SolarisAction
         }
 
         throw new RuntimeException('AiGenerateAction ->sourceRecords() must yield a Builder, Collection, or array; got '.get_debug_type($source));
-    }
-
-    /**
-     * @param  array<string, mixed>|Model  $row
-     * @param  Closure(JsonSchemaTypeFactory): array<string, Type>  $resolver
-     * @param  array<string, mixed>  $userInput
-     * @param  array<int, File>  $attachments
-     * @return array<string, mixed>|null AI output, or null on AI error (already reported by executeAiCall)
-     */
-    protected function generateForRow(
-        array|Model $row,
-        Closure $resolver,
-        mixed $provider,
-        ?string $model,
-        ?int $timeout,
-        array $userInput = [],
-        array $attachments = [],
-    ): ?array {
-        if (AiGenerateActionFake::isActive()) {
-            // Still resolve the per-row instruction so the prompt closure runs:
-            // surfaces undefined-variable / bad-template errors under ::fake(),
-            // and lets the `$row` named injection be exercised end-to-end in tests.
-            $this->resolveInstructionForRow($row, $userInput);
-
-            $fake = AiGenerateActionFake::getInstance();
-            $data = $fake->getResponse();
-            $fake->recordCall($this->getName(), $data, $userInput, $attachments);
-
-            if ($fake->shouldSimulateError()) {
-                $this->dispatchFakeResponseFailed($fake->getErrorMessage(), $provider, $model);
-
-                return null;
-            }
-
-            $this->dispatchFakeResponseReceived($provider, $model);
-
-            return $data;
-        }
-
-        $instruction = $this->resolveInstructionForRow($row, $userInput);
-        $agent = (new SolarisAgent)->configure($instruction, [], $resolver);
-        $this->applyGenerationOptions($agent);
-
-        /** @var StructuredAgentResponse|null $response */
-        $response = $this->executeAiCall(
-            fn () => $agent->prompt($instruction, $attachments, $provider, $model, $timeout),
-            $provider,
-            $model,
-            static fn (): null => null,  // suppress per-row error notification; summary covers it
-        );
-
-        return $response?->toArray();
     }
 
     /**
@@ -818,39 +817,6 @@ class AiGenerateAction extends SolarisAction
         $batchResponse = BatchResponse::fromArray($rawResponse);
 
         return $this->reconcileBatch($batch, $batchResponse);
-    }
-
-    /**
-     * @param  array<string, mixed>|Model  $row
-     * @param  array<string, mixed>  $userInput
-     */
-    protected function resolveInstructionForRow(array|Model $row, array $userInput = []): string
-    {
-        $instruction = $this->instruction;
-
-        if ($instruction instanceof Closure) {
-            $instruction = $this->evaluate($instruction, [
-                'row' => $row instanceof Model ? $row->getAttributes() : $row,
-                'userInput' => $userInput,
-            ]);
-        }
-
-        if ($instruction instanceof View) {
-            $instruction = $instruction->render();
-        }
-
-        $instruction = (string) $instruction;
-
-        $instruction = $this->appendUserContext($instruction, $userInput);
-
-        $context = $this->buildContextForRow($row);
-
-        if ($context !== []) {
-            $json = json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-            $instruction = trim($instruction)."\n\n## Current record\n```json\n{$json}\n```";
-        }
-
-        return $instruction;
     }
 
     /**

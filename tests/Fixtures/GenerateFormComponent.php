@@ -100,7 +100,7 @@ class GenerateFormComponent extends FormsComponent
             ->prompt('Generate realistic blog categories.')
             ->forModel(SeedCategory::class)
             ->count(2)
-            ->handleUsing(fn (array $records) => collect($records)->each(fn (array $row) => SeedCategory::create($row)));
+            ->handleUsing(fn ($data) => collect($data->records)->each(fn (array $row) => SeedCategory::create($row)));
     }
 
     public function importCategoriesAction(): AiGenerateAction
@@ -154,7 +154,7 @@ class GenerateFormComponent extends FormsComponent
     public function importWithRowPromptAction(): AiGenerateAction
     {
         return AiGenerateAction::make('importWithRowPrompt')
-            ->prompt(fn (array $row) => "Process this row: tag={$row['tag']}.")
+            ->prompt(fn (array $rows) => 'Process these rows: '.implode(', ', array_column($rows, 'tag')).'.')
             ->forModel(SeedCategory::class)
             ->sourceRecords([
                 ['tag' => 'alpha'],
@@ -180,7 +180,7 @@ class GenerateFormComponent extends FormsComponent
         return AiGenerateAction::make('userInputCreateRecordsLoop')
             ->userInput(UserInput::make()->fields([Textarea::make('focus')]))
             ->forModel(SeedCategory::class)
-            ->prompt(fn (array $row, array $userInput) => "Process row {$row['name']} with focus: ".($userInput['focus'] ?? 'none'))
+            ->prompt(fn (array $rows, array $userInput) => 'Process '.count($rows).' rows with focus: '.($userInput['focus'] ?? 'none'))
             ->sourceRecords([['name' => 'A', 'slug' => 'a'], ['name' => 'B', 'slug' => 'b']])
             ->createRecords();
     }
@@ -241,7 +241,7 @@ class GenerateFormComponent extends FormsComponent
             ->userInput(UserInput::make()->fields([Textarea::make('csv_path')]))
             ->attachmentFromUserInput('csv_path')
             ->forModel(SeedCategory::class)
-            ->prompt('Process row {row.name} using the attached CSV.')
+            ->prompt('Process the records below using the attached CSV.')
             ->sourceRecords([['name' => 'A', 'slug' => 'a'], ['name' => 'B', 'slug' => 'b'], ['name' => 'C', 'slug' => 'c']])
             ->createRecords();
     }
