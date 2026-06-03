@@ -246,6 +246,66 @@ class GenerateFormComponent extends FormsComponent
             ->createRecords();
     }
 
+    public function batchedUpdateAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('batchedUpdate')
+            ->forModel(SeedCategory::class)
+            ->prompt('Update the records below.')
+            ->sourceRecords(fn () => SeedCategory::all())
+            ->batchSize(10)
+            ->updateRecords();
+    }
+
+    public function batchedCreateFromSourceAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('batchedCreateFromSource')
+            ->forModel(SeedCategory::class)
+            ->prompt('Create the records below.')
+            ->sourceRecords([
+                ['name' => 'A', 'slug' => 'a'],
+                ['name' => 'B', 'slug' => 'b'],
+                ['name' => 'C', 'slug' => 'c'],
+            ])
+            ->batchSize(10)
+            ->createRecords();
+    }
+
+    public function batchedSmallBatchAction(): AiGenerateAction
+    {
+        // batchSize=1 — same batched code path with batches of one.
+        return AiGenerateAction::make('batchedSmallBatch')
+            ->forModel(SeedCategory::class)
+            ->prompt(fn (array $rows) => 'Processing batch of '.count($rows).'.')
+            ->sourceRecords([
+                ['name' => 'X', 'slug' => 'x'],
+                ['name' => 'Y', 'slug' => 'y'],
+                ['name' => 'Z', 'slug' => 'z'],
+            ])
+            ->batchSize(1)
+            ->createRecords();
+    }
+
+    public function batchedRowClosureAction(): AiGenerateAction
+    {
+        // Intentionally declares $row — should throw LogicException at execute.
+        return AiGenerateAction::make('batchedRowClosure')
+            ->forModel(SeedCategory::class)
+            ->prompt(fn (array $row) => "Process {$row['name']}.")
+            ->sourceRecords([['name' => 'A', 'slug' => 'a']])
+            ->batchSize(10)
+            ->createRecords();
+    }
+
+    public function seedCategoriesCreateAction(): AiGenerateAction
+    {
+        // Single-call createRecords (no sourceRecords) — exercises dispatchSingleResponse WRITE_CREATE.
+        return AiGenerateAction::make('seedCategoriesCreate')
+            ->prompt('Parse the input into categories.')
+            ->forModel(SeedCategory::class)
+            ->count(2)
+            ->createRecords();
+    }
+
     public function render(): string
     {
         return '<div>{{ $this->form }}</div>';
