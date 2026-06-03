@@ -887,7 +887,7 @@ class AiGenerateAction extends SolarisAction
      */
     protected function appendBatchInstructions(string $instruction, array $batch): string
     {
-        [$identifierKey] = $this->enrichBatchWithIdentifier($batch);
+        $identifierKey = $this->resolveIdentifierKey();
 
         $boilerplate = <<<TXT
 ## Instructions
