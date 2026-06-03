@@ -27,6 +27,20 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
 
 ### Changed
 
+- **`AiGenerateAction` records-loop API breaking changes** (the action was not
+  yet feature-complete enough for production use; this is a clean break):
+  - `->prompt()` / `->handleUsing()` / `->sourceRecords()` closures receive
+    `$rows` (array of batch rows) instead of `$row` (singular). Declaring `$row`
+    throws `LogicException` at execute time.
+  - `->handleUsing()` receives a `BatchResponse $data` instead of a raw assoc array
+    in `forModel` mode. Read `$data->records` and `$data->failed`.
+  - The auto-appended `## Current record` prompt block is replaced by `## Records`
+    (array of N rows, possibly N=1) and `## Instructions` (the failure-reporting
+    contract).
+  - `AiGenerateActionFake::fakeEach()` expects BatchResponse-shaped entries
+    (`{records, failed}`) in `forModel` mode instead of raw per-row dicts.
+  - The deprecated `'records' => ...` closure named arg on `handleUsing` is removed.
+
 - **Renamed `AiAction` → `AiFormAction`** (and `AiActionFake` → `AiFormActionFake`,
   `WithAiActionFake` → `WithAiFormActionFake`) to distinguish the form-filling
   action from the upcoming form-agnostic generation action. Breaking change;
@@ -34,6 +48,13 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
 
 ### Added
 
+- `AiGenerateAction` row batching: `->batchSize($n)` (default 10) controls how
+  many source rows per AI call when the records loop fires. Massive cost reduction
+  for enrichment jobs. New `BatchResponse` / `FailedRecord` / `BatchOutcome` DTOs
+  in `src/Support/`. Schema gains a standardized `failed: [{identifier, reason}]`
+  array — failures (AI-reported, silent drops, hallucinated identifiers) are
+  aggregated into the batch summary notification. New
+  `AiGenerateAction::assertCalledWithBatch(Closure)` fake helper.
 - `AiGenerateAction` now sends user-uploaded files to the AI as attachments
   (Image/Audio/Document, auto-detected by MIME). Use `->attachmentField()`,
   `->attachmentFromUserInput()`, or `->attachments()` — same three-channel API
