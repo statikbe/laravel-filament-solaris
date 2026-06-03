@@ -75,6 +75,8 @@ class AiGenerateAction extends SolarisAction
     /** @var array<string> */
     protected array $promptContextColumns = [];
 
+    protected int|Closure $batchSize = 10;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -213,6 +215,17 @@ class AiGenerateAction extends SolarisAction
     public function promptContextColumns(array $columns): static
     {
         $this->promptContextColumns = $columns;
+
+        return $this;
+    }
+
+    /**
+     * Set the number of source rows per AI call when the records loop fires.
+     * Default 10. A value of 1 still uses the batched code path with batches of one.
+     */
+    public function batchSize(int|Closure $size): static
+    {
+        $this->batchSize = $size;
 
         return $this;
     }
@@ -361,6 +374,24 @@ class AiGenerateAction extends SolarisAction
         $json = json_encode($filtered, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 
         return trim($instruction)."\n\n## User context\n```json\n{$json}\n```";
+    }
+
+    /**
+     * @param  array<string, mixed>  $userInput
+     */
+    protected function resolveBatchSize(array $userInput): int
+    {
+        $size = $this->batchSize instanceof Closure
+            ? $this->evaluate($this->batchSize, ['userInput' => $userInput])
+            : $this->batchSize;
+
+        $size = (int) $size;
+
+        if ($size <= 0) {
+            throw new RuntimeException('AiGenerateAction ->batchSize() must resolve to a positive integer; got '.$size.'.');
+        }
+
+        return $size;
     }
 
     /**
