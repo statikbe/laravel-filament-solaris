@@ -208,7 +208,10 @@ info-gathering without any form wiring. Tested via `AiGenerateAction::fake()`.
 See `specs/21-ai-generate-action.md` for the full design spec.
 
 - Follow-up: enum auto-detection from backed-enum casts + `->columnEnum()` / `->columnHint()` per-column overrides shipped per `specs/22-formodel-enums-hints.md`.
-- Follow-up: per-record write-back & enrichment — `->createRecords()` / `->updateRecords()` terminals, polymorphic `->records()` source, `->promptContextColumns()`, per-row prompt `$row` injection, partial-failure handling, and `AiGenerateAction::fakeEach([...])` test helper shipped per `specs/23-record-writeback-enrichment.md`. Deferred follow-up: UserInput on AiGenerateAction (paste/upload variant) tracked in `specs/24-userinput-on-aigenerateaction.md`.
+- Follow-up: per-record write-back & enrichment — `->createRecords()` / `->updateRecords()` terminals, polymorphic `->records()` source, `->promptContextColumns()`, partial-failure handling, and `AiGenerateAction::fakeEach([...])` test helper shipped per `specs/23-record-writeback-enrichment.md`.
+- Follow-up: ✅ UserInput on AiGenerateAction (paste/upload variant — a `->userInput()` modal feeding the prompt and/or `->sourceRecords()` closure) shipped per `specs/24-userinput-on-aigenerateaction.md`.
+- Follow-up: ✅ attachments on AiGenerateAction — inherited `HasAttachments` setters wired into the execute paths; one resolved `File[]` flows to every batch. Adds `AiGenerateAction::assertCalledWithAttachments()`. Shipped per `specs/26-attachments-on-aigenerateaction.md`.
+- Follow-up: ✅ row batching — `->batchSize($n)` (int|Closure, default 10) batches source rows per AI call; unified `BatchResponse` / `FailedRecord` / `BatchOutcome` flow with a standardized `failed: [{identifier, reason}]` array and identifier reconciliation (silent drops + hallucinated ids + write errors). **BREAKING:** records-loop closures (`->prompt()` / `->handleUsing()` / `->sourceRecords()`) receive `$rows` (plural array), not `$row`; `->handleUsing()` receives a `BatchResponse $data` in forModel mode. Adds `assertCalledWithBatch()`. Shipped per `specs/27-row-batching-on-aigenerateaction.md`. Open: no live-model validation of the `## Records`/`## Instructions` identifier-echo contract (all tests use fakes).
 
 ---
 
