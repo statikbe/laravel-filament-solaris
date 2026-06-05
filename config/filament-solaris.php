@@ -180,6 +180,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Failure Logging
+    |--------------------------------------------------------------------------
+    |
+    | When `enabled`, AiGenerateAction logs a failure manifest (identifier,
+    | reason, and source row) whenever a batched run finishes with one or more
+    | failed records — so failures are never silently dropped, even when no
+    | ->onPartialFailure() callback is registered. Enabled by default (failures
+    | are exceptional). `channel` routes the manifest to a dedicated log file.
+    |
+    */
+
+    'failure_logging' => [
+        'enabled' => (bool) env('FILAMENT_SOLARIS_FAILURE_LOGGING', true),
+        'channel' => null,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | AI Defaults
     |--------------------------------------------------------------------------
     |

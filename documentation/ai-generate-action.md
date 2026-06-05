@@ -202,7 +202,7 @@ In `forModel` mode the schema unconditionally includes a `failed: [{identifier, 
 
 Failures are surfaced three ways, layered for different audiences:
 
-1. **Logged** (dev) — the full manifest is written via `Log::warning(...)` whenever any row fails, so failures are never silently dropped, even with no callback registered.
+1. **Logged** (dev) — the full manifest is written via `Log::warning(...)` whenever any row fails, so failures are never silently dropped, even with no callback registered. Toggle with `failure_logging.enabled` (default `true`, or the `FILAMENT_SOLARIS_FAILURE_LOGGING` env var) and route to a dedicated log with `failure_logging.channel`.
 2. **Callback** (app) — register `->onPartialFailure(...)` to take ownership of failure handling (flash a detailed notice, persist for retry, dispatch a job, …). It fires only when there is at least one failure, and receives:
 
    ```php

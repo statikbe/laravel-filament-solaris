@@ -663,14 +663,31 @@ class AiGenerateAction extends SolarisAction
      */
     protected function reportFailures(array $failures): void
     {
-        Log::warning('AiGenerateAction: '.count($failures).' record(s) failed during a batched run.', [
+        $config = FilamentSolaris::config();
+
+        if (! $config->isFailureLoggingEnabled()) {
+            return;
+        }
+
+        $message = 'AiGenerateAction: '.count($failures).' record(s) failed during a batched run.';
+        $context = [
             'action' => $this->getName(),
             'failures' => array_map(fn (FailedRecord $f): array => [
                 'identifier' => $f->identifier,
                 'reason' => $f->reason,
                 'input' => $f->input instanceof Model ? $f->input->getKey() : $f->input,
             ], $failures),
-        ]);
+        ];
+
+        $channel = $config->getFailureLoggingChannel();
+
+        if ($channel !== null) {
+            Log::channel($channel)->warning($message, $context);
+
+            return;
+        }
+
+        Log::warning($message, $context);
     }
 
     /**
@@ -956,10 +973,7 @@ class AiGenerateAction extends SolarisAction
         return trim($instruction)."\n\n## Records\n```json\n{$json}\n```";
     }
 
-    /**
-     * @param  array<int, array<string, mixed>|Model>  $batch
-     */
-    protected function appendBatchInstructions(string $instruction, array $batch): string
+    protected function appendBatchInstructions(string $instruction): string
     {
         $identifierKey = $this->resolveIdentifierKey();
 
@@ -999,7 +1013,7 @@ TXT;
         $instruction = (string) $instruction;
         $instruction = $this->appendUserContext($instruction, $userInput);
         $instruction = $this->appendRecordsBlock($instruction, $batch);
-        $instruction = $this->appendBatchInstructions($instruction, $batch);
+        $instruction = $this->appendBatchInstructions($instruction);
 
         return $instruction;
     }

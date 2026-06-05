@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;
+use Psr\Log\LoggerInterface;
 use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 use Statikbe\FilamentSolaris\Tests\Fixtures\GenerateFormComponent;
@@ -117,4 +118,30 @@ it('logs the failure manifest even without an onPartialFailure callback', functi
         ->withArgs(fn (string $message, array $context = []) => str_contains($message, 'failed during a batched run')
             && ($context['failures'] ?? []) !== [])
         ->atLeast()->once();
+});
+
+it('does not log the manifest when failure logging is disabled', function () {
+    config(['filament-solaris.failure_logging.enabled' => false]);
+    Log::spy();
+
+    AiGenerateAction::fakeError('provider down');
+
+    Livewire::test(GenerateFormComponent::class)->callAction('importCategories');
+
+    Log::shouldNotHaveReceived('warning');
+});
+
+it('routes the failure manifest to the configured log channel', function () {
+    config(['filament-solaris.failure_logging.channel' => 'solaris']);
+
+    $channelLogger = Mockery::spy(LoggerInterface::class);
+    Log::shouldReceive('channel')->with('solaris')->andReturn($channelLogger);
+
+    AiGenerateAction::fakeError('provider down');
+
+    Livewire::test(GenerateFormComponent::class)->callAction('importCategories');
+
+    $channelLogger->shouldHaveReceived('warning')
+        ->withArgs(fn (string $message, array $context = []) => str_contains($message, 'failed during a batched run'))
+        ->once();
 });
