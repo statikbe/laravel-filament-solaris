@@ -58,9 +58,14 @@ it('injects $userInput into the ->sourceRecords() closure', function () {
     });
 
     AiGenerateAction::fakeEach([
-        ['name' => 'R1', 'slug' => 'r-1'],
-        ['name' => 'R2', 'slug' => 'r-2'],
-        ['name' => 'R3', 'slug' => 'r-3'],
+        [
+            'records' => [
+                ['_index' => 0, 'name' => 'Row1', 'slug' => 'row-1'],
+                ['_index' => 1, 'name' => 'Row2', 'slug' => 'row-2'],
+                ['_index' => 2, 'name' => 'Row3', 'slug' => 'row-3'],
+            ],
+            'failed' => [],
+        ],
     ]);
 
     Livewire::test(GenerateFormComponent::class)
@@ -80,8 +85,13 @@ it('injects $userInput into the per-row ->prompt() closure in the records loop',
     });
 
     AiGenerateAction::fakeEach([
-        ['name' => 'A', 'slug' => 'a'],
-        ['name' => 'B', 'slug' => 'b'],
+        [
+            'records' => [
+                ['_index' => 0, 'name' => 'A', 'slug' => 'a'],
+                ['_index' => 1, 'name' => 'B', 'slug' => 'b'],
+            ],
+            'failed' => [],
+        ],
     ]);
 
     Livewire::test(GenerateFormComponent::class)
@@ -109,24 +119,24 @@ it('appends the ## User context block to the single-call instruction', function 
         ->and($result)->toContain('"focus": "SEO"');
 });
 
-it('appends ## User context BEFORE ## Current record in per-row instruction', function () {
+it('appends ## User context BEFORE ## Records in the batch instruction', function () {
     $action = AiGenerateAction::make('test')
         ->prompt('Process.')
         ->forModel(SeedCategory::class)
         ->sourceRecords([['name' => 'Tech', 'slug' => 'tech']])
         ->createRecords();
 
-    $ref = new ReflectionMethod($action, 'resolveInstructionForRow');
+    $ref = new ReflectionMethod($action, 'buildBatchInstruction');
     $ref->setAccessible(true);
 
-    $result = $ref->invoke($action, ['name' => 'Tech', 'slug' => 'tech'], ['focus' => 'SEO']);
+    $result = $ref->invoke($action, [['name' => 'Tech', 'slug' => 'tech']], ['focus' => 'SEO']);
 
     $userCtxPos = strpos($result, '## User context');
-    $currRecPos = strpos($result, '## Current record');
+    $recordsPos = strpos($result, '## Records');
 
     expect($userCtxPos)->toBeInt()
-        ->and($currRecPos)->toBeInt()
-        ->and($userCtxPos)->toBeLessThan($currRecPos);
+        ->and($recordsPos)->toBeInt()
+        ->and($userCtxPos)->toBeLessThan($recordsPos);
 });
 
 it('omits ## User context when $userInput is empty or all-null', function () {

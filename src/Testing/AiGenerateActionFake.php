@@ -18,7 +18,7 @@ class AiGenerateActionFake
 
     protected ?string $errorMessage = null;
 
-    /** @var array<int, array{name: string, data: array<string, mixed>, userInput: array<string, mixed>, attachments: array<int, File>}> */
+    /** @var array<int, array{name: string, data: array<string, mixed>, userInput: array<string, mixed>, attachments: array<int, File>, batch: array<int, array<string, mixed>>}> */
     protected array $calls = [];
 
     /**
@@ -93,14 +93,16 @@ class AiGenerateActionFake
      * @param  array<string, mixed>  $data
      * @param  array<string, mixed>  $userInput
      * @param  array<int, File>  $attachments
+     * @param  array<int, array<string, mixed>>  $batch
      */
-    public function recordCall(string $actionName, array $data, array $userInput = [], array $attachments = []): void
+    public function recordCall(string $actionName, array $data, array $userInput = [], array $attachments = [], array $batch = []): void
     {
         $this->calls[] = [
             'name' => $actionName,
             'data' => $data,
             'userInput' => $userInput,
             'attachments' => $attachments,
+            'batch' => $batch,
         ];
     }
 
@@ -163,6 +165,24 @@ class AiGenerateActionFake
         }
 
         Assert::fail('No AiGenerateAction call matched the attachments callback.');
+    }
+
+    /**
+     * Assert that at least one recorded call's $batch satisfies the callback.
+     *
+     * @param  Closure(array<int, array<string, mixed>>): bool  $callback
+     */
+    public function assertCalledWithBatch(Closure $callback): void
+    {
+        Assert::assertNotEmpty($this->calls, 'Expected an AiGenerateAction to be called, but none was.');
+
+        foreach ($this->calls as $call) {
+            if ($callback($call['batch']) === true) {
+                return;
+            }
+        }
+
+        Assert::fail('No AiGenerateAction call matched the batch callback.');
     }
 
     public function assertHandledWith(Closure $callback): void

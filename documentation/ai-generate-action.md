@@ -163,7 +163,7 @@ AiGenerateAction::make('enrich-articles')
 
 ### `->promptContextColumns()`
 
-By default, every non-excluded column of the row is injected into the prompt as a `## Current record` context block. Whitelist specific columns to limit what the AI sees — useful for privacy (omit PII not needed for the task) and token cost (drop large HTML body columns when only metadata matters):
+By default, every non-excluded column of each row is injected into the prompt as part of the `## Records` context block (all batch rows as a JSON array). Whitelist specific columns to limit what the AI sees — useful for privacy (omit PII not needed for the task) and token cost (drop large HTML body columns when only metadata matters):
 
 ```php
 AiGenerateAction::make('enrich-articles')
@@ -176,28 +176,32 @@ AiGenerateAction::make('enrich-articles')
 
 When `->promptContextColumns()` is not called, the full row (minus the primary key and auto-timestamps) is included.
 
-### Prompt closure `$row` injection
+### Prompt closure `$rows` injection
 
-When `->prompt()` receives a `Closure`, it is called **once per iteration row** with the row's attributes injected as `$row`. Filament's standard named arguments (`$record`, `$livewire`, `$get`, …) are unchanged — `$record` refers to the action's host, while `$row` is the current iteration item:
+When `->prompt()` receives a `Closure`, it is called **once per batch** with the batch's rows injected as `$rows` (an `array<int, array<string, mixed>>`). Filament's standard named arguments (`$record`, `$livewire`, `$get`, …) are unchanged — `$record` refers to the action's host, while `$rows` is the current batch of iteration items:
 
 ```php
 AiGenerateAction::make('personalise-subject-lines')
     ->forModel(EmailCampaign::class)
     ->sourceRecords(EmailCampaign::where('subject', null)->get())
-    ->prompt(fn (array $row) => "Write a compelling email subject line for a campaign targeting {$row['segment']} subscribers. Product: {$row['product_name']}.")
+    ->prompt(fn (array $rows) => 'Write compelling email subject lines for ' . count($rows) . ' campaigns. Segments: ' . implode(', ', array_column($rows, 'segment')) . '.')
     ->updateRecords();
 ```
 
+> **Note:** Declaring `$row` (singular) in a prompt closure throws a `LogicException` at execute time. Always use `$rows`.
+
 ### Partial-failure handling
 
-Each row is wrapped in its own `try/catch`. If the AI call or the write-back fails for a particular row, the exception is passed to `report()` and a failure counter is incremented. The loop continues with the next row.
+Each batch is wrapped in its own `try/catch`. If the AI call or a write-back fails for a batch, the exception is passed to `report()` and a failure counter is incremented. The loop continues with the next batch.
+
+In `forModel` mode the schema unconditionally includes a `failed: [{identifier, reason}]` array. The AI can report individual row failures within a batch (e.g. a record it could not process) by populating that array; those failures are also counted and reported. Failures from AI-reported errors, silent drops, hallucinated identifiers, and write errors are all aggregated into the batch summary notification.
 
 At the end of the loop a single **summary notification** is shown:
 
 - All succeeded → `"Processed N records."`
 - Some failed → `"Processed N records, M failed — check logs."`
 
-Per-row AI error toasts are suppressed to avoid notification spam on large batches.
+Per-batch AI error toasts are suppressed to avoid notification spam on large jobs.
 
 ### Large imports — queue the work
 
@@ -205,19 +209,34 @@ For more than ~50 rows, running AI calls synchronously in a web request will exc
 
 ### Testing
 
-Use `AiGenerateAction::fakeEach([...])` to queue a separate canned response per iteration row. The fake throws a `RuntimeException` if the action tries to make more calls than responses were provided.
+Use `AiGenerateAction::fakeEach([...])` to queue a separate canned response per batch call. In `forModel` mode each entry must be a `BatchResponse`-shaped array with `records` and `failed` keys. The fake throws a `RuntimeException` if the action tries to make more calls than responses were provided.
 
 ```php
 use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
 
+// forModel mode: each entry is a BatchResponse-shaped array
 AiGenerateAction::fakeEach([
-    ['meta_description' => 'First article SEO description.'],
-    ['meta_description' => 'Second article SEO description.'],
+    [
+        'records' => [
+            ['meta_description' => 'First article SEO description.'],
+            ['meta_description' => 'Second article SEO description.'],
+        ],
+        'failed' => [],
+    ],
 ]);
 
-// … trigger the action …
+// … trigger the action (one batch of 2 rows) …
 
-AiGenerateAction::assertCalledTimes(2);
+AiGenerateAction::assertCalledTimes(1);
+```
+
+Use `AiGenerateAction::assertCalledWithBatch(Closure)` to inspect the batch the action received:
+
+```php
+AiGenerateAction::assertCalledWithBatch(function (array $rows) {
+    expect($rows)->toHaveCount(2)
+        ->and($rows[0])->toHaveKey('id');
+});
 ```
 
 Use `AiGenerateAction::assertHandledWith()` to inspect the data the handler received on the most recent call:
@@ -290,11 +309,53 @@ AiGenerateAction::make('seed-categories')
 
 See [Configuration](configuration.md) for package-wide defaults.
 
+## Batching
+
+The records loop processes source rows in batches of N per AI call. Configure via `->batchSize($n)` (default `10`).
+
+```php
+AiGenerateAction::make('enrich-articles')
+    ->forModel(Article::class)
+    ->prompt(fn (array $rows) => 'Enrich these articles with category labels.')
+    ->sourceRecords(fn () => Article::needsEnrichment()->get())
+    ->batchSize(20)
+    ->updateRecords();
+```
+
+- Default `batchSize` is `10`. Reduce it if your row data is large (avoid context-window overflow); increase it for smaller rows where AI-call overhead dominates.
+- Closures receive `$rows` (`array<int, array<string, mixed>>`) — even at `batchSize=1`, you get a one-element array. The legacy `$row` (singular) arg is no longer supported and throws at execute time if declared.
+- `->handleUsing()` receives a `BatchResponse` DTO (`$data->records`, `$data->failed`) in `forModel` mode.
+
+### Auto-prompt boilerplate
+
+In `forModel` mode the action auto-appends to your prompt:
+
+```
+## Records
+[ each batch's input rows as a JSON array, with identifier echoed ]
+
+## Instructions
+For each record above, return an entry in `records` echoing the `id` (or `_index`) field unchanged with the processed fields.
+For any record you cannot process, add an entry to `failed` with the `identifier` and a short `reason`.
+```
+
+The schema unconditionally includes a `failed: [{identifier, reason}]` array. Failures are aggregated and reported via the batch summary notification.
+
+### Identifier conventions
+
+- `updateRecords`: the model's primary key column (echoed unchanged).
+- `createRecords + sourceRecords`: an injected `_index` integer (0..N-1 within each batch).
+- Single-call `createRecords` (no source — e.g., textarea/CSV parsing): the LLM populates `identifier` freely from input context (line number, CSV row excerpt, etc.).
+
+### Note on timeouts
+
+`->timeout($seconds)` and `->maxSteps($n)` are per-AI-call, not per-action. At `batchSize=10`, a 60s timeout covers a batch of 10 rows, not one. Tune accordingly.
+
 ## User Input
 
 Open a Filament modal before the action runs to collect runtime values (steering text, file paths, structured selections). Modal data is:
 
-1. Auto-injected into the prompt as a `## User context` JSON block (top-level and per-row in the records loop, alongside `## Current record`).
+1. Auto-injected into the prompt as a `## User context` JSON block (top-level and per-batch in the records loop, alongside the `## Records` and `## Instructions` blocks).
 2. Available as a `$userInput` named-arg in `->prompt()`, `->handleUsing()`, and `->sourceRecords()` closures (Filament-style DI — declare the arg to receive it; omit it if you don't need it).
 
 ### Free-text steering for single-call generation

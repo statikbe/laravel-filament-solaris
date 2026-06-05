@@ -100,7 +100,7 @@ class GenerateFormComponent extends FormsComponent
             ->prompt('Generate realistic blog categories.')
             ->forModel(SeedCategory::class)
             ->count(2)
-            ->handleUsing(fn (array $records) => collect($records)->each(fn (array $row) => SeedCategory::create($row)));
+            ->handleUsing(fn ($data) => collect($data->records)->each(fn (array $row) => SeedCategory::create($row)));
     }
 
     public function importCategoriesAction(): AiGenerateAction
@@ -154,7 +154,7 @@ class GenerateFormComponent extends FormsComponent
     public function importWithRowPromptAction(): AiGenerateAction
     {
         return AiGenerateAction::make('importWithRowPrompt')
-            ->prompt(fn (array $row) => "Process this row: tag={$row['tag']}.")
+            ->prompt(fn (array $rows) => 'Process these rows: '.implode(', ', array_column($rows, 'tag')).'.')
             ->forModel(SeedCategory::class)
             ->sourceRecords([
                 ['tag' => 'alpha'],
@@ -180,7 +180,7 @@ class GenerateFormComponent extends FormsComponent
         return AiGenerateAction::make('userInputCreateRecordsLoop')
             ->userInput(UserInput::make()->fields([Textarea::make('focus')]))
             ->forModel(SeedCategory::class)
-            ->prompt(fn (array $row, array $userInput) => "Process row {$row['name']} with focus: ".($userInput['focus'] ?? 'none'))
+            ->prompt(fn (array $rows, array $userInput) => 'Process '.count($rows).' rows with focus: '.($userInput['focus'] ?? 'none'))
             ->sourceRecords([['name' => 'A', 'slug' => 'a'], ['name' => 'B', 'slug' => 'b']])
             ->createRecords();
     }
@@ -241,8 +241,68 @@ class GenerateFormComponent extends FormsComponent
             ->userInput(UserInput::make()->fields([Textarea::make('csv_path')]))
             ->attachmentFromUserInput('csv_path')
             ->forModel(SeedCategory::class)
-            ->prompt('Process row {row.name} using the attached CSV.')
+            ->prompt('Process the records below using the attached CSV.')
             ->sourceRecords([['name' => 'A', 'slug' => 'a'], ['name' => 'B', 'slug' => 'b'], ['name' => 'C', 'slug' => 'c']])
+            ->createRecords();
+    }
+
+    public function batchedUpdateAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('batchedUpdate')
+            ->forModel(SeedCategory::class)
+            ->prompt('Update the records below.')
+            ->sourceRecords(fn () => SeedCategory::all())
+            ->batchSize(10)
+            ->updateRecords();
+    }
+
+    public function batchedCreateFromSourceAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('batchedCreateFromSource')
+            ->forModel(SeedCategory::class)
+            ->prompt('Create the records below.')
+            ->sourceRecords([
+                ['name' => 'A', 'slug' => 'a'],
+                ['name' => 'B', 'slug' => 'b'],
+                ['name' => 'C', 'slug' => 'c'],
+            ])
+            ->batchSize(10)
+            ->createRecords();
+    }
+
+    public function batchedSmallBatchAction(): AiGenerateAction
+    {
+        // batchSize=1 — same batched code path with batches of one.
+        return AiGenerateAction::make('batchedSmallBatch')
+            ->forModel(SeedCategory::class)
+            ->prompt(fn (array $rows) => 'Processing batch of '.count($rows).'.')
+            ->sourceRecords([
+                ['name' => 'X', 'slug' => 'x'],
+                ['name' => 'Y', 'slug' => 'y'],
+                ['name' => 'Z', 'slug' => 'z'],
+            ])
+            ->batchSize(1)
+            ->createRecords();
+    }
+
+    public function batchedRowClosureAction(): AiGenerateAction
+    {
+        // Intentionally declares $row — should throw LogicException at execute.
+        return AiGenerateAction::make('batchedRowClosure')
+            ->forModel(SeedCategory::class)
+            ->prompt(fn (array $row) => "Process {$row['name']}.")
+            ->sourceRecords([['name' => 'A', 'slug' => 'a']])
+            ->batchSize(10)
+            ->createRecords();
+    }
+
+    public function seedCategoriesCreateAction(): AiGenerateAction
+    {
+        // Single-call createRecords (no sourceRecords) — exercises dispatchSingleResponse WRITE_CREATE.
+        return AiGenerateAction::make('seedCategoriesCreate')
+            ->prompt('Parse the input into categories.')
+            ->forModel(SeedCategory::class)
+            ->count(2)
             ->createRecords();
     }
 

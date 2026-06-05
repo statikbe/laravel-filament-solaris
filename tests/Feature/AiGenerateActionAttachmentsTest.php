@@ -49,7 +49,7 @@ it('records attachments from a parent-form FileUpload field', function () {
     });
 });
 
-it('threads the same attachments to every per-row call in the records loop', function () {
+it('threads attachments to the batched records-loop call', function () {
     Schema::create('seed_categories', function ($table) {
         $table->id();
         $table->string('name');
@@ -58,26 +58,29 @@ it('threads the same attachments to every per-row call in the records loop', fun
     });
 
     AiGenerateAction::fakeEach([
-        ['name' => 'A', 'slug' => 'a'],
-        ['name' => 'B', 'slug' => 'b'],
-        ['name' => 'C', 'slug' => 'c'],
+        [
+            'records' => [
+                ['_index' => 0, 'name' => 'A', 'slug' => 'a'],
+                ['_index' => 1, 'name' => 'B', 'slug' => 'b'],
+                ['_index' => 2, 'name' => 'C', 'slug' => 'c'],
+            ],
+            'failed' => [],
+        ],
     ]);
 
     Livewire::test(GenerateFormComponent::class)
         ->callAction('userInputAttachmentRecordsLoop', data: ['csv_path' => 'attachments/matrix.csv']);
 
-    // Verify every captured call carried the same one-File attachments array.
+    // Verify the single batched call carried the one-File attachments array.
     $fake = AiGenerateActionFake::getInstance();
     $calls = (function () {
         return $this->calls;
     })->call($fake);
 
-    expect($calls)->toHaveCount(3);
-
-    foreach ($calls as $call) {
-        expect($call['attachments'])->toHaveCount(1)
-            ->and($call['attachments'][0])->toBeInstanceOf(File::class);
-    }
+    expect($calls)->toHaveCount(1);
+    expect($calls[0]['attachments'])->toHaveCount(1)
+        ->and($calls[0]['attachments'][0])->toBeInstanceOf(File::class);
+    expect($calls[0]['batch'])->toHaveCount(3);
 
     expect(SeedCategory::count())->toBe(3);
 
