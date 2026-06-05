@@ -192,16 +192,40 @@ AiGenerateAction::make('personalise-subject-lines')
 
 ### Partial-failure handling
 
-Each batch is wrapped in its own `try/catch`. If the AI call or a write-back fails for a batch, the exception is passed to `report()` and a failure counter is incremented. The loop continues with the next batch.
+Each batch is wrapped in its own `try/catch`. If the AI call or a write-back fails for a batch, the exception is passed to `report()` and the affected rows are recorded as failures. The loop continues with the next batch.
 
-In `forModel` mode the schema unconditionally includes a `failed: [{identifier, reason}]` array. The AI can report individual row failures within a batch (e.g. a record it could not process) by populating that array; those failures are also counted and reported. Failures from AI-reported errors, silent drops, hallucinated identifiers, and write errors are all aggregated into the batch summary notification.
+In `forModel` mode the schema unconditionally includes a `failed: [{identifier, reason}]` array. The AI can report individual row failures within a batch (e.g. a record it could not process) by populating that array. Failures from AI-reported errors, silent drops (input rows the AI never echoed), hallucinated identifiers' rows, write errors, and whole-batch AI errors are all aggregated into a `FailedRecord[]` list. Each `FailedRecord` carries:
 
-At the end of the loop a single **summary notification** is shown:
+- `->identifier` — the input row's `_index` (createRecords) or primary key (updateRecords).
+- `->reason` — a short failure reason.
+- `->input` — the originating source row (array or Eloquent model) when it can be recovered, so you can retry or report it. `null` only for AI-reported failures with no matching input (e.g. single-call createRecords parsing).
 
-- All succeeded → `"Processed N records."`
-- Some failed → `"Processed N records, M failed — check logs."`
+Failures are surfaced three ways, layered for different audiences:
 
-Per-batch AI error toasts are suppressed to avoid notification spam on large jobs.
+1. **Logged** (dev) — the full manifest is written via `Log::warning(...)` whenever any row fails, so failures are never silently dropped, even with no callback registered.
+2. **Callback** (app) — register `->onPartialFailure(...)` to take ownership of failure handling (flash a detailed notice, persist for retry, dispatch a job, …). It fires only when there is at least one failure, and receives:
+
+   ```php
+   AiGenerateAction::make('enrich')
+       ->forModel(Article::class)
+       ->sourceRecords(fn () => Article::needsEnrichment()->get())
+       ->batchSize(20)
+       ->updateRecords()
+       ->onPartialFailure(function (array $failures, int $succeeded, int $failed, int $total, array $userInput, $livewire) {
+           // $failures is FailedRecord[] — each ->identifier, ->reason, ->input
+           Notification::make()
+               ->title("{$succeeded}/{$total} enriched, {$failed} need attention")
+               ->warning()
+               ->send();
+       });
+   ```
+
+   Named args: `$failures` (`FailedRecord[]`), `$succeeded`, `$failed`, `$total`, `$userInput` — plus Filament's standard injections (`$livewire`, `$record`, …).
+3. **Notification** (user) — a single **summary notification** is always shown at the end of the loop:
+   - All succeeded → `"Processed N records."`
+   - Some failed → `"Processed N records, M failed — check logs."`
+
+The callback is additive: registering it does not suppress the summary notification or the log line. Per-batch AI error toasts are suppressed to avoid notification spam on large jobs.
 
 ### Large imports — queue the work
 

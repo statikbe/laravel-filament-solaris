@@ -48,6 +48,15 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
 
 ### Added
 
+- `AiGenerateAction` `->onPartialFailure(...)` callback: invoked when a batched
+  run finishes with one or more failed records, receiving `$failures`
+  (`FailedRecord[]`), `$succeeded`, `$failed`, `$total`, and `$userInput` (plus
+  Filament's `$livewire`/`$record`). Each `FailedRecord` now also carries
+  `->input` — the originating source row (array or model) when recoverable — so
+  failures can be retried or reported. The full failure manifest is additionally
+  logged via `Log::warning` whenever rows fail, so failures are never silently
+  dropped even without a callback. Whole-batch failures now thread the per-row
+  identifier (previously `null` for createRecords).
 - `AiGenerateAction` row batching: `->batchSize($n)` (default 10) controls how
   many source rows per AI call when the records loop fires. Massive cost reduction
   for enrichment jobs. New `BatchResponse` / `FailedRecord` / `BatchOutcome` DTOs

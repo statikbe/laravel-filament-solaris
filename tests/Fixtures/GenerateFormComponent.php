@@ -306,6 +306,44 @@ class GenerateFormComponent extends FormsComponent
             ->createRecords();
     }
 
+    public function partialFailureCaptureAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('partialFailureCapture')
+            ->forModel(SeedCategory::class)
+            ->only(['name', 'slug'])
+            ->sourceRecords([
+                ['name' => 'A', 'slug' => 'a'],
+                ['name' => 'B', 'slug' => 'b'],
+                ['name' => 'C', 'slug' => 'c'],
+            ])
+            ->batchSize(10)
+            ->prompt(fn (array $rows) => 'Process '.count($rows).' rows.')
+            ->onPartialFailure(fn (array $failures, int $succeeded, int $failed, int $total, array $userInput, $livewire) => $livewire->handledData = [
+                'succeeded' => $succeeded,
+                'failed' => $failed,
+                'total' => $total,
+                'ids' => array_map(fn ($f) => $f->identifier, $failures),
+                'reasons' => array_map(fn ($f) => $f->reason, $failures),
+                'inputs' => array_map(fn ($f) => $f->input, $failures),
+            ])
+            ->createRecords();
+    }
+
+    public function partialFailureUpdateCaptureAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('partialFailureUpdateCapture')
+            ->forModel(SeedCategory::class)
+            ->only(['slug'])
+            ->sourceRecords(fn () => SeedCategory::all())
+            ->batchSize(10)
+            ->prompt(fn (array $rows) => 'Process.')
+            ->onPartialFailure(fn (array $failures, $livewire) => $livewire->handledData = [
+                'ids' => array_map(fn ($f) => $f->identifier, $failures),
+                'inputIsModel' => array_map(fn ($f) => $f->input instanceof Model, $failures),
+            ])
+            ->updateRecords();
+    }
+
     public function render(): string
     {
         return '<div>{{ $this->form }}</div>';

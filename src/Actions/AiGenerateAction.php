@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Files\File;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use LogicException;
@@ -67,6 +68,8 @@ class AiGenerateAction extends SolarisAction
     protected array $columnEnums = [];
 
     protected ?Closure $handler = null;
+
+    protected ?Closure $onPartialFailure = null;
 
     /** @var Builder<Model>|Collection<int, array<string, mixed>>|EloquentCollection<int, Model>|array<int, array<string, mixed>|Model>|Closure|null */
     protected Builder|Collection|EloquentCollection|array|Closure|null $source = null;
@@ -234,6 +237,26 @@ class AiGenerateAction extends SolarisAction
     }
 
     /**
+     * Register a callback invoked when a batched run finishes with one or more
+     * failed records (AI-reported failures, silent drops, hallucinated
+     * identifiers' rows, write errors, or whole-batch AI errors).
+     *
+     * The callback receives these named arguments (plus Filament's standard
+     * injections like $livewire and $record):
+     *   - array<int, FailedRecord> $failures — each with ->identifier, ->reason, ->input
+     *   - int $succeeded — rows written successfully
+     *   - int $failed — count($failures)
+     *   - int $total — $succeeded + $failed
+     *   - array<string, mixed> $userInput — the resolved user-input values
+     */
+    public function onPartialFailure(Closure $callback): static
+    {
+        $this->onPartialFailure = $callback;
+
+        return $this;
+    }
+
+    /**
      * @param  array<string, mixed>  $userInput
      */
     public function execute(array $userInput = []): void
@@ -331,7 +354,7 @@ class AiGenerateAction extends SolarisAction
                     }
 
                     if ($batchResponse->failed !== []) {
-                        $this->sendBatchSummary($succeeded, count($batchResponse->failed));
+                        $this->finishBatchRun($succeeded, $batchResponse->failed, $userInput);
                     }
 
                     return;
@@ -601,7 +624,51 @@ class AiGenerateAction extends SolarisAction
             }
         }
 
+        $this->finishBatchRun($succeeded, $failures, $userInput);
+    }
+
+    /**
+     * Close out a batched run: log + surface any failures, then notify.
+     *
+     * @param  array<int, FailedRecord>  $failures
+     * @param  array<string, mixed>  $userInput
+     */
+    protected function finishBatchRun(int $succeeded, array $failures, array $userInput): void
+    {
+        if ($failures !== []) {
+            $this->reportFailures($failures);
+
+            if ($this->onPartialFailure !== null) {
+                $this->evaluate($this->onPartialFailure, [
+                    'failures' => $failures,
+                    'succeeded' => $succeeded,
+                    'failed' => count($failures),
+                    'total' => $succeeded + count($failures),
+                    'userInput' => $userInput,
+                ]);
+            }
+        }
+
         $this->sendBatchSummary($succeeded, count($failures));
+    }
+
+    /**
+     * Log the failure manifest so failures are never silently dropped, even when
+     * no ->onPartialFailure() callback is registered. Models are reduced to their
+     * key to keep the log readable.
+     *
+     * @param  array<int, FailedRecord>  $failures
+     */
+    protected function reportFailures(array $failures): void
+    {
+        Log::warning('AiGenerateAction: '.count($failures).' record(s) failed during a batched run.', [
+            'action' => $this->getName(),
+            'failures' => array_map(fn (FailedRecord $f): array => [
+                'identifier' => $f->identifier,
+                'reason' => $f->reason,
+                'input' => $f->input instanceof Model ? $f->input->getKey() : $f->input,
+            ], $failures),
+        ]);
     }
 
     /**
@@ -677,13 +744,16 @@ class AiGenerateAction extends SolarisAction
     {
         $identifierKey = $this->resolveIdentifierKey();
 
-        return array_map(function ($row) use ($identifierKey, $reason): FailedRecord {
+        $failures = [];
+        foreach ($batch as $index => $row) {
             $id = $identifierKey === '_index'
-                ? null  // index unrecoverable outside the foreach
+                ? $index
                 : ($row instanceof Model ? $row->getKey() : null);
 
-            return new FailedRecord(identifier: $id, reason: $reason);
-        }, $batch);
+            $failures[] = new FailedRecord(identifier: $id, reason: $reason, input: $row);
+        }
+
+        return $failures;
     }
 
     /**
@@ -725,20 +795,22 @@ class AiGenerateAction extends SolarisAction
                 $succeeded++;
             } catch (\Throwable $e) {
                 report($e);
-                $failures[] = new FailedRecord(identifier: $id, reason: 'write error: '.$e->getMessage());
+                $failures[] = new FailedRecord(identifier: $id, reason: 'write error: '.$e->getMessage(), input: $row);
             }
         }
 
         foreach ($response->failed as $failure) {
             $id = $failure->identifier;
+            $input = null;
             if ($id !== null && isset($lookup[(string) $id])) {
+                $input = $lookup[(string) $id];
                 unset($lookup[(string) $id]);
             }
-            $failures[] = $failure;
+            $failures[] = new FailedRecord(identifier: $failure->identifier, reason: $failure->reason, input: $input);
         }
 
         foreach ($lookup as $id => $row) {
-            $failures[] = new FailedRecord(identifier: $id, reason: 'no response from AI');
+            $failures[] = new FailedRecord(identifier: $id, reason: 'no response from AI', input: $row);
         }
 
         return new BatchOutcome($succeeded, $failures);
