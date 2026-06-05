@@ -274,7 +274,7 @@ class AiGenerateAction extends SolarisAction
             return;
         }
 
-        $this->dispatchSingleResponse($response->toArray(), $userInput);
+        $this->handleSingleCallResponse($response->toArray(), $userInput);
     }
 
     /**
@@ -297,23 +297,23 @@ class AiGenerateAction extends SolarisAction
         }
 
         $this->dispatchFakeResponseReceived($provider, $model);
-        $this->dispatchSingleResponse($data, $userInput);
+        $this->handleSingleCallResponse($data, $userInput);
     }
 
     /**
-     * Single-response dispatch (no records loop). In forModel mode the payload
-     * is parsed as a BatchResponse for unified handling; failures are surfaced
-     * via the batch summary. In custom-outputSchema mode the raw assoc array is
-     * handed to the user handler unchanged.
+     * Handle the response from a single (non-loop) AI call. In forModel mode the
+     * payload is parsed as a BatchResponse for unified handling; failures are
+     * surfaced via the batch summary. In custom-outputSchema mode the raw assoc
+     * array is handed to the user handler unchanged.
      *
-     * @param  array<string, mixed>  $data
+     * @param  array<string, mixed>  $responseData
      * @param  array<string, mixed>  $userInput
      */
-    protected function dispatchSingleResponse(array $data, array $userInput = []): void
+    protected function handleSingleCallResponse(array $responseData, array $userInput = []): void
     {
         try {
             if ($this->modelClass !== null) {
-                $batchResponse = BatchResponse::fromArray($data);
+                $batchResponse = BatchResponse::fromArray($responseData);
 
                 if ($this->writeTerminal === self::WRITE_CREATE) {
                     $identifierKey = $this->resolveIdentifierKey();
@@ -348,7 +348,7 @@ class AiGenerateAction extends SolarisAction
 
             // custom outputSchema mode: raw assoc, unchanged.
             $this->evaluate($this->handler, [
-                'data' => $data,
+                'data' => $responseData,
                 'userInput' => $userInput,
             ]);
         } catch (\Throwable $e) {
