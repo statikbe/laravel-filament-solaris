@@ -635,6 +635,8 @@ class AiGenerateAction extends SolarisAction
      */
     protected function finishBatchRun(int $succeeded, array $failures, array $userInput): void
     {
+        $failed = count($failures);
+
         if ($failures !== []) {
             $this->reportFailures($failures);
 
@@ -642,14 +644,14 @@ class AiGenerateAction extends SolarisAction
                 $this->evaluate($this->onPartialFailure, [
                     'failures' => $failures,
                     'succeeded' => $succeeded,
-                    'failed' => count($failures),
-                    'total' => $succeeded + count($failures),
+                    'failed' => $failed,
+                    'total' => $succeeded + $failed,
                     'userInput' => $userInput,
                 ]);
             }
         }
 
-        $this->sendBatchSummary($succeeded, count($failures));
+        $this->sendBatchSummary($succeeded, $failed);
     }
 
     /**
@@ -806,7 +808,7 @@ class AiGenerateAction extends SolarisAction
                 $input = $lookup[(string) $id];
                 unset($lookup[(string) $id]);
             }
-            $failures[] = new FailedRecord(identifier: $failure->identifier, reason: $failure->reason, input: $input);
+            $failures[] = new FailedRecord(identifier: $id, reason: $failure->reason, input: $input);
         }
 
         foreach ($lookup as $id => $row) {
