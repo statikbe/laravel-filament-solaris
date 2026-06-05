@@ -231,6 +231,19 @@ class FilamentSolarisConfig
     }
 
     /**
+     * Whether AiGenerateAction logs its failure manifest on a partial-failure run.
+     */
+    public function isFailureLoggingEnabled(): bool
+    {
+        return (bool) $this->resolveConfig('failure_logging.enabled', true);
+    }
+
+    public function getFailureLoggingChannel(): ?string
+    {
+        return $this->resolveConfig('failure_logging.channel');
+    }
+
+    /**
      * Get the default AI provider.
      *
      * @return Lab|array<string, string>|array<int, string>|string|null

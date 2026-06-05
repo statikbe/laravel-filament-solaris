@@ -56,7 +56,9 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
   failures can be retried or reported. The full failure manifest is additionally
   logged via `Log::warning` whenever rows fail, so failures are never silently
   dropped even without a callback. Whole-batch failures now thread the per-row
-  identifier (previously `null` for createRecords).
+  identifier (previously `null` for createRecords). The manifest logging is
+  configurable via `failure_logging.enabled` (default `true`,
+  `FILAMENT_SOLARIS_FAILURE_LOGGING`) and `failure_logging.channel`.
 - `AiGenerateAction` row batching: `->batchSize($n)` (default 10) controls how
   many source rows per AI call when the records loop fires. Massive cost reduction
   for enrichment jobs. New `BatchResponse` / `FailedRecord` / `BatchOutcome` DTOs
