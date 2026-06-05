@@ -95,3 +95,17 @@ it('records an empty attachments array when none configured', function () {
 
     AiGenerateAction::assertCalledWithAttachments(fn (array $attachments) => $attachments === []);
 });
+
+it('resolveAttachments returns [] with no Livewire host when no attachment channel is set', function () {
+    // Headless use (e.g. dispatched from a queued job): no mounted component.
+    $action = AiGenerateAction::make('headless')
+        ->forModel(SeedCategory::class)
+        ->count(1)
+        ->prompt('x')
+        ->handleUsing(fn () => null);
+
+    $ref = new ReflectionMethod($action, 'resolveAttachments');
+    $ref->setAccessible(true);
+
+    expect($ref->invoke($action, []))->toBe([]);
+});

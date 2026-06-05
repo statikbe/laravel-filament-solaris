@@ -40,7 +40,9 @@ class AiGenerateAction extends SolarisAction
     use HasGenerationOptions;
     use HasUserInput;
 
-    public const RECORDS_KEY = 'records';
+    public const RECORDS_KEY = BatchResponse::RECORDS;
+
+    public const FAILED_KEY = BatchResponse::FAILED;
 
     public const WRITE_CREATE = 'create';
 
@@ -262,6 +264,7 @@ class AiGenerateAction extends SolarisAction
     public function execute(array $userInput = []): void
     {
         $this->validateConfiguration();
+        $this->guardClosureArgs();
 
         if ($this->source !== null) {
             $this->executeRecordsLoop($userInput);
@@ -408,7 +411,7 @@ class AiGenerateAction extends SolarisAction
         $instruction = (string) $instruction;
 
         if ($this->modelClass !== null) {
-            $count = (int) $this->evaluate($this->recordCount);
+            $count = (int) $this->evaluate($this->recordCount, ['userInput' => $userInput]);
             $instruction = trim($instruction."\n\nGenerate {$count} records.");
         }
 
@@ -488,7 +491,7 @@ class AiGenerateAction extends SolarisAction
 
             return [
                 self::RECORDS_KEY => $schema->array()->items($schema->object($properties)),
-                'failed' => $schema->array()->items($schema->object([
+                self::FAILED_KEY => $schema->array()->items($schema->object([
                     'identifier' => $schema->string()->description('Identifier of the failed input row (or freeform description in single-call mode).'),
                     'reason' => $schema->string()->description('Short reason for the failure (max 200 chars).'),
                 ])),
@@ -612,8 +615,6 @@ class AiGenerateAction extends SolarisAction
      */
     protected function executeRecordsLoop(array $userInput = []): void
     {
-        $this->guardClosureArgs();
-
         $rows = $this->resolveRecordsSource($userInput);
         ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
         $timeout = $this->resolveTimeout();
@@ -828,18 +829,27 @@ class AiGenerateAction extends SolarisAction
 
         $succeeded = 0;
         $failures = [];
+        $consumed = [];
 
         foreach ($response->records as $outputRecord) {
             $id = $outputRecord[$identifierKey] ?? null;
+            $key = $id === null ? null : (string) $id;
 
-            if ($id === null || ! isset($lookup[(string) $id])) {
+            if ($key !== null && isset($consumed[$key])) {
+                report(new RuntimeException('AiGenerateAction: duplicate identifier in records output, ignoring the repeat: '.json_encode($outputRecord)));
+
+                continue;
+            }
+
+            if ($key === null || ! isset($lookup[$key])) {
                 report(new RuntimeException('AiGenerateAction: hallucinated or missing identifier in records output: '.json_encode($outputRecord)));
 
                 continue;
             }
 
-            $row = $lookup[(string) $id];
-            unset($lookup[(string) $id]);
+            $row = $lookup[$key];
+            unset($lookup[$key]);
+            $consumed[$key] = true;
 
             $attrs = $outputRecord;
             unset($attrs[$identifierKey]);
@@ -1031,10 +1041,11 @@ TXT;
         $instruction = $this->instruction;
 
         if ($instruction instanceof Closure) {
-            $rows = array_map(
-                fn ($row): array => $row instanceof Model ? $row->getAttributes() : $row,
-                $batch,
-            );
+            // Same filtered view the AI gets in the ## Records block
+            // (promptContextColumns + auto-exclusions), without the synthetic
+            // identifier key — so a closure echoing $rows can't leak columns the
+            // dev deliberately withheld via ->promptContextColumns().
+            $rows = array_map(fn ($row): array => $this->buildContextForRow($row), $batch);
             $instruction = $this->evaluate($instruction, [
                 'rows' => $rows,
                 'userInput' => $userInput,

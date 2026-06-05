@@ -8,6 +8,11 @@ namespace Statikbe\FilamentSolaris\Support;
  */
 final readonly class BatchResponse
 {
+    /** Top-level payload keys — the single source of truth for the batched shape. */
+    public const RECORDS = 'records';
+
+    public const FAILED = 'failed';
+
     /**
      * @param  array<int, array<string, mixed>>  $records
      * @param  array<int, FailedRecord>  $failed
@@ -22,10 +27,10 @@ final readonly class BatchResponse
      */
     public static function fromArray(array $payload): self
     {
-        $rawFailed = $payload['failed'] ?? [];
+        $rawFailed = $payload[self::FAILED] ?? [];
 
         return new self(
-            records: $payload['records'] ?? [],
+            records: $payload[self::RECORDS] ?? [],
             failed: array_map(
                 fn (array $row): FailedRecord => new FailedRecord(
                     identifier: $row['identifier'] ?? null,
