@@ -177,7 +177,7 @@ class AiGenerateAction extends SolarisAction
     }
 
     /**
-     * @param  Closure  $handler  receives `array $data` (full decoded response) + Filament DI; when forModel() is used, also `array $records`.
+     * @param  Closure  $handler  receives `$data` (custom-schema mode → raw `array`; forModel mode → a `BatchResponse` with `->records` / `->failed`), `$userInput`, and Filament's standard DI.
      */
     public function handleUsing(Closure $handler): static
     {
@@ -795,9 +795,6 @@ class AiGenerateAction extends SolarisAction
     }
 
     /**
-     * @param  array<int, array<string, mixed>|Model>  $batch
-     */
-    /**
      * Copy of a BatchResponse with the synthetic identifier key removed from
      * every record — so single-call handler-mode consumers never receive the
      * echoed `_index` / primary key in their `$data->records`.
@@ -813,6 +810,9 @@ class AiGenerateAction extends SolarisAction
         return new BatchResponse($records, $response->failed);
     }
 
+    /**
+     * @param  array<int, array<string, mixed>|Model>  $batch
+     */
     protected function reconcileBatch(array $batch, BatchResponse $response): BatchOutcome
     {
         $identifierKey = $this->resolveIdentifierKey();
