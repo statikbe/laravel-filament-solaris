@@ -70,12 +70,12 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
   (Image/Audio/Document, auto-detected by MIME). Use `->attachmentField()`,
   `->attachmentFromUserInput()`, or `->attachments()` — same three-channel API
   as `AiFormAction`. Resolution is job-level: the same `Files\File[]` flows
-  to every per-row AI call in the records loop. `AiGenerateActionFake::recordCall`
+  to every per-batch AI call in the records loop. `AiGenerateActionFake::recordCall`
   captures the resolved attachments; assert via
   `AiGenerateAction::assertCalledWithAttachments(Closure)`.
 - `AiGenerateAction` now supports `UserInput` modals: `->userInput(UserInput::make()->fields([...]))`
   opens a Filament modal before the action runs, with modal values (a) auto-injected
-  into the prompt as a `## User context` JSON block (top-level and per-row in the
+  into the prompt as a `## User context` JSON block (top-level and per-batch in the
   records loop), and (b) available as a `$userInput` closure named-arg in
   `->prompt()`, `->handleUsing()`, and `->sourceRecords()`. Internal: `HasUserInput`
   trait split — `HasDefaultUserInput` extracted for the preset-default branch (only

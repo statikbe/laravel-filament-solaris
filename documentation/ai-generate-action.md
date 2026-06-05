@@ -36,17 +36,18 @@ AiGenerateAction::make('build-taxonomy')
 
 ## Model-Derived Schema (seeding)
 
-Use `->forModel()` to derive the output schema automatically from an Eloquent model's database columns. The action introspects the table, honours `$fillable`/`$guarded`, and maps column types to JSON schema types. The handler receives both `$data` (full decoded response) and the injected `$records` array (the `records` key from the response).
+Use `->forModel()` to derive the output schema automatically from an Eloquent model's database columns. The action introspects the table, honours `$fillable`/`$guarded`, and maps column types to JSON schema types. In `forModel` mode the `->handleUsing()` closure receives a `BatchResponse $data` — read the generated rows from `$data->records` and any AI-reported failures from `$data->failed`. (For the common "just persist them" case, prefer the `->createRecords()` terminal below, which writes for you.)
 
 ```php
 use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
+use Statikbe\FilamentSolaris\Support\BatchResponse;
 
 AiGenerateAction::make('seed-categories')
     ->prompt('Generate realistic blog categories.')
     ->forModel(Category::class)
     ->count(20)
     ->only(['name', 'slug', 'description'])
-    ->handleUsing(fn (array $records) => Category::query()->insert($records));
+    ->handleUsing(fn (BatchResponse $data) => Category::query()->insert($data->records));
 ```
 
 ### `forModel` options
@@ -78,7 +79,7 @@ AiGenerateAction::make('seed-articles')
     ->columnEnum('status', ['draft', 'review', 'published'])    // constrains values
     ->columnHint('title', 'title-case, 50-60 characters, no clickbait')
     ->columnHint('summary', 'one sentence, max 160 chars')
-    ->handleUsing(fn (array $records) => Article::query()->insert($records));
+    ->handleUsing(fn (BatchResponse $data) => Article::query()->insert($data->records));
 ```
 
 - `->columnEnum()` overrides cast-detected enums if both apply.
@@ -125,7 +126,7 @@ AiGenerateAction::make('seed-categories')
     ->createRecords();
 ```
 
-This is sugar for the longhand `->handleUsing(fn (array $records) => Category::query()->insert($records))` but with per-record create semantics (model events fire, casts are applied).
+This is sugar for the longhand `->handleUsing(fn (BatchResponse $data) => Category::query()->insert($data->records))` but with per-record `create()` semantics (model events fire, casts are applied) and built-in partial-failure handling.
 
 ### Import: transform rows into model records
 
@@ -275,20 +276,23 @@ AiGenerateAction::assertHandledWith(function (array $data) {
 
 ## Handler Contract
 
-`->handleUsing()` is **required** when not using `->createRecords()` or `->updateRecords()`. The closure receives:
+`->handleUsing()` is **required** when not using `->createRecords()` or `->updateRecords()`. What `$data` is depends on the schema source:
 
-- `array $data` — the full decoded AI response, always available.
-- `array $records` — shorthand injected only when `->forModel()` is used; equals `$data['records']`.
-- Filament's standard dependency injection — `$record`, `$livewire`, `$get`, `$operation`, and the rest.
+- **Custom schema** (`->outputSchema()`) → `array $data` — the raw decoded AI response (your schema's shape).
+- **Model-derived** (`->forModel()`) → `BatchResponse $data` — read `$data->records` (the generated rows, as `array<string, mixed>[]`) and `$data->failed` (AI-reported `FailedRecord[]`). The synthetic identifier key is already stripped from each record.
+
+The closure also receives `$userInput` (see [User Input](#user-input)) and Filament's standard dependency injection — `$record`, `$livewire`, `$get`, `$operation`, and the rest.
 
 The handler is fully responsible for its own success feedback (notifications, redirects, etc.). If the handler throws, the action catches the exception and shows a generic error notification to the user.
 
 ```php
-->handleUsing(function (array $data, array $records, $livewire) {
-    Category::query()->insert($records);
+use Statikbe\FilamentSolaris\Support\BatchResponse;
+
+->handleUsing(function (BatchResponse $data, $livewire) {
+    Category::query()->insert($data->records);
 
     Notification::make()
-        ->title('Categories seeded!')
+        ->title('Seeded '.count($data->records).' categories!')
         ->success()
         ->send();
 })
@@ -328,7 +332,7 @@ AiGenerateAction::make('seed-categories')
     ->count(20)
     ->provider('anthropic', 'claude-sonnet-4-5-20250514')
     ->timeout(120)
-    ->handleUsing(fn (array $records) => Category::query()->insert($records));
+    ->handleUsing(fn (BatchResponse $data) => Category::query()->insert($data->records));
 ```
 
 See [Configuration](configuration.md) for package-wide defaults.
@@ -436,7 +440,7 @@ AiGenerateAction::make('enrich-from-spreadsheet')
 - `->attachmentFromUserInput('csv')` — bind a key from the UserInput modal.
 - `->attachments(fn () => Image::fromUrl(...))` — supply files programmatically.
 
-Resolution is **job-level**: the same `Files\File[]` flows to every per-row AI call in the records loop. Disk resolution uses `config('filesystems.default')`.
+Resolution is **job-level**: the same `Files\File[]` flows to every per-batch AI call in the records loop. Disk resolution uses `config('filesystems.default')`.
 
 ## Generation Options
 
@@ -467,7 +471,7 @@ Resolution chain per option (highest wins): action → config `default_*` → `l
 
 ## Testing
 
-Use `AiGenerateAction::fake()` to swap the real AI call with a controlled fake in tests. Pass the array the handler should receive as `$data`.
+Use `AiGenerateAction::fake()` to swap the real AI call with a controlled fake in tests. Pass the raw array the AI should return (the same `{records, failed}` shape in `forModel` mode — see [Batching](#batching)).
 
 ```php
 use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
@@ -492,7 +496,9 @@ AiGenerateAction::assertCalledTimes(1);
 // Was it never called?
 AiGenerateAction::assertNotCalled();
 
-// Inspect the data that reached the handler (assert with expect() inside the closure)
+// Inspect the raw recorded response (assert with expect() inside the closure).
+// Note: this receives the raw response array — i.e. $data['records'] — not the
+// BatchResponse DTO your forModel handler is invoked with at runtime.
 AiGenerateAction::assertHandledWith(function (array $data) {
     expect($data['records'])->toHaveCount(2)
         ->and($data['records'][0]['name'])->toBe('Technology');

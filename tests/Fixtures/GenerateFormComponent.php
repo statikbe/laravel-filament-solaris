@@ -298,7 +298,7 @@ class GenerateFormComponent extends FormsComponent
 
     public function seedCategoriesCreateAction(): AiGenerateAction
     {
-        // Single-call createRecords (no sourceRecords) — exercises dispatchSingleResponse WRITE_CREATE.
+        // Single-call createRecords (no sourceRecords) — exercises handleSingleCallResponse WRITE_CREATE.
         return AiGenerateAction::make('seedCategoriesCreate')
             ->prompt('Parse the input into categories.')
             ->forModel(SeedCategory::class)
@@ -342,6 +342,63 @@ class GenerateFormComponent extends FormsComponent
                 'inputIsModel' => array_map(fn ($f) => $f->input instanceof Model, $failures),
             ])
             ->updateRecords();
+    }
+
+    public function seedCategoriesCreateCaptureAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('seedCategoriesCreateCapture')
+            ->prompt('Parse the input into categories.')
+            ->forModel(SeedCategory::class)
+            ->count(2)
+            ->onPartialFailure(fn (array $failures, int $succeeded, int $failed, $livewire) => $livewire->handledData = [
+                'succeeded' => $succeeded,
+                'failed' => $failed,
+                'ids' => array_map(fn ($f) => $f->identifier, $failures),
+                'reasons' => array_map(fn ($f) => $f->reason, $failures),
+            ])
+            ->createRecords();
+    }
+
+    public function sourceWithHandlerAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('sourceWithHandler')
+            ->forModel(SeedCategory::class)
+            ->sourceRecords([['name' => 'A', 'slug' => 'a']])
+            ->prompt('x')
+            ->handleUsing(fn ($data) => null);   // invalid: handler never runs per batch
+    }
+
+    public function throwingPartialFailureAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('throwingPartialFailure')
+            ->forModel(SeedCategory::class)
+            ->only(['name', 'slug'])
+            ->sourceRecords([['name' => 'A', 'slug' => 'a']])
+            ->batchSize(10)
+            ->prompt(fn (array $rows) => 'x')
+            ->onPartialFailure(fn () => throw new \RuntimeException('callback boom'))
+            ->createRecords();
+    }
+
+    public function crossBatchCaptureAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('crossBatchCapture')
+            ->forModel(SeedCategory::class)
+            ->only(['name', 'slug'])
+            ->sourceRecords([
+                ['name' => 'A', 'slug' => 'a'],
+                ['name' => 'B', 'slug' => 'b'],
+                ['name' => 'C', 'slug' => 'c'],
+                ['name' => 'D', 'slug' => 'd'],
+            ])
+            ->batchSize(2)
+            ->prompt(fn (array $rows) => 'x')
+            ->onPartialFailure(fn (array $failures, int $succeeded, int $failed, $livewire) => $livewire->handledData = [
+                'succeeded' => $succeeded,
+                'failed' => $failed,
+                'ids' => array_map(fn ($f) => $f->identifier, $failures),
+            ])
+            ->createRecords();
     }
 
     public function render(): string

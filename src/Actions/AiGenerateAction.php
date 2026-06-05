@@ -177,7 +177,7 @@ class AiGenerateAction extends SolarisAction
     }
 
     /**
-     * @param  Closure  $handler  receives `array $data` (full decoded response) + Filament DI; when forModel() is used, also `array $records`.
+     * @param  Closure  $handler  receives `$data` (custom-schema mode → raw `array`; forModel mode → a `BatchResponse` with `->records` / `->failed`), `$userInput`, and Filament's standard DI.
      */
     public function handleUsing(Closure $handler): static
     {
@@ -337,32 +337,39 @@ class AiGenerateAction extends SolarisAction
         try {
             if ($this->modelClass !== null) {
                 $batchResponse = BatchResponse::fromArray($responseData);
+                $identifierKey = $this->resolveIdentifierKey();
 
                 if ($this->writeTerminal === self::WRITE_CREATE) {
-                    $identifierKey = $this->resolveIdentifierKey();
                     $succeeded = 0;
+                    $failures = $batchResponse->failed;
 
-                    foreach ($batchResponse->records as $row) {
-                        unset($row[$identifierKey]);
+                    foreach ($batchResponse->records as $index => $record) {
+                        $attrs = $record;
+                        unset($attrs[$identifierKey]);
 
                         try {
-                            $this->modelClass::create($row);
+                            $this->writeRow($record, $attrs);
                             $succeeded++;
                         } catch (\Throwable $e) {
                             report($e);
+                            $failures[] = new FailedRecord(
+                                identifier: $record[$identifierKey] ?? $index,
+                                reason: 'write error: '.$e->getMessage(),
+                                input: $record,
+                            );
                         }
                     }
 
-                    if ($batchResponse->failed !== []) {
-                        $this->finishBatchRun($succeeded, $batchResponse->failed, $userInput);
-                    }
+                    $this->finishBatchRun($succeeded, $failures, $userInput);
 
                     return;
                 }
 
-                // handler mode in forModel: pass the BatchResponse DTO.
+                // handler mode in forModel: hand over a BatchResponse with the
+                // synthetic identifier key stripped from each record, so handlers
+                // never see the echoed _index / primary key.
                 $this->evaluate($this->handler, [
-                    'data' => $batchResponse,
+                    'data' => $this->stripIdentifierKey($batchResponse, $identifierKey),
                     'userInput' => $userInput,
                 ]);
 
@@ -530,6 +537,12 @@ class AiGenerateAction extends SolarisAction
             throw new RuntimeException('AiGenerateAction terminals are mutually exclusive: pick one of ->handleUsing(), ->createRecords(), ->updateRecords().');
         }
 
+        // The records loop only runs write terminals; ->handleUsing() is never
+        // invoked per batch. Catch the natural-but-unsupported combination early.
+        if ($hasHandler && $this->source !== null) {
+            throw new RuntimeException('AiGenerateAction ->sourceRecords() requires ->createRecords() or ->updateRecords(); ->handleUsing() does not run per batch.');
+        }
+
         // createRecords/updateRecords need forModel (no custom schema for write-back).
         if ($this->writeTerminal !== null && ! $hasModel) {
             throw new RuntimeException('AiGenerateAction ->createRecords()/->updateRecords() require ->forModel().');
@@ -641,13 +654,19 @@ class AiGenerateAction extends SolarisAction
             $this->reportFailures($failures);
 
             if ($this->onPartialFailure !== null) {
-                $this->evaluate($this->onPartialFailure, [
-                    'failures' => $failures,
-                    'succeeded' => $succeeded,
-                    'failed' => $failed,
-                    'total' => $succeeded + $failed,
-                    'userInput' => $userInput,
-                ]);
+                // A throwing callback must not abort the run after rows are
+                // already written, nor swallow the summary notification.
+                try {
+                    $this->evaluate($this->onPartialFailure, [
+                        'failures' => $failures,
+                        'succeeded' => $succeeded,
+                        'failed' => $failed,
+                        'total' => $succeeded + $failed,
+                        'userInput' => $userInput,
+                    ]);
+                } catch (\Throwable $e) {
+                    report($e);
+                }
             }
         }
 
@@ -773,6 +792,22 @@ class AiGenerateAction extends SolarisAction
         }
 
         return $failures;
+    }
+
+    /**
+     * Copy of a BatchResponse with the synthetic identifier key removed from
+     * every record — so single-call handler-mode consumers never receive the
+     * echoed `_index` / primary key in their `$data->records`.
+     */
+    protected function stripIdentifierKey(BatchResponse $response, string $identifierKey): BatchResponse
+    {
+        $records = array_map(static function (array $record) use ($identifierKey): array {
+            unset($record[$identifierKey]);
+
+            return $record;
+        }, $response->records);
+
+        return new BatchResponse($records, $response->failed);
     }
 
     /**

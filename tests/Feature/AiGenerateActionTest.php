@@ -203,6 +203,13 @@ it('errors when updateRecords is called without ->sourceRecords()', function () 
         ->toThrow(RuntimeException::class);
 });
 
+it('errors when ->sourceRecords() is combined with ->handleUsing()', function () {
+    AiGenerateAction::fake(['x' => 1]);
+
+    expect(fn () => Livewire::test(GenerateFormComponent::class)->callAction('sourceWithHandler'))
+        ->toThrow(RuntimeException::class, 'does not run per batch');
+});
+
 it('errors when both create and update terminals are set', function () {
     AiGenerateAction::fake(['x' => 1]);
 

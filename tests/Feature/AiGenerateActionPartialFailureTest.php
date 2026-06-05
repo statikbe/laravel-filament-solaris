@@ -145,3 +145,69 @@ it('routes the failure manifest to the configured log channel', function () {
         ->withArgs(fn (string $message, array $context = []) => str_contains($message, 'failed during a batched run'))
         ->once();
 });
+
+it('surfaces a single-call createRecords write failure to onPartialFailure and the summary', function () {
+    AiGenerateAction::fake([
+        'records' => [
+            ['_index' => 0, 'name' => 'A', 'slug' => 'a'],
+            ['_index' => 1, 'slug' => 'b-no-name'],   // NOT NULL on name → write error
+        ],
+        'failed' => [],
+    ]);
+
+    $component = Livewire::test(GenerateFormComponent::class)
+        ->callAction('seedCategoriesCreateCapture')
+        ->assertNotified();
+
+    $data = $component->get('handledData');
+    expect($data['succeeded'])->toBe(1)
+        ->and($data['failed'])->toBe(1)
+        ->and($data['ids'])->toBe([1])
+        ->and($data['reasons'][0])->toStartWith('write error:');
+
+    expect(SeedCategory::count())->toBe(1);
+});
+
+it('sends a summary notification on a fully successful single-call createRecords run', function () {
+    AiGenerateAction::fake([
+        'records' => [
+            ['_index' => 0, 'name' => 'A', 'slug' => 'a'],
+            ['_index' => 1, 'name' => 'B', 'slug' => 'b'],
+        ],
+        'failed' => [],
+    ]);
+
+    Livewire::test(GenerateFormComponent::class)
+        ->callAction('seedCategoriesCreateCapture')
+        ->assertNotified()
+        ->assertSet('handledData', []);   // onPartialFailure NOT invoked on full success
+
+    expect(SeedCategory::count())->toBe(2);
+});
+
+it('completes the run and still notifies when an onPartialFailure callback throws', function () {
+    AiGenerateAction::fakeError('provider down');
+
+    // If the throwing callback aborted the run, callAction would bubble the
+    // exception and this assertion would never be reached.
+    Livewire::test(GenerateFormComponent::class)
+        ->callAction('throwingPartialFailure')
+        ->assertNotified();
+});
+
+it('aggregates success and failure across multiple batches into one summary + callback', function () {
+    AiGenerateAction::fakeEach([
+        ['records' => [['_index' => 0, 'name' => 'A', 'slug' => 'a'], ['_index' => 1, 'name' => 'B', 'slug' => 'b']], 'failed' => []],
+        ['records' => [['_index' => 0, 'name' => 'C', 'slug' => 'c']], 'failed' => [['identifier' => 1, 'reason' => 'bad row']]],
+    ]);
+
+    Livewire::test(GenerateFormComponent::class)
+        ->callAction('crossBatchCapture')
+        ->assertSet('handledData', [
+            'succeeded' => 3,
+            'failed' => 1,
+            'ids' => [1],
+        ]);
+
+    expect(SeedCategory::count())->toBe(3);
+});
