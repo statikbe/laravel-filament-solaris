@@ -271,3 +271,26 @@ it('throws when ->batchSize() resolves to a non-positive value', function () {
     expect(fn () => Livewire::test(GenerateFormComponent::class)->callAction('zeroBatchSize'))
         ->toThrow(RuntimeException::class, 'positive integer');
 });
+
+it('accepts an Eloquent Builder source (executed via ->get())', function () {
+    SeedCategory::create(['name' => 'One', 'slug' => 'old-one']);
+    SeedCategory::create(['name' => 'Two', 'slug' => 'old-two']);
+
+    AiGenerateAction::fakeEach([
+        ['records' => [['id' => 1, 'slug' => 'new-one'], ['id' => 2, 'slug' => 'new-two']], 'failed' => []],
+    ]);
+
+    Livewire::test(GenerateFormComponent::class)->callAction('builderSource');
+
+    expect(SeedCategory::pluck('slug', 'id')->all())->toEqualCanonicalizing([
+        1 => 'new-one',
+        2 => 'new-two',
+    ]);
+});
+
+it('throws when ->sourceRecords() yields an unsupported type', function () {
+    AiGenerateAction::fakeEach([['records' => [], 'failed' => []]]);
+
+    expect(fn () => Livewire::test(GenerateFormComponent::class)->callAction('invalidSourceType'))
+        ->toThrow(RuntimeException::class, 'must yield a Builder, Collection, or array');
+});

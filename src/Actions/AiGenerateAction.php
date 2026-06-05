@@ -230,6 +230,9 @@ class AiGenerateAction extends SolarisAction
     /**
      * Set the number of source rows per AI call when the records loop fires.
      * Default 10. A value of 1 still uses the batched code path with batches of one.
+     *
+     * Only applies with ->sourceRecords(); it has no effect on seed-from-scratch
+     * or single-call actions (use ->count() for the seed-from-scratch size).
      */
     public function batchSize(int|Closure $size): static
     {
@@ -371,19 +374,13 @@ class AiGenerateAction extends SolarisAction
                 // handler mode in forModel: hand over a BatchResponse with the
                 // synthetic identifier key stripped from each record, so handlers
                 // never see the echoed _index / primary key.
-                $this->evaluate($this->handler, [
-                    'data' => $this->stripIdentifierKey($batchResponse, $identifierKey),
-                    'userInput' => $userInput,
-                ]);
+                $this->runHandler($this->stripIdentifierKey($batchResponse, $identifierKey), $userInput);
 
                 return;
             }
 
             // custom outputSchema mode: raw assoc, unchanged.
-            $this->evaluate($this->handler, [
-                'data' => $responseData,
-                'userInput' => $userInput,
-            ]);
+            $this->runHandler($responseData, $userInput);
         } catch (\Throwable $e) {
             report($e);
             Notification::make()
@@ -391,6 +388,24 @@ class AiGenerateAction extends SolarisAction
                 ->danger()
                 ->send();
         }
+    }
+
+    /**
+     * Invoke the user handler with the resolved payload, recording the exact
+     * value it received on the fake (so assertHandledWith reflects reality).
+     *
+     * @param  array<string, mixed>  $userInput
+     */
+    protected function runHandler(mixed $payload, array $userInput): void
+    {
+        if (AiGenerateActionFake::isActive()) {
+            AiGenerateActionFake::getInstance()->recordHandlerCall($payload);
+        }
+
+        $this->evaluate($this->handler, [
+            'data' => $payload,
+            'userInput' => $userInput,
+        ]);
     }
 
     /**

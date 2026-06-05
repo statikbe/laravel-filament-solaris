@@ -1,5 +1,6 @@
 <?php
 
+use PHPUnit\Framework\AssertionFailedError;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFakeException;
 
@@ -19,10 +20,19 @@ it('activates with a canned response', function () {
 it('records calls and asserts on the handled data', function () {
     $fake = AiGenerateActionFake::activate(['records' => []]);
     $fake->recordCall('seed', ['records' => [['name' => 'A']]]);
+    $fake->recordHandlerCall(['records' => [['name' => 'A']]]);
 
     $fake->assertCalled();
     $fake->assertCalledTimes(1);
     $fake->assertHandledWith(fn (array $data) => expect($data['records'])->toHaveCount(1));
+});
+
+it('assertHandledWith fails when no handler ran', function () {
+    $fake = AiGenerateActionFake::activate(['records' => []]);
+    $fake->recordCall('seed', ['records' => []]);   // call recorded, but no handler invoked
+
+    expect(fn () => $fake->assertHandledWith(fn ($data) => null))
+        ->toThrow(AssertionFailedError::class);
 });
 
 it('asserts not called', function () {

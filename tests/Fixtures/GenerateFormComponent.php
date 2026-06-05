@@ -439,6 +439,27 @@ class GenerateFormComponent extends FormsComponent
             ->createRecords();
     }
 
+    public function builderSourceAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('builderSource')
+            ->forModel(SeedCategory::class)
+            ->only(['slug'])
+            ->sourceRecords(fn () => SeedCategory::query()->orderBy('id'))   // Builder → ->get()
+            ->batchSize(10)
+            ->prompt(fn (array $rows) => 'x')
+            ->updateRecords();
+    }
+
+    public function invalidSourceTypeAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('invalidSourceType')
+            ->forModel(SeedCategory::class)
+            ->only(['slug'])
+            ->sourceRecords(fn () => 'not-a-valid-source')   // unsupported type
+            ->prompt(fn (array $rows) => 'x')
+            ->updateRecords();
+    }
+
     public function render(): string
     {
         return '<div>{{ $this->form }}</div>';
