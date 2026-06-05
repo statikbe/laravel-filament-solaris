@@ -353,6 +353,7 @@ AiGenerateAction::make('enrich-articles')
 ```
 
 - Default `batchSize` is `10`. Reduce it if your row data is large (avoid context-window overflow); increase it for smaller rows where AI-call overhead dominates.
+- `->batchSize()` only applies when iterating a `->sourceRecords()` source. It has **no effect** on a seed-from-scratch (`forModel` + `->count()`) or single-call action — there, `->count()` is the knob (how many records to generate), while `->batchSize()` is rows-per-AI-call over an existing source. Don't reach for `batchSize` to control seed size.
 - Closures receive `$rows` (`array<int, array<string, mixed>>`) — even at `batchSize=1`, you get a one-element array. The legacy `$row` (singular) arg is no longer supported and throws at execute time if declared.
 - `->handleUsing()` receives a `BatchResponse` DTO (`$data->records`, `$data->failed`) in `forModel` mode.
 
@@ -500,13 +501,18 @@ AiGenerateAction::assertCalledTimes(1);
 // Was it never called?
 AiGenerateAction::assertNotCalled();
 
-// Inspect the raw recorded response (assert with expect() inside the closure).
-// Note: this receives the raw response array — i.e. $data['records'] — not the
-// BatchResponse DTO your forModel handler is invoked with at runtime.
-AiGenerateAction::assertHandledWith(function (array $data) {
-    expect($data['records'])->toHaveCount(2)
-        ->and($data['records'][0]['name'])->toBe('Technology');
+// Inspect the EXACT value your ->handleUsing() handler received — a BatchResponse
+// in forModel mode, or the raw array in custom-schema mode. Fails if no handler
+// ran (->createRecords()/->updateRecords() don't invoke a handler).
+use Statikbe\FilamentSolaris\Support\BatchResponse;
+
+AiGenerateAction::assertHandledWith(function (BatchResponse $data) {   // forModel mode
+    expect($data->records)->toHaveCount(2)
+        ->and($data->records[0]['name'])->toBe('Technology');
 });
+
+// custom-schema mode — the handler (and this assertion) get the raw array:
+// AiGenerateAction::assertHandledWith(fn (array $data) => expect($data['taxonomy'])->toHaveCount(2));
 ```
 
 Simulate a provider failure with `AiGenerateAction::fakeError('...')` — the handler does not run and an error notification is shown.
