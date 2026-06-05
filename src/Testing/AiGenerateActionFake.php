@@ -83,7 +83,7 @@ class AiGenerateActionFake
         }
 
         if ($this->responseQueue === []) {
-            throw new AiGenerateActionFakeException('AiGenerateAction fakeEach queue exhausted — provide more responses for the per-row loop.');
+            throw new AiGenerateActionFakeException('AiGenerateAction fakeEach queue exhausted — provide one canned response per AI call (one per batch in the records loop).');
         }
 
         return array_shift($this->responseQueue);

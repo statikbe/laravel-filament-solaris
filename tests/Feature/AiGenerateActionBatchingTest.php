@@ -180,3 +180,46 @@ it('surfaces single-call createRecords failed entries via notification', functio
 
     expect(SeedCategory::count())->toBe(2);
 });
+
+it('strips the _index identifier before handing records to a forModel handler', function () {
+    AiGenerateAction::fake(['records' => [
+        ['_index' => 0, 'name' => 'Tech', 'slug' => 'tech'],
+        ['_index' => 1, 'name' => 'Science', 'slug' => 'science'],
+    ]]);
+
+    // seedCategories is forModel + handleUsing; its handler does create($row).
+    // If _index leaked through it would hit an unknown-column error → 0 created.
+    Livewire::test(GenerateFormComponent::class)->callAction('seedCategories');
+
+    expect(SeedCategory::count())->toBe(2)
+        ->and(SeedCategory::pluck('slug')->all())->toEqualCanonicalizing(['tech', 'science']);
+});
+
+it('matches identifiers the AI echoed as strings (type coercion)', function () {
+    AiGenerateAction::fakeEach([
+        ['records' => [
+            ['_index' => '0', 'name' => 'A', 'slug' => 'a'],
+            ['_index' => '1', 'name' => 'B', 'slug' => 'b'],
+            ['_index' => '2', 'name' => 'C', 'slug' => 'c'],
+        ], 'failed' => []],
+    ]);
+
+    Livewire::test(GenerateFormComponent::class)->callAction('batchedCreateFromSource');
+
+    expect(SeedCategory::count())->toBe(3);
+});
+
+it('treats a re-echoed (duplicate) identifier as unmatched and does not double-write', function () {
+    AiGenerateAction::fakeEach([
+        ['records' => [
+            ['_index' => 0, 'name' => 'A', 'slug' => 'a'],
+            ['_index' => 0, 'name' => 'Dup', 'slug' => 'dup'],
+        ], 'failed' => []],
+    ]);
+
+    Livewire::test(GenerateFormComponent::class)->callAction('batchedCreateFromSource');
+
+    // _index 0 is consumed by the first record; the duplicate is unmatched and skipped.
+    expect(SeedCategory::count())->toBe(1)
+        ->and(SeedCategory::where('slug', 'dup')->exists())->toBeFalse();
+});
