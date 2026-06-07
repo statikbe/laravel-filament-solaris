@@ -357,7 +357,7 @@ class AiGenerateAction extends SolarisAction
                             $this->writeRow($record, $attrs);
                             $succeeded++;
                         } catch (\Throwable $e) {
-                            report($e);
+                            // Expected per-row data failure — captured below, not report()ed.
                             $failures[] = new FailedRecord(
                                 identifier: $record[$identifierKey] ?? $index,
                                 reason: 'write error: '.$e->getMessage(),
@@ -698,21 +698,34 @@ class AiGenerateAction extends SolarisAction
      */
     protected function reportFailures(array $failures): void
     {
+        $this->logToFailureChannel(
+            'AiGenerateAction: '.count($failures).' record(s) failed during a batched run.',
+            [
+                'action' => $this->getName(),
+                'failures' => array_map(fn (FailedRecord $f): array => [
+                    'identifier' => $f->identifier,
+                    'reason' => $f->reason,
+                    'input' => $f->input instanceof Model ? $f->input->getKey() : $f->input,
+                ], $failures),
+            ],
+        );
+    }
+
+    /**
+     * Log a batch diagnostic on the failure-logging channel (gated by
+     * `failure_logging.enabled`). Used for the aggregated manifest and for
+     * reconcile anomalies (hallucinated / duplicate identifiers) — none of which
+     * are bugs, so they go here rather than to `report()`.
+     *
+     * @param  array<string, mixed>  $context
+     */
+    protected function logToFailureChannel(string $message, array $context = []): void
+    {
         $config = FilamentSolaris::config();
 
         if (! $config->isFailureLoggingEnabled()) {
             return;
         }
-
-        $message = 'AiGenerateAction: '.count($failures).' record(s) failed during a batched run.';
-        $context = [
-            'action' => $this->getName(),
-            'failures' => array_map(fn (FailedRecord $f): array => [
-                'identifier' => $f->identifier,
-                'reason' => $f->reason,
-                'input' => $f->input instanceof Model ? $f->input->getKey() : $f->input,
-            ], $failures),
-        ];
 
         $channel = $config->getFailureLoggingChannel();
 
@@ -851,13 +864,13 @@ class AiGenerateAction extends SolarisAction
             $key = $id === null ? null : (string) $id;
 
             if ($key !== null && isset($consumed[$key])) {
-                report(new RuntimeException('AiGenerateAction: duplicate identifier in records output, ignoring the repeat: '.json_encode($outputRecord)));
+                $this->logToFailureChannel('AiGenerateAction: duplicate identifier in records output, ignoring the repeat: '.json_encode($outputRecord));
 
                 continue;
             }
 
             if ($key === null || ! isset($lookup[$key])) {
-                report(new RuntimeException('AiGenerateAction: hallucinated or missing identifier in records output: '.json_encode($outputRecord)));
+                $this->logToFailureChannel('AiGenerateAction: hallucinated or missing identifier in records output: '.json_encode($outputRecord));
 
                 continue;
             }
@@ -873,7 +886,9 @@ class AiGenerateAction extends SolarisAction
                 $this->writeRow($row, $attrs);
                 $succeeded++;
             } catch (\Throwable $e) {
-                report($e);
+                // Expected per-row data failure — captured as a FailedRecord (its
+                // message flows to the manifest). No per-row report() so a large
+                // job with many bad rows doesn't flood the error tracker.
                 $failures[] = new FailedRecord(identifier: $id, reason: 'write error: '.$e->getMessage(), input: $row);
             }
         }

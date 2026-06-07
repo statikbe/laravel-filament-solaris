@@ -228,6 +228,8 @@ Failures are surfaced three ways, layered for different audiences:
 
 The callback is additive: registering it does not suppress the summary notification or the log line. Per-batch AI error toasts are suppressed to avoid notification spam on large jobs.
 
+> **`report()` vs the manifest.** Expected per-row outcomes — AI-reported failures, silent drops, write errors, and hallucinated/duplicate identifiers — are aggregated into the failure manifest (the gated `Log::warning` above) and never `report()`ed per row, so a large job with many bad rows won't flood your error tracker (Sentry/Flare). `report()` is reserved for genuine **exceptions** worth a stack trace: a failed AI call, a throwing `->handleUsing()` handler, or a throwing `->onPartialFailure()` callback.
+
 ### Large imports — queue the work
 
 For more than ~50 rows, running AI calls synchronously in a web request will exceed timeouts and block the UI. A queued-execution mode (`->queued()`) is planned for a future version. Until then, dispatch a queued job from your `->handleUsing()` closure (single-call variant) or wrap the action invocation in a job yourself.
