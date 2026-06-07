@@ -40,7 +40,9 @@ class AiGenerateAction extends SolarisAction
     use HasGenerationOptions;
     use HasUserInput;
 
-    public const RECORDS_KEY = 'records';
+    public const RECORDS_KEY = BatchResponse::RECORDS;
+
+    public const FAILED_KEY = BatchResponse::FAILED;
 
     public const WRITE_CREATE = 'create';
 
@@ -228,6 +230,9 @@ class AiGenerateAction extends SolarisAction
     /**
      * Set the number of source rows per AI call when the records loop fires.
      * Default 10. A value of 1 still uses the batched code path with batches of one.
+     *
+     * Only applies with ->sourceRecords(); it has no effect on seed-from-scratch
+     * or single-call actions (use ->count() for the seed-from-scratch size).
      */
     public function batchSize(int|Closure $size): static
     {
@@ -262,6 +267,7 @@ class AiGenerateAction extends SolarisAction
     public function execute(array $userInput = []): void
     {
         $this->validateConfiguration();
+        $this->guardClosureArgs();
 
         if ($this->source !== null) {
             $this->executeRecordsLoop($userInput);
@@ -351,7 +357,7 @@ class AiGenerateAction extends SolarisAction
                             $this->writeRow($record, $attrs);
                             $succeeded++;
                         } catch (\Throwable $e) {
-                            report($e);
+                            // Expected per-row data failure — captured below, not report()ed.
                             $failures[] = new FailedRecord(
                                 identifier: $record[$identifierKey] ?? $index,
                                 reason: 'write error: '.$e->getMessage(),
@@ -368,19 +374,13 @@ class AiGenerateAction extends SolarisAction
                 // handler mode in forModel: hand over a BatchResponse with the
                 // synthetic identifier key stripped from each record, so handlers
                 // never see the echoed _index / primary key.
-                $this->evaluate($this->handler, [
-                    'data' => $this->stripIdentifierKey($batchResponse, $identifierKey),
-                    'userInput' => $userInput,
-                ]);
+                $this->runHandler($this->stripIdentifierKey($batchResponse, $identifierKey), $userInput);
 
                 return;
             }
 
             // custom outputSchema mode: raw assoc, unchanged.
-            $this->evaluate($this->handler, [
-                'data' => $responseData,
-                'userInput' => $userInput,
-            ]);
+            $this->runHandler($responseData, $userInput);
         } catch (\Throwable $e) {
             report($e);
             Notification::make()
@@ -388,6 +388,24 @@ class AiGenerateAction extends SolarisAction
                 ->danger()
                 ->send();
         }
+    }
+
+    /**
+     * Invoke the user handler with the resolved payload, recording the exact
+     * value it received on the fake (so assertHandledWith reflects reality).
+     *
+     * @param  array<string, mixed>  $userInput
+     */
+    protected function runHandler(mixed $payload, array $userInput): void
+    {
+        if (AiGenerateActionFake::isActive()) {
+            AiGenerateActionFake::getInstance()->recordHandlerCall($payload);
+        }
+
+        $this->evaluate($this->handler, [
+            'data' => $payload,
+            'userInput' => $userInput,
+        ]);
     }
 
     /**
@@ -408,7 +426,7 @@ class AiGenerateAction extends SolarisAction
         $instruction = (string) $instruction;
 
         if ($this->modelClass !== null) {
-            $count = (int) $this->evaluate($this->recordCount);
+            $count = (int) $this->evaluate($this->recordCount, ['userInput' => $userInput]);
             $instruction = trim($instruction."\n\nGenerate {$count} records.");
         }
 
@@ -488,7 +506,7 @@ class AiGenerateAction extends SolarisAction
 
             return [
                 self::RECORDS_KEY => $schema->array()->items($schema->object($properties)),
-                'failed' => $schema->array()->items($schema->object([
+                self::FAILED_KEY => $schema->array()->items($schema->object([
                     'identifier' => $schema->string()->description('Identifier of the failed input row (or freeform description in single-call mode).'),
                     'reason' => $schema->string()->description('Short reason for the failure (max 200 chars).'),
                 ])),
@@ -612,8 +630,6 @@ class AiGenerateAction extends SolarisAction
      */
     protected function executeRecordsLoop(array $userInput = []): void
     {
-        $this->guardClosureArgs();
-
         $rows = $this->resolveRecordsSource($userInput);
         ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
         $timeout = $this->resolveTimeout();
@@ -682,21 +698,34 @@ class AiGenerateAction extends SolarisAction
      */
     protected function reportFailures(array $failures): void
     {
+        $this->logToFailureChannel(
+            'AiGenerateAction: '.count($failures).' record(s) failed during a batched run.',
+            [
+                'action' => $this->getName(),
+                'failures' => array_map(fn (FailedRecord $f): array => [
+                    'identifier' => $f->identifier,
+                    'reason' => $f->reason,
+                    'input' => $f->input instanceof Model ? $f->input->getKey() : $f->input,
+                ], $failures),
+            ],
+        );
+    }
+
+    /**
+     * Log a batch diagnostic on the failure-logging channel (gated by
+     * `failure_logging.enabled`). Used for the aggregated manifest and for
+     * reconcile anomalies (hallucinated / duplicate identifiers) — none of which
+     * are bugs, so they go here rather than to `report()`.
+     *
+     * @param  array<string, mixed>  $context
+     */
+    protected function logToFailureChannel(string $message, array $context = []): void
+    {
         $config = FilamentSolaris::config();
 
         if (! $config->isFailureLoggingEnabled()) {
             return;
         }
-
-        $message = 'AiGenerateAction: '.count($failures).' record(s) failed during a batched run.';
-        $context = [
-            'action' => $this->getName(),
-            'failures' => array_map(fn (FailedRecord $f): array => [
-                'identifier' => $f->identifier,
-                'reason' => $f->reason,
-                'input' => $f->input instanceof Model ? $f->input->getKey() : $f->input,
-            ], $failures),
-        ];
 
         $channel = $config->getFailureLoggingChannel();
 
@@ -828,18 +857,27 @@ class AiGenerateAction extends SolarisAction
 
         $succeeded = 0;
         $failures = [];
+        $consumed = [];
 
         foreach ($response->records as $outputRecord) {
             $id = $outputRecord[$identifierKey] ?? null;
+            $key = $id === null ? null : (string) $id;
 
-            if ($id === null || ! isset($lookup[(string) $id])) {
-                report(new RuntimeException('AiGenerateAction: hallucinated or missing identifier in records output: '.json_encode($outputRecord)));
+            if ($key !== null && isset($consumed[$key])) {
+                $this->logToFailureChannel('AiGenerateAction: duplicate identifier in records output, ignoring the repeat: '.json_encode($outputRecord));
 
                 continue;
             }
 
-            $row = $lookup[(string) $id];
-            unset($lookup[(string) $id]);
+            if ($key === null || ! isset($lookup[$key])) {
+                $this->logToFailureChannel('AiGenerateAction: hallucinated or missing identifier in records output: '.json_encode($outputRecord));
+
+                continue;
+            }
+
+            $row = $lookup[$key];
+            unset($lookup[$key]);
+            $consumed[$key] = true;
 
             $attrs = $outputRecord;
             unset($attrs[$identifierKey]);
@@ -848,7 +886,9 @@ class AiGenerateAction extends SolarisAction
                 $this->writeRow($row, $attrs);
                 $succeeded++;
             } catch (\Throwable $e) {
-                report($e);
+                // Expected per-row data failure — captured as a FailedRecord (its
+                // message flows to the manifest). No per-row report() so a large
+                // job with many bad rows doesn't flood the error tracker.
                 $failures[] = new FailedRecord(identifier: $id, reason: 'write error: '.$e->getMessage(), input: $row);
             }
         }
@@ -1031,10 +1071,11 @@ TXT;
         $instruction = $this->instruction;
 
         if ($instruction instanceof Closure) {
-            $rows = array_map(
-                fn ($row): array => $row instanceof Model ? $row->getAttributes() : $row,
-                $batch,
-            );
+            // Same filtered view the AI gets in the ## Records block
+            // (promptContextColumns + auto-exclusions), without the synthetic
+            // identifier key — so a closure echoing $rows can't leak columns the
+            // dev deliberately withheld via ->promptContextColumns().
+            $rows = array_map(fn ($row): array => $this->buildContextForRow($row), $batch);
             $instruction = $this->evaluate($instruction, [
                 'rows' => $rows,
                 'userInput' => $userInput,

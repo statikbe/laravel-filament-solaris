@@ -179,7 +179,7 @@ When `->promptContextColumns()` is not called, the full row (minus the primary k
 
 ### Prompt closure `$rows` injection
 
-When `->prompt()` receives a `Closure`, it is called **once per batch** with the batch's rows injected as `$rows` (an `array<int, array<string, mixed>>`). Filament's standard named arguments (`$record`, `$livewire`, `$get`, …) are unchanged — `$record` refers to the action's host, while `$rows` is the current batch of iteration items:
+When `->prompt()` receives a `Closure`, it is called **once per batch** with the batch's rows injected as `$rows` (an `array<int, array<string, mixed>>`). `$rows` is the **same filtered view the AI receives** in the `## Records` block — `->promptContextColumns()` whitelisting and auto-exclusions apply, and the synthetic identifier key is omitted — so echoing `$rows` into your prompt can't leak columns you deliberately withheld. Filament's standard named arguments (`$record`, `$livewire`, `$get`, …) are unchanged — `$record` refers to the action's host, while `$rows` is the current batch of iteration items:
 
 ```php
 AiGenerateAction::make('personalise-subject-lines')
@@ -228,9 +228,13 @@ Failures are surfaced three ways, layered for different audiences:
 
 The callback is additive: registering it does not suppress the summary notification or the log line. Per-batch AI error toasts are suppressed to avoid notification spam on large jobs.
 
+> **`report()` vs the manifest.** Expected per-row outcomes — AI-reported failures, silent drops, write errors, and hallucinated/duplicate identifiers — are aggregated into the failure manifest (the gated `Log::warning` above) and never `report()`ed per row, so a large job with many bad rows won't flood your error tracker (Sentry/Flare). `report()` is reserved for genuine **exceptions** worth a stack trace: a failed AI call, a throwing `->handleUsing()` handler, or a throwing `->onPartialFailure()` callback.
+
 ### Large imports — queue the work
 
 For more than ~50 rows, running AI calls synchronously in a web request will exceed timeouts and block the UI. A queued-execution mode (`->queued()`) is planned for a future version. Until then, dispatch a queued job from your `->handleUsing()` closure (single-call variant) or wrap the action invocation in a job yourself.
+
+> **Headless `execute()`:** an action with **no attachment channel** (no `->attachmentField()` / `->attachmentFromUserInput()` / `->attachments()`) can be `->execute()`'d outside a Livewire request — e.g. from a queued job or console command. If you do configure attachments, `execute()` still needs a mounted Livewire host to read the form fields.
 
 ### Testing
 
@@ -351,6 +355,7 @@ AiGenerateAction::make('enrich-articles')
 ```
 
 - Default `batchSize` is `10`. Reduce it if your row data is large (avoid context-window overflow); increase it for smaller rows where AI-call overhead dominates.
+- `->batchSize()` only applies when iterating a `->sourceRecords()` source. It has **no effect** on a seed-from-scratch (`forModel` + `->count()`) or single-call action — there, `->count()` is the knob (how many records to generate), while `->batchSize()` is rows-per-AI-call over an existing source. Don't reach for `batchSize` to control seed size.
 - Closures receive `$rows` (`array<int, array<string, mixed>>`) — even at `batchSize=1`, you get a one-element array. The legacy `$row` (singular) arg is no longer supported and throws at execute time if declared.
 - `->handleUsing()` receives a `BatchResponse` DTO (`$data->records`, `$data->failed`) in `forModel` mode.
 
@@ -375,6 +380,8 @@ The schema unconditionally includes a `failed: [{identifier, reason}]` array. Fa
 - `createRecords + sourceRecords`: an injected `_index` integer (0..N-1 within each batch).
 - Single-call `createRecords` (no source — e.g., textarea/CSV parsing): the LLM populates `identifier` freely from input context (line number, CSV row excerpt, etc.).
 
+Identifiers are matched tolerantly (string/int coercion). An output row whose identifier matches no input row is logged and skipped as **hallucinated**; an identifier the AI echoes **twice** is logged and the repeat skipped as a **duplicate** — the first occurrence wins. Input rows the AI never echoes are counted as **silent drops** in the failure summary.
+
 ### Note on timeouts
 
 `->timeout($seconds)` and `->maxSteps($n)` are per-AI-call, not per-action. At `batchSize=10`, a 60s timeout covers a batch of 10 rows, not one. Tune accordingly.
@@ -384,7 +391,7 @@ The schema unconditionally includes a `failed: [{identifier, reason}]` array. Fa
 Open a Filament modal before the action runs to collect runtime values (steering text, file paths, structured selections). Modal data is:
 
 1. Auto-injected into the prompt as a `## User context` JSON block (top-level and per-batch in the records loop, alongside the `## Records` and `## Instructions` blocks).
-2. Available as a `$userInput` named-arg in `->prompt()`, `->handleUsing()`, and `->sourceRecords()` closures (Filament-style DI — declare the arg to receive it; omit it if you don't need it).
+2. Available as a `$userInput` named-arg in `->prompt()`, `->handleUsing()`, `->sourceRecords()`, `->count()`, and `->batchSize()` closures (Filament-style DI — declare the arg to receive it; omit it if you don't need it).
 
 ### Free-text steering for single-call generation
 
@@ -496,13 +503,18 @@ AiGenerateAction::assertCalledTimes(1);
 // Was it never called?
 AiGenerateAction::assertNotCalled();
 
-// Inspect the raw recorded response (assert with expect() inside the closure).
-// Note: this receives the raw response array — i.e. $data['records'] — not the
-// BatchResponse DTO your forModel handler is invoked with at runtime.
-AiGenerateAction::assertHandledWith(function (array $data) {
-    expect($data['records'])->toHaveCount(2)
-        ->and($data['records'][0]['name'])->toBe('Technology');
+// Inspect the EXACT value your ->handleUsing() handler received — a BatchResponse
+// in forModel mode, or the raw array in custom-schema mode. Fails if no handler
+// ran (->createRecords()/->updateRecords() don't invoke a handler).
+use Statikbe\FilamentSolaris\Support\BatchResponse;
+
+AiGenerateAction::assertHandledWith(function (BatchResponse $data) {   // forModel mode
+    expect($data->records)->toHaveCount(2)
+        ->and($data->records[0]['name'])->toBe('Technology');
 });
+
+// custom-schema mode — the handler (and this assertion) get the raw array:
+// AiGenerateAction::assertHandledWith(fn (array $data) => expect($data['taxonomy'])->toHaveCount(2));
 ```
 
 Simulate a provider failure with `AiGenerateAction::fakeError('...')` — the handler does not run and an error notification is shown.

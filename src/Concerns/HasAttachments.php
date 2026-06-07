@@ -89,6 +89,15 @@ trait HasAttachments
      */
     protected function resolveAttachments(array $userInput): array
     {
+        // No attachment channel configured → nothing to read. Short-circuit
+        // before touching the Livewire host, so attachment-free actions can run
+        // headless (e.g. AiGenerateAction dispatched from a queued job).
+        if ($this->resolveFieldList($this->attachmentFieldList) === []
+            && $this->resolveFieldList($this->attachmentUserInputKeyList) === []
+            && $this->attachmentClosures === []) {
+            return [];
+        }
+
         $disk = $this->resolveAttachmentDisk();
         $attachments = [];
 

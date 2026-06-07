@@ -401,6 +401,65 @@ class GenerateFormComponent extends FormsComponent
             ->createRecords();
     }
 
+    public function singleCallRowClosureAction(): AiGenerateAction
+    {
+        // Illegal $row (singular) on the single-call path — must throw at execute.
+        return AiGenerateAction::make('singleCallRowClosure')
+            ->forModel(SeedCategory::class)
+            ->count(1)
+            ->prompt(fn (array $row) => "Make {$row['x']}")
+            ->handleUsing(fn () => null);
+    }
+
+    public function closureBatchSizeAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('closureBatchSize')
+            ->forModel(SeedCategory::class)
+            ->only(['name', 'slug'])
+            ->userInput(UserInput::make()->fields([Textarea::make('size')]))
+            ->sourceRecords([
+                ['name' => 'A', 'slug' => 'a'],
+                ['name' => 'B', 'slug' => 'b'],
+                ['name' => 'C', 'slug' => 'c'],
+                ['name' => 'D', 'slug' => 'd'],
+            ])
+            ->batchSize(fn (array $userInput) => (int) ($userInput['size'] ?? 10))
+            ->prompt(fn (array $rows) => 'x')
+            ->createRecords();
+    }
+
+    public function zeroBatchSizeAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('zeroBatchSize')
+            ->forModel(SeedCategory::class)
+            ->only(['name', 'slug'])
+            ->sourceRecords([['name' => 'A', 'slug' => 'a']])
+            ->batchSize(0)
+            ->prompt(fn (array $rows) => 'x')
+            ->createRecords();
+    }
+
+    public function builderSourceAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('builderSource')
+            ->forModel(SeedCategory::class)
+            ->only(['slug'])
+            ->sourceRecords(fn () => SeedCategory::query()->orderBy('id'))   // Builder → ->get()
+            ->batchSize(10)
+            ->prompt(fn (array $rows) => 'x')
+            ->updateRecords();
+    }
+
+    public function invalidSourceTypeAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('invalidSourceType')
+            ->forModel(SeedCategory::class)
+            ->only(['slug'])
+            ->sourceRecords(fn () => 'not-a-valid-source')   // unsupported type
+            ->prompt(fn (array $rows) => 'x')
+            ->updateRecords();
+    }
+
     public function render(): string
     {
         return '<div>{{ $this->form }}</div>';

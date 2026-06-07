@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;
 use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
 use Statikbe\FilamentSolaris\Agents\SolarisAgent;
+use Statikbe\FilamentSolaris\Support\BatchResponse;
 use Statikbe\FilamentSolaris\Support\GenerationOptions;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 use Statikbe\FilamentSolaris\Tests\Fixtures\GenerateFormComponent;
@@ -44,7 +45,7 @@ it('shows an error notification when the handler throws', function () {
         ->assertNotified();
 });
 
-it('seeds records via forModel and the $records handler arg', function () {
+it('seeds records via forModel and hands the handler a BatchResponse', function () {
     Schema::create('seed_categories', function ($table) {
         $table->id();
         $table->string('name');
@@ -62,7 +63,7 @@ it('seeds records via forModel and the $records handler arg', function () {
     expect(SeedCategory::count())->toBe(2)
         ->and(SeedCategory::pluck('slug')->all())->toEqualCanonicalizing(['tech', 'science']);
 
-    AiGenerateAction::assertHandledWith(fn (array $data) => expect($data['records'])->toHaveCount(2));
+    AiGenerateAction::assertHandledWith(fn (BatchResponse $data) => expect($data->records)->toHaveCount(2));
 
     Schema::dropIfExists('seed_categories');
 });

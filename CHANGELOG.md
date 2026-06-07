@@ -115,6 +115,26 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
   with `->plugins([DictationRichEditorPlugin::make()])`. Test with
   `DictationToolbarAction::fake()`.
 
+### Fixed
+
+- `AiGenerateAction` hardening from a full code review (all on unreleased surface):
+  - `forModel` `->handleUsing()` receives a `BatchResponse $data` and no longer
+    leaks the synthetic `_index`/PK into its records; the docs' old `$records`
+    handler-arg examples (a silent no-op against a real provider) are corrected.
+  - Single-call `createRecords` now shares the records-loop write path: write
+    failures become counted `FailedRecord`s surfaced to `->onPartialFailure()`,
+    the log manifest, and the summary, and a success summary notification fires.
+  - `->sourceRecords()` + `->handleUsing()` is rejected with a clear message
+    (the handler never runs per batch).
+  - A throwing `->onPartialFailure()` callback no longer aborts the run after
+    writes have committed.
+  - Prompt-closure `$rows` are now the same `->promptContextColumns()`-filtered
+    view the AI sees — no leak of deliberately withheld columns.
+  - `->count()` and `->batchSize()` closures now receive `$userInput`.
+  - The `$row`-vs-`$rows` guard also runs on the single-call path.
+  - Duplicate AI-echoed identifiers are distinguished from hallucinated ones.
+  - Attachment-free actions can run `->execute()` headless (no Livewire host).
+
 ## v0.1.0 - 2026-05-21
 
 ### What's Changed

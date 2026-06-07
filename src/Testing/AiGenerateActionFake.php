@@ -21,6 +21,10 @@ class AiGenerateActionFake
     /** @var array<int, array{name: string, data: array<string, mixed>, userInput: array<string, mixed>, attachments: array<int, File>, batch: array<int, array<string, mixed>>}> */
     protected array $calls = [];
 
+    protected bool $handlerCalled = false;
+
+    protected mixed $handlerPayload = null;
+
     /**
      * @param  array<string, mixed>  $response
      */
@@ -185,11 +189,29 @@ class AiGenerateActionFake
         Assert::fail('No AiGenerateAction call matched the batch callback.');
     }
 
+    /**
+     * Record the exact value handed to the ->handleUsing() closure — a raw array
+     * in custom-schema mode, or a BatchResponse in forModel mode — so
+     * assertHandledWith reflects what the handler actually received.
+     */
+    public function recordHandlerCall(mixed $payload): void
+    {
+        $this->handlerCalled = true;
+        $this->handlerPayload = $payload;
+    }
+
+    /**
+     * Assert the ->handleUsing() handler ran, and inspect the exact value it
+     * received (raw array in custom-schema mode, BatchResponse in forModel mode).
+     * Fails if no handler ran — e.g. on a ->createRecords()/->updateRecords() run.
+     */
     public function assertHandledWith(Closure $callback): void
     {
-        $this->assertCalled();
+        Assert::assertTrue(
+            $this->handlerCalled,
+            'Expected the ->handleUsing() handler to run, but it did not (->createRecords()/->updateRecords() do not invoke a handler).',
+        );
 
-        $last = end($this->calls);
-        $callback($last['data']);
+        $callback($this->handlerPayload);
     }
 }

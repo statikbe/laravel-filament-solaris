@@ -160,3 +160,16 @@ it('throws BadMethodCallException when ->withDefaultUserInput() is called on AiG
 
     expect(fn () => $action->withDefaultUserInput())->toThrow(BadMethodCallException::class);
 });
+
+it('injects $userInput into a ->count() closure', function () {
+    $action = AiGenerateAction::make('test')
+        ->prompt('Seed.')
+        ->forModel(SeedCategory::class)
+        ->count(fn (array $userInput) => (int) ($userInput['n'] ?? 1))
+        ->handleUsing(fn () => null);
+
+    $ref = new ReflectionMethod($action, 'resolveInstruction');
+    $ref->setAccessible(true);
+
+    expect($ref->invoke($action, ['n' => 7]))->toContain('Generate 7 records');
+});

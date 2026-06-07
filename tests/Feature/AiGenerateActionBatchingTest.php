@@ -223,3 +223,74 @@ it('treats a re-echoed (duplicate) identifier as unmatched and does not double-w
     expect(SeedCategory::count())->toBe(1)
         ->and(SeedCategory::where('slug', 'dup')->exists())->toBeFalse();
 });
+
+it('filters the $rows passed to a prompt closure to ->promptContextColumns()', function () {
+    $action = AiGenerateAction::make('x')
+        ->forModel(SeedCategory::class)
+        ->promptContextColumns(['name'])
+        ->sourceRecords([['name' => 'Visible', 'slug' => 'secret-slug']])
+        ->prompt(fn (array $rows) => 'Rows: '.json_encode($rows))
+        ->createRecords();
+
+    $ref = new ReflectionMethod($action, 'buildBatchInstruction');
+    $ref->setAccessible(true);
+
+    $instruction = $ref->invoke($action, [['name' => 'Visible', 'slug' => 'secret-slug']], []);
+
+    expect($instruction)->toContain('Visible')
+        ->and($instruction)->not->toContain('secret-slug');
+});
+
+it('throws on a legacy $row closure even on the single-call path', function () {
+    AiGenerateAction::fake(['records' => [], 'failed' => []]);
+
+    expect(fn () => Livewire::test(GenerateFormComponent::class)->callAction('singleCallRowClosure'))
+        ->toThrow(LogicException::class, '`$rows` (plural)');
+});
+
+it('resolves ->batchSize() as a closure with $userInput', function () {
+    AiGenerateAction::fakeEach([
+        ['records' => [['_index' => 0, 'name' => 'A', 'slug' => 'a'], ['_index' => 1, 'name' => 'B', 'slug' => 'b']], 'failed' => []],
+        ['records' => [['_index' => 0, 'name' => 'C', 'slug' => 'c'], ['_index' => 1, 'name' => 'D', 'slug' => 'd']], 'failed' => []],
+    ]);
+
+    Livewire::test(GenerateFormComponent::class)->callAction('closureBatchSize', data: ['size' => '2']);
+
+    // 4 rows at a resolved batchSize of 2 → 2 AI calls.
+    $fake = AiGenerateActionFake::getInstance();
+    $calls = (function () {
+        return $this->calls;
+    })->call($fake);
+    expect($calls)->toHaveCount(2);
+    expect(SeedCategory::count())->toBe(4);
+});
+
+it('throws when ->batchSize() resolves to a non-positive value', function () {
+    AiGenerateAction::fakeEach([['records' => [], 'failed' => []]]);
+
+    expect(fn () => Livewire::test(GenerateFormComponent::class)->callAction('zeroBatchSize'))
+        ->toThrow(RuntimeException::class, 'positive integer');
+});
+
+it('accepts an Eloquent Builder source (executed via ->get())', function () {
+    SeedCategory::create(['name' => 'One', 'slug' => 'old-one']);
+    SeedCategory::create(['name' => 'Two', 'slug' => 'old-two']);
+
+    AiGenerateAction::fakeEach([
+        ['records' => [['id' => 1, 'slug' => 'new-one'], ['id' => 2, 'slug' => 'new-two']], 'failed' => []],
+    ]);
+
+    Livewire::test(GenerateFormComponent::class)->callAction('builderSource');
+
+    expect(SeedCategory::pluck('slug', 'id')->all())->toEqualCanonicalizing([
+        1 => 'new-one',
+        2 => 'new-two',
+    ]);
+});
+
+it('throws when ->sourceRecords() yields an unsupported type', function () {
+    AiGenerateAction::fakeEach([['records' => [], 'failed' => []]]);
+
+    expect(fn () => Livewire::test(GenerateFormComponent::class)->callAction('invalidSourceType'))
+        ->toThrow(RuntimeException::class, 'must yield a Builder, Collection, or array');
+});
