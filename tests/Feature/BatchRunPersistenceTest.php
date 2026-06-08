@@ -3,6 +3,10 @@
 use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
 use Statikbe\FilamentSolaris\Models\SolarisBatchProblem;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
+use Statikbe\FilamentSolaris\Support\BatchOutcome;
+use Statikbe\FilamentSolaris\Support\DatabaseBatchSink;
+use Statikbe\FilamentSolaris\Support\DiscardedOutput;
+use Statikbe\FilamentSolaris\Support\FailedRecord;
 
 beforeEach(function () {
     foreach (glob(dirname(__DIR__, 2).'/database/migrations/*.php') as $file) {
@@ -46,15 +50,15 @@ it('separates failure and discard problems via type scopes', function () {
 });
 
 it('persists failures and discards as typed problem rows with atomic counts', function () {
-    $run = Statikbe\FilamentSolaris\Models\SolarisBatchRun::create(['action_name' => 'x', 'status' => Statikbe\FilamentSolaris\Enums\BatchRunStatus::Processing]);
-    $sink = new Statikbe\FilamentSolaris\Support\DatabaseBatchSink($run->id);
+    $run = SolarisBatchRun::create(['action_name' => 'x', 'status' => BatchRunStatus::Processing]);
+    $sink = new DatabaseBatchSink($run->id);
 
-    $sink->record(new Statikbe\FilamentSolaris\Support\BatchOutcome(
+    $sink->record(new BatchOutcome(
         2,
-        [new Statikbe\FilamentSolaris\Support\FailedRecord(5, 'write error: boom', ['name' => 'E'])],
-        [new Statikbe\FilamentSolaris\Support\DiscardedOutput('unmatched', ['_index' => 99, 'name' => 'ghost'], 'unmatched id 99')],
+        [new FailedRecord(5, 'write error: boom', ['name' => 'E'])],
+        [new DiscardedOutput('unmatched', ['_index' => 99, 'name' => 'ghost'], 'unmatched id 99')],
     ));
-    $sink->record(new Statikbe\FilamentSolaris\Support\BatchOutcome(1, [], []));
+    $sink->record(new BatchOutcome(1, [], []));
 
     $run->refresh();
     expect($run->succeeded)->toBe(3)
