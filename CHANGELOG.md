@@ -52,6 +52,14 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
 
 ### Added
 
+- `AiGenerateAction` **run tracking**: `->tracked()` (or `batch_tracking.enabled`,
+  default off) persists a records-loop run to `solaris_batch_runs` +
+  `solaris_batch_problems` (one `type: failure` row per failed input row, one
+  `type: discard` row per unmatched/duplicate AI output — a full problem report)
+  and fires `SolarisBatchStarted` / `SolarisBatchCompleted`. New `SolarisBatchRun` /
+  `SolarisBatchProblem` models, `BatchRunStatus` enum, `DatabaseBatchSink` /
+  `CompositeBatchSink`. Publish + run the package migrations. Internally the
+  records-loop engine was already extracted to `Support\BatchProcessor`.
 - `AiGenerateAction` `->onPartialFailure(...)` callback: invoked when a batched
   run finishes with one or more failed records, receiving `$failures`
   (`FailedRecord[]`), `$succeeded`, `$failed`, `$total`, and `$userInput` (plus
