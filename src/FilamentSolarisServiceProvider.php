@@ -23,7 +23,9 @@ class FilamentSolarisServiceProvider extends PackageServiceProvider
             ->name(static::PACKAGE_NAME)
             ->hasConfigFile()
             ->hasViews()
-            ->hasTranslations();
+            ->hasTranslations()
+            ->hasMigration('create_solaris_batch_runs_table')
+            ->hasMigration('create_solaris_batch_problems_table');
     }
 
     public function packageRegistered(): void
