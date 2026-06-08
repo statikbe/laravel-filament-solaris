@@ -28,7 +28,7 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
 ### Changed
 
 - **Internal:** `AiGenerateAction`'s records-loop engine (chunk + reconcile + write)
-  was extracted into a standalone, unit-tested `Support\BatchProcessor` with
+  was extracted into a standalone, unit-tested `Support\Batch\BatchProcessor` with
   `generateResponse` / `persistRecord` / `BatchSink` seams. Behaviour is unchanged;
   this is the foundation for upcoming queued execution + failure reporting.
 - **`AiGenerateAction` records-loop API breaking changes** (the action was not
@@ -59,7 +59,7 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
   and fires `SolarisBatchStarted` / `SolarisBatchCompleted`. New `SolarisBatchRun` /
   `SolarisBatchProblem` models, `BatchRunStatus` enum, `DatabaseBatchSink` /
   `CompositeBatchSink`. Publish + run the package migrations. Internally the
-  records-loop engine was already extracted to `Support\BatchProcessor`.
+  records-loop engine was already extracted to `Support\Batch\BatchProcessor`.
 - `AiGenerateAction` `->onPartialFailure(...)` callback: invoked when a batched
   run finishes with one or more failed records, receiving `$failures`
   (`FailedRecord[]`), `$succeeded`, `$failed`, `$total`, and `$userInput` (plus
@@ -74,7 +74,7 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
 - `AiGenerateAction` row batching: `->batchSize($n)` (default 10) controls how
   many source rows per AI call when the records loop fires. Massive cost reduction
   for enrichment jobs. New `BatchResponse` / `FailedRecord` / `BatchOutcome` DTOs
-  in `src/Support/`. Schema gains a standardized `failed: [{identifier, reason}]`
+  in `src/Support/Batch/`. Schema gains a standardized `failed: [{identifier, reason}]`
   array — failures (AI-reported, silent drops, hallucinated identifiers) are
   aggregated into the batch summary notification. New
   `AiGenerateAction::assertCalledWithBatch(Closure)` fake helper.
