@@ -52,10 +52,7 @@ final class BatchProcessor
 
         $lookup = [];
         foreach ($batch as $index => $row) {
-            $id = $identifierKey === '_index'
-                ? $index
-                : ($row instanceof Model ? $row->getKey() : null);
-            $lookup[(string) $id] = $row;
+            $lookup[(string) $this->identifierFor($index, $row)] = $row;
         }
 
         $succeeded = 0;
@@ -119,13 +116,25 @@ final class BatchProcessor
     {
         $failures = [];
         foreach ($batch as $index => $row) {
-            $id = $this->identifierKey === '_index'
-                ? $index
-                : ($row instanceof Model ? $row->getKey() : null);
-            $failures[] = new FailedRecord(identifier: $id, reason: $reason, input: $row);
+            $failures[] = new FailedRecord(identifier: $this->identifierFor($index, $row), reason: $reason, input: $row);
         }
 
         return $failures;
+    }
+
+    /**
+     * Resolve a batch row's identifier: its position when keyed by `_index`,
+     * otherwise the model key (null for non-models).
+     *
+     * @param  array<string, mixed>|Model  $row
+     */
+    private function identifierFor(int $index, array|Model $row): mixed
+    {
+        if ($this->identifierKey === '_index') {
+            return $index;
+        }
+
+        return $row instanceof Model ? $row->getKey() : null;
     }
 
     /**
