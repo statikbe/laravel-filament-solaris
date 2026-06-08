@@ -27,6 +27,10 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
 
 ### Changed
 
+- **Internal:** `AiGenerateAction`'s records-loop engine (chunk + reconcile + write)
+  was extracted into a standalone, unit-tested `Support\BatchProcessor` with
+  `generateResponse` / `persistRecord` / `BatchSink` seams. Behaviour is unchanged;
+  this is the foundation for upcoming queued execution + failure reporting.
 - **`AiGenerateAction` records-loop API breaking changes** (the action was not
   yet feature-complete enough for production use; this is a clean break):
   - `->prompt()` / `->handleUsing()` / `->sourceRecords()` closures receive

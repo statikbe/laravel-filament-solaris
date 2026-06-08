@@ -11,9 +11,11 @@ final readonly class BatchOutcome
 {
     /**
      * @param  array<int, FailedRecord>  $failures
+     * @param  array<int, DiscardedOutput>  $discarded
      */
     public function __construct(
         public int $succeeded,
         public array $failures,
+        public array $discarded = [],
     ) {}
 }
