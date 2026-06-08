@@ -1,8 +1,8 @@
 <?php
 
-use Statikbe\FilamentSolaris\Support\BatchOutcome;
-use Statikbe\FilamentSolaris\Support\CompositeBatchSink;
-use Statikbe\FilamentSolaris\Support\InMemoryBatchSink;
+use Statikbe\FilamentSolaris\Support\Batch\BatchOutcome;
+use Statikbe\FilamentSolaris\Support\Batch\Sinks\CompositeBatchSink;
+use Statikbe\FilamentSolaris\Support\Batch\Sinks\InMemoryBatchSink;
 
 it('fans each outcome out to every sink in order', function () {
     $a = new InMemoryBatchSink;

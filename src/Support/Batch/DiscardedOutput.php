@@ -1,6 +1,6 @@
 <?php
 
-namespace Statikbe\FilamentSolaris\Support;
+namespace Statikbe\FilamentSolaris\Support\Batch;
 
 /**
  * An AI output record the reconciler threw away because its identifier did not

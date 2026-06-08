@@ -472,7 +472,7 @@ class GenerateFormComponent extends FormsComponent
             ])
             ->batchSize(10)
             ->prompt(fn (array $rows) => 'Process '.count($rows).' rows.')
-            ->tracked()
+            ->trackBatchRuns()
             ->createRecords();
     }
 

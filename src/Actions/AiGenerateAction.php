@@ -24,13 +24,13 @@ use Statikbe\FilamentSolaris\Events\SolarisBatchCompleted;
 use Statikbe\FilamentSolaris\Events\SolarisBatchStarted;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
-use Statikbe\FilamentSolaris\Support\BatchGenerationException;
-use Statikbe\FilamentSolaris\Support\BatchProcessor;
-use Statikbe\FilamentSolaris\Support\BatchResponse;
-use Statikbe\FilamentSolaris\Support\CompositeBatchSink;
-use Statikbe\FilamentSolaris\Support\DatabaseBatchSink;
-use Statikbe\FilamentSolaris\Support\FailedRecord;
-use Statikbe\FilamentSolaris\Support\InMemoryBatchSink;
+use Statikbe\FilamentSolaris\Support\Batch\BatchGenerationException;
+use Statikbe\FilamentSolaris\Support\Batch\BatchProcessor;
+use Statikbe\FilamentSolaris\Support\Batch\BatchResponse;
+use Statikbe\FilamentSolaris\Support\Batch\FailedRecord;
+use Statikbe\FilamentSolaris\Support\Batch\Sinks\CompositeBatchSink;
+use Statikbe\FilamentSolaris\Support\Batch\Sinks\DatabaseBatchSink;
+use Statikbe\FilamentSolaris\Support\Batch\Sinks\InMemoryBatchSink;
 use Statikbe\FilamentSolaris\Support\ModelSchemaResolver;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 
@@ -254,7 +254,7 @@ class AiGenerateAction extends SolarisAction
      * Persist this run (a solaris_batch_runs row + its problems) and fire
      * SolarisBatchStarted/Completed. Defaults to config batch_tracking.enabled.
      */
-    public function tracked(bool|Closure $tracked = true): static
+    public function trackBatchRuns(bool|Closure $tracked = true): static
     {
         $this->tracked = $tracked;
 

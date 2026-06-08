@@ -1,8 +1,9 @@
 <?php
 
-namespace Statikbe\FilamentSolaris\Support;
+namespace Statikbe\FilamentSolaris\Support\Batch\Sinks;
 
-use Statikbe\FilamentSolaris\Support\Contracts\BatchSink;
+use Statikbe\FilamentSolaris\Support\Batch\BatchOutcome;
+use Statikbe\FilamentSolaris\Support\Batch\BatchSink;
 
 /**
  * Fans each BatchOutcome out to an ordered list of sinks — lets a run combine the

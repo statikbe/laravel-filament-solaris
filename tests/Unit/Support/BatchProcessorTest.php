@@ -1,9 +1,9 @@
 <?php
 
-use Statikbe\FilamentSolaris\Support\BatchGenerationException;
-use Statikbe\FilamentSolaris\Support\BatchProcessor;
-use Statikbe\FilamentSolaris\Support\BatchResponse;
-use Statikbe\FilamentSolaris\Support\InMemoryBatchSink;
+use Statikbe\FilamentSolaris\Support\Batch\BatchGenerationException;
+use Statikbe\FilamentSolaris\Support\Batch\BatchProcessor;
+use Statikbe\FilamentSolaris\Support\Batch\BatchResponse;
+use Statikbe\FilamentSolaris\Support\Batch\Sinks\InMemoryBatchSink;
 use Statikbe\FilamentSolaris\Tests\Fixtures\SeedCategory;
 
 /**

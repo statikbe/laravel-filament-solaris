@@ -1,6 +1,6 @@
 <?php
 
-namespace Statikbe\FilamentSolaris\Support;
+namespace Statikbe\FilamentSolaris\Support\Batch;
 
 /**
  * Result of processing one batch: how many writes succeeded and the

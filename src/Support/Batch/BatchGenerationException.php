@@ -1,6 +1,6 @@
 <?php
 
-namespace Statikbe\FilamentSolaris\Support;
+namespace Statikbe\FilamentSolaris\Support\Batch;
 
 use RuntimeException;
 

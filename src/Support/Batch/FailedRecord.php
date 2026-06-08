@@ -1,6 +1,6 @@
 <?php
 
-namespace Statikbe\FilamentSolaris\Support;
+namespace Statikbe\FilamentSolaris\Support\Batch;
 
 /**
  * Represents a single record the AI could not process (or that failed at write).

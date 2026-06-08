@@ -1,7 +1,7 @@
 <?php
 
-use Statikbe\FilamentSolaris\Support\BatchResponse;
-use Statikbe\FilamentSolaris\Support\FailedRecord;
+use Statikbe\FilamentSolaris\Support\Batch\BatchResponse;
+use Statikbe\FilamentSolaris\Support\Batch\FailedRecord;
 
 it('parses a well-formed payload into records and failed entries', function () {
     $payload = [

@@ -3,10 +3,10 @@
 use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
 use Statikbe\FilamentSolaris\Models\SolarisBatchProblem;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
-use Statikbe\FilamentSolaris\Support\BatchOutcome;
-use Statikbe\FilamentSolaris\Support\DatabaseBatchSink;
-use Statikbe\FilamentSolaris\Support\DiscardedOutput;
-use Statikbe\FilamentSolaris\Support\FailedRecord;
+use Statikbe\FilamentSolaris\Support\Batch\BatchOutcome;
+use Statikbe\FilamentSolaris\Support\Batch\DiscardedOutput;
+use Statikbe\FilamentSolaris\Support\Batch\FailedRecord;
+use Statikbe\FilamentSolaris\Support\Batch\Sinks\DatabaseBatchSink;
 
 beforeEach(function () {
     foreach (glob(dirname(__DIR__, 2).'/database/migrations/*.php') as $file) {

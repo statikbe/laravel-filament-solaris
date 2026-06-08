@@ -1,9 +1,9 @@
 <?php
 
-use Statikbe\FilamentSolaris\Support\BatchOutcome;
-use Statikbe\FilamentSolaris\Support\DiscardedOutput;
-use Statikbe\FilamentSolaris\Support\FailedRecord;
-use Statikbe\FilamentSolaris\Support\InMemoryBatchSink;
+use Statikbe\FilamentSolaris\Support\Batch\BatchOutcome;
+use Statikbe\FilamentSolaris\Support\Batch\DiscardedOutput;
+use Statikbe\FilamentSolaris\Support\Batch\FailedRecord;
+use Statikbe\FilamentSolaris\Support\Batch\Sinks\InMemoryBatchSink;
 
 it('accumulates succeeded, failures and discarded across batches', function () {
     $sink = new InMemoryBatchSink;

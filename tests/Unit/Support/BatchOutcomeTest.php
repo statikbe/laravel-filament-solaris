@@ -1,8 +1,8 @@
 <?php
 
-use Statikbe\FilamentSolaris\Support\BatchOutcome;
-use Statikbe\FilamentSolaris\Support\DiscardedOutput;
-use Statikbe\FilamentSolaris\Support\FailedRecord;
+use Statikbe\FilamentSolaris\Support\Batch\BatchOutcome;
+use Statikbe\FilamentSolaris\Support\Batch\DiscardedOutput;
+use Statikbe\FilamentSolaris\Support\Batch\FailedRecord;
 
 it('defaults discarded to an empty array (back-compatible 2-arg construction)', function () {
     $outcome = new BatchOutcome(2, [new FailedRecord(1, 'x')]);

@@ -1,11 +1,12 @@
 <?php
 
-namespace Statikbe\FilamentSolaris\Support;
+namespace Statikbe\FilamentSolaris\Support\Batch\Sinks;
 
 use Illuminate\Database\Eloquent\Model;
 use Statikbe\FilamentSolaris\Models\SolarisBatchProblem;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
-use Statikbe\FilamentSolaris\Support\Contracts\BatchSink;
+use Statikbe\FilamentSolaris\Support\Batch\BatchOutcome;
+use Statikbe\FilamentSolaris\Support\Batch\BatchSink;
 
 /**
  * Persists each batch's outcome to the run row (atomic count increments — safe
