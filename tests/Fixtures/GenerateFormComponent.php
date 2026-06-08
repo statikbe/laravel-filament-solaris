@@ -460,6 +460,22 @@ class GenerateFormComponent extends FormsComponent
             ->updateRecords();
     }
 
+    public function trackedImportAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('trackedImport')
+            ->forModel(SeedCategory::class)
+            ->only(['name', 'slug'])
+            ->sourceRecords([
+                ['name' => 'A', 'slug' => 'a'],
+                ['name' => 'B', 'slug' => 'b'],
+                ['name' => 'C', 'slug' => 'c'],
+            ])
+            ->batchSize(10)
+            ->prompt(fn (array $rows) => 'Process '.count($rows).' rows.')
+            ->tracked()
+            ->createRecords();
+    }
+
     public function render(): string
     {
         return '<div>{{ $this->form }}</div>';
