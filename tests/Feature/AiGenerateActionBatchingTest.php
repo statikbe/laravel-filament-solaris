@@ -118,12 +118,12 @@ it('counts silent drops (input rows missing from both records and failed)', func
     expect(SeedCategory::count())->toBe(1);
 });
 
-it('logs hallucinated identifiers and skips them', function () {
+it('logs unmatched identifiers and skips them', function () {
     AiGenerateAction::fakeEach([
         [
             'records' => [
                 ['_index' => 0, 'name' => 'A', 'slug' => 'a'],
-                ['_index' => 99, 'name' => 'Hallucinated', 'slug' => 'hallucinated'],
+                ['_index' => 99, 'name' => 'Hallucinated', 'slug' => 'unmatched'],
             ],
             'failed' => [],
         ],
@@ -132,7 +132,7 @@ it('logs hallucinated identifiers and skips them', function () {
     Livewire::test(GenerateFormComponent::class)->callAction('batchedCreateFromSource');
 
     expect(SeedCategory::count())->toBe(1);
-    expect(SeedCategory::where('slug', 'hallucinated')->exists())->toBeFalse();
+    expect(SeedCategory::where('slug', 'unmatched')->exists())->toBeFalse();
 });
 
 it('marks the whole batch failed when the AI call errors', function () {

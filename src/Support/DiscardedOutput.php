@@ -10,7 +10,7 @@ namespace Statikbe\FilamentSolaris\Support;
 final readonly class DiscardedOutput
 {
     /**
-     * @param  'hallucinated'|'duplicate'  $kind
+     * @param  'unmatched'|'duplicate'  $kind
      * @param  array<string, mixed>  $record
      */
     public function __construct(

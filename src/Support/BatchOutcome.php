@@ -5,7 +5,7 @@ namespace Statikbe\FilamentSolaris\Support;
 /**
  * Result of processing one batch: how many writes succeeded and the
  * aggregated failure list (AI-reported failures + silent drops +
- * hallucinated identifiers + write errors).
+ * unmatched identifiers + write errors).
  */
 final readonly class BatchOutcome
 {

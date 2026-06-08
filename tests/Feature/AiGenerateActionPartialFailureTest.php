@@ -212,7 +212,7 @@ it('aggregates success and failure across multiple batches into one summary + ca
     expect(SeedCategory::count())->toBe(3);
 });
 
-it('routes reconcile anomalies (hallucinated identifiers) to the failure channel, not report()', function () {
+it('routes reconcile anomalies (unmatched identifiers) to the failure channel, not report()', function () {
     config(['filament-solaris.failure_logging.channel' => 'solaris']);
 
     $channelLogger = Mockery::spy(LoggerInterface::class);
@@ -221,16 +221,16 @@ it('routes reconcile anomalies (hallucinated identifiers) to the failure channel
     AiGenerateAction::fakeEach([
         ['records' => [
             ['_index' => 0, 'name' => 'A', 'slug' => 'a'],
-            ['_index' => 99, 'name' => 'Hallucinated', 'slug' => 'hallucinated'],
+            ['_index' => 99, 'name' => 'Hallucinated', 'slug' => 'unmatched'],
         ], 'failed' => []],
     ]);
 
     Livewire::test(GenerateFormComponent::class)->callAction('batchedCreateFromSource');
 
-    // The hallucinated record went to the gated failure channel (had it been
+    // The unmatched record went to the gated failure channel (had it been
     // report()ed, it would never reach Log::channel()).
     $channelLogger->shouldHaveReceived('warning')
-        ->withArgs(fn (string $message, array $context = []) => str_contains($message, 'hallucinated'))
+        ->withArgs(fn (string $message, array $context = []) => str_contains($message, 'unmatched'))
         ->once();
 
     expect(SeedCategory::count())->toBe(1);
@@ -243,7 +243,7 @@ it('does not log reconcile anomalies when failure logging is disabled', function
     AiGenerateAction::fakeEach([
         ['records' => [
             ['_index' => 0, 'name' => 'A', 'slug' => 'a'],
-            ['_index' => 99, 'name' => 'Hallucinated', 'slug' => 'hallucinated'],
+            ['_index' => 99, 'name' => 'Hallucinated', 'slug' => 'unmatched'],
         ], 'failed' => []],
     ]);
 

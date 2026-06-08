@@ -83,7 +83,7 @@ it('counts input rows the AI never echoed as silent drops', function () {
         ->and($sink->failures()[0]->reason)->toBe('no response from AI');
 });
 
-it('discards a hallucinated identifier and does not persist it', function () {
+it('discards a unmatched identifier and does not persist it', function () {
     $sink = new InMemoryBatchSink;
     $written = [];
     $processor = makeProcessor('_index', [[
@@ -96,7 +96,7 @@ it('discards a hallucinated identifier and does not persist it', function () {
     expect($sink->succeeded())->toBe(1)
         ->and($written)->toBe([['name' => 'A']])
         ->and($sink->discarded())->toHaveCount(1)
-        ->and($sink->discarded()[0]->kind)->toBe('hallucinated');
+        ->and($sink->discarded()[0]->kind)->toBe('unmatched');
 });
 
 it('discards a re-echoed (duplicate) identifier, first wins', function () {

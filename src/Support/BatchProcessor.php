@@ -71,7 +71,7 @@ final class BatchProcessor
             }
 
             if ($key === null || ! isset($lookup[$key])) {
-                $discarded[] = new DiscardedOutput('hallucinated', $outputRecord, 'AiGenerateAction: hallucinated or missing identifier in records output: '.json_encode($outputRecord));
+                $discarded[] = new DiscardedOutput('unmatched', $outputRecord, 'AiGenerateAction: unmatched or missing identifier in records output: '.json_encode($outputRecord));
 
                 continue;
             }

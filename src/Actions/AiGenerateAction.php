@@ -244,7 +244,7 @@ class AiGenerateAction extends SolarisAction
 
     /**
      * Register a callback invoked when a batched run finishes with one or more
-     * failed records (AI-reported failures, silent drops, hallucinated
+     * failed records (AI-reported failures, silent drops, unmatched
      * identifiers' rows, write errors, or whole-batch AI errors).
      *
      * The callback receives these named arguments (plus Filament's standard
@@ -771,7 +771,7 @@ class AiGenerateAction extends SolarisAction
     /**
      * Log a batch diagnostic on the failure-logging channel (gated by
      * `failure_logging.enabled`). Used for the aggregated manifest and for
-     * reconcile anomalies (hallucinated / duplicate identifiers) — none of which
+     * reconcile anomalies (unmatched / duplicate identifiers) — none of which
      * are bugs, so they go here rather than to `report()`.
      *
      * @param  array<string, mixed>  $context
