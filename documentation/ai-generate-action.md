@@ -388,7 +388,7 @@ Identifiers are matched tolerantly (string/int coercion). An output row whose id
 
 ## Run tracking & events
 
-Opt a records-loop run into persistence with `->tracked()` (or globally via the `batch_tracking.enabled` config / `FILAMENT_SOLARIS_BATCH_TRACKING` env var). Default is **off** — small in-request runs stay zero-overhead. Run the package migrations first to create `solaris_batch_runs` + `solaris_batch_problems`.
+Opt a records-loop run into persistence with `->trackBatchRuns()` (or globally via the `batch_tracking.enabled` config / `FILAMENT_SOLARIS_BATCH_TRACKING` env var). Default is **off** — small in-request runs stay zero-overhead. Run the package migrations first to create `solaris_batch_runs` + `solaris_batch_problems`.
 
 A tracked run writes a `SolarisBatchRun` row (`status`, `total` / `succeeded` / `failed` / `discarded`, the triggering `user_id` + Filament `page`), one `SolarisBatchProblem` per failed input row (`type: failure`) **and** per discarded output (`type: discard` — the AI's unmatched/duplicate records, kept for review), and fires `SolarisBatchStarted` / `SolarisBatchCompleted`. Failure surfacing (`->onPartialFailure()`, the manifest log, the summary notification) is unchanged.
 
@@ -397,7 +397,7 @@ AiGenerateAction::make('enrich-articles')
     ->forModel(Article::class)
     ->sourceRecords(fn () => Article::needsEnrichment()->get())
     ->batchSize(20)
-    ->tracked()
+    ->trackBatchRuns()
     ->updateRecords();
 ```
 

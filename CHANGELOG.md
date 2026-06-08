@@ -52,7 +52,7 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
 
 ### Added
 
-- `AiGenerateAction` **run tracking**: `->tracked()` (or `batch_tracking.enabled`,
+- `AiGenerateAction` **run tracking**: `->trackBatchRuns()` (or `batch_tracking.enabled`,
   default off) persists a records-loop run to `solaris_batch_runs` +
   `solaris_batch_problems` (one `type: failure` row per failed input row, one
   `type: discard` row per unmatched/duplicate AI output — a full problem report)
