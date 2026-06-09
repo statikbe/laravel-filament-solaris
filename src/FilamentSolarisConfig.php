@@ -243,6 +243,21 @@ class FilamentSolarisConfig
         return $this->resolveConfig('failure_logging.channel');
     }
 
+    public function isBatchTrackingEnabled(): bool
+    {
+        return (bool) $this->resolveConfig('batch_tracking.enabled', false);
+    }
+
+    public function getBatchRunsTable(): string
+    {
+        return (string) $this->resolveConfig('batch_tracking.runs_table', 'solaris_batch_runs');
+    }
+
+    public function getBatchProblemsTable(): string
+    {
+        return (string) $this->resolveConfig('batch_tracking.problems_table', 'solaris_batch_problems');
+    }
+
     /**
      * Get the default AI provider.
      *

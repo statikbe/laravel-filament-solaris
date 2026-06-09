@@ -19,12 +19,18 @@ use RuntimeException;
 use Statikbe\FilamentSolaris\Agents\SolarisAgent;
 use Statikbe\FilamentSolaris\Concerns\HasGenerationOptions;
 use Statikbe\FilamentSolaris\Concerns\HasUserInput;
+use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
+use Statikbe\FilamentSolaris\Events\SolarisBatchCompleted;
+use Statikbe\FilamentSolaris\Events\SolarisBatchStarted;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
-use Statikbe\FilamentSolaris\Support\BatchGenerationException;
-use Statikbe\FilamentSolaris\Support\BatchProcessor;
-use Statikbe\FilamentSolaris\Support\BatchResponse;
-use Statikbe\FilamentSolaris\Support\FailedRecord;
-use Statikbe\FilamentSolaris\Support\InMemoryBatchSink;
+use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
+use Statikbe\FilamentSolaris\Support\Batch\BatchGenerationException;
+use Statikbe\FilamentSolaris\Support\Batch\BatchProcessor;
+use Statikbe\FilamentSolaris\Support\Batch\BatchResponse;
+use Statikbe\FilamentSolaris\Support\Batch\FailedRecord;
+use Statikbe\FilamentSolaris\Support\Batch\Sinks\CompositeBatchSink;
+use Statikbe\FilamentSolaris\Support\Batch\Sinks\DatabaseBatchSink;
+use Statikbe\FilamentSolaris\Support\Batch\Sinks\InMemoryBatchSink;
 use Statikbe\FilamentSolaris\Support\ModelSchemaResolver;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 
@@ -85,6 +91,8 @@ class AiGenerateAction extends SolarisAction
     protected array $promptContextColumns = [];
 
     protected int|Closure $batchSize = 10;
+
+    protected bool|Closure|null $tracked = null;
 
     protected function setUp(): void
     {
@@ -243,8 +251,31 @@ class AiGenerateAction extends SolarisAction
     }
 
     /**
+     * Persist this run (a solaris_batch_runs row + its problems) and fire
+     * SolarisBatchStarted/Completed. Defaults to config batch_tracking.enabled.
+     */
+    public function trackBatchRuns(bool|Closure $tracked = true): static
+    {
+        $this->tracked = $tracked;
+
+        return $this;
+    }
+
+    /**
+     * @param  array<string, mixed>  $userInput
+     */
+    protected function isTracked(array $userInput): bool
+    {
+        if ($this->tracked === null) {
+            return FilamentSolaris::config()->isBatchTrackingEnabled();
+        }
+
+        return (bool) $this->evaluate($this->tracked, ['userInput' => $userInput]);
+    }
+
+    /**
      * Register a callback invoked when a batched run finishes with one or more
-     * failed records (AI-reported failures, silent drops, hallucinated
+     * failed records (AI-reported failures, silent drops, unmatched
      * identifiers' rows, write errors, or whole-batch AI errors).
      *
      * The callback receives these named arguments (plus Filament's standard
@@ -640,11 +671,16 @@ class AiGenerateAction extends SolarisAction
 
         $collector = new InMemoryBatchSink;
 
+        $run = $this->isTracked($userInput) ? $this->startBatchRun($rows) : null;
+        $sink = $run === null
+            ? $collector
+            : new CompositeBatchSink([$collector, new DatabaseBatchSink($run->id)]);
+
         $processor = new BatchProcessor(
             $this->resolveIdentifierKey(),
             $this->makeResponseGenerator($userInput, $attachments, $provider, $model, $timeout, $resolver),
             fn (mixed $source, array $attributes) => $this->writeRow($source, $attributes),
-            $collector,
+            $sink,
         );
 
         $processor->process($rows, $batchSize);
@@ -654,6 +690,39 @@ class AiGenerateAction extends SolarisAction
         }
 
         $this->finishBatchRun($collector->succeeded(), $collector->failures(), $userInput);
+
+        if ($run !== null) {
+            $run->markCompleted();
+            SolarisBatchCompleted::dispatch(
+                $run->id,
+                $this->getName(),
+                $collector->succeeded(),
+                count($collector->failures()),
+                count($collector->discarded()),
+                BatchRunStatus::Completed,
+            );
+        }
+    }
+
+    /**
+     * @param  iterable<int, array<string, mixed>|Model>  $rows
+     */
+    protected function startBatchRun(iterable $rows): SolarisBatchRun
+    {
+        $livewire = $this->getLivewire();
+
+        $run = SolarisBatchRun::create([
+            'action_name' => $this->getName(),
+            'user_id' => ($userId = auth()->id()) === null ? null : (string) $userId,
+            'page' => $livewire !== null ? $livewire::class : null,
+            'status' => BatchRunStatus::Processing,
+            'total' => is_countable($rows) ? count($rows) : null,
+            'started_at' => now(),
+        ]);
+
+        SolarisBatchStarted::dispatch($run->id, $run->action_name, $run->user_id, $run->page, $run->total);
+
+        return $run;
     }
 
     /**
@@ -771,7 +840,7 @@ class AiGenerateAction extends SolarisAction
     /**
      * Log a batch diagnostic on the failure-logging channel (gated by
      * `failure_logging.enabled`). Used for the aggregated manifest and for
-     * reconcile anomalies (hallucinated / duplicate identifiers) — none of which
+     * reconcile anomalies (unmatched / duplicate identifiers) — none of which
      * are bugs, so they go here rather than to `report()`.
      *
      * @param  array<string, mixed>  $context

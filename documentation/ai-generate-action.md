@@ -386,6 +386,26 @@ Identifiers are matched tolerantly (string/int coercion). An output row whose id
 
 `->timeout($seconds)` and `->maxSteps($n)` are per-AI-call, not per-action. At `batchSize=10`, a 60s timeout covers a batch of 10 rows, not one. Tune accordingly.
 
+## Run tracking & events
+
+Opt a records-loop run into persistence with `->trackBatchRuns()` (or globally via the `batch_tracking.enabled` config / `FILAMENT_SOLARIS_BATCH_TRACKING` env var). Default is **off** — small in-request runs stay zero-overhead. Run the package migrations first to create `solaris_batch_runs` + `solaris_batch_problems`.
+
+A tracked run writes a `SolarisBatchRun` row (`status`, `total` / `succeeded` / `failed` / `discarded`, the triggering `user_id` + Filament `page`), one `SolarisBatchProblem` per failed input row (`type: failure`) **and** per discarded output (`type: discard` — the AI's unmatched/duplicate records, kept for review), and fires `SolarisBatchStarted` / `SolarisBatchCompleted`. Failure surfacing (`->onPartialFailure()`, the manifest log, the summary notification) is unchanged.
+
+```php
+AiGenerateAction::make('enrich-articles')
+    ->forModel(Article::class)
+    ->sourceRecords(fn () => Article::needsEnrichment()->get())
+    ->batchSize(20)
+    ->trackBatchRuns()
+    ->updateRecords();
+```
+
+- `SolarisBatchRun` exposes `->problems()`, `->failures()`, and `->discards()` relations (the latter two scoped by `type`).
+- Events carry ids and counts only (no row data, PII-conscious): `SolarisBatchStarted { runId, actionName, userId, page, total }` and `SolarisBatchCompleted { runId, actionName, succeeded, failed, discarded, status }`.
+
+This is the foundation for queued execution and a failure report (coming next).
+
 ## User Input
 
 Open a Filament modal before the action runs to collect runtime values (steering text, file paths, structured selections). Modal data is:

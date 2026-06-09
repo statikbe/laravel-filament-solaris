@@ -198,6 +198,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Batch Tracking
+    |--------------------------------------------------------------------------
+    |
+    | When `enabled` (or per action via ->tracked()), AiGenerateAction records-
+    | loop runs persist a solaris_batch_runs row + their problems (failed rows +
+    | discarded outputs) and fire SolarisBatchStarted/Completed events. Default
+    | off so small in-request runs stay zero-overhead. Run the package migrations.
+    |
+    */
+
+    'batch_tracking' => [
+        'enabled' => (bool) env('FILAMENT_SOLARIS_BATCH_TRACKING', false),
+        'runs_table' => 'solaris_batch_runs',
+        'problems_table' => 'solaris_batch_problems',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | AI Defaults
     |--------------------------------------------------------------------------
     |

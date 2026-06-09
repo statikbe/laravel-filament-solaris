@@ -1,12 +1,11 @@
 <?php
 
-namespace Statikbe\FilamentSolaris\Support;
+namespace Statikbe\FilamentSolaris\Support\Batch;
 
 use Closure;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
-use Statikbe\FilamentSolaris\Support\Contracts\BatchSink;
 
 /**
  * Execution-agnostic records-loop engine: chunk source rows, get the AI's
@@ -71,7 +70,7 @@ final class BatchProcessor
             }
 
             if ($key === null || ! isset($lookup[$key])) {
-                $discarded[] = new DiscardedOutput('hallucinated', $outputRecord, 'AiGenerateAction: hallucinated or missing identifier in records output: '.json_encode($outputRecord));
+                $discarded[] = new DiscardedOutput('unmatched', $outputRecord, 'AiGenerateAction: unmatched or missing identifier in records output: '.json_encode($outputRecord));
 
                 continue;
             }

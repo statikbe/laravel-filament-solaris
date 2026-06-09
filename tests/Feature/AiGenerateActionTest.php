@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;
 use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
 use Statikbe\FilamentSolaris\Agents\SolarisAgent;
-use Statikbe\FilamentSolaris\Support\BatchResponse;
+use Statikbe\FilamentSolaris\Support\Batch\BatchResponse;
 use Statikbe\FilamentSolaris\Support\GenerationOptions;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 use Statikbe\FilamentSolaris\Tests\Fixtures\GenerateFormComponent;

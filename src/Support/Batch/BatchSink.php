@@ -1,8 +1,6 @@
 <?php
 
-namespace Statikbe\FilamentSolaris\Support\Contracts;
-
-use Statikbe\FilamentSolaris\Support\BatchOutcome;
+namespace Statikbe\FilamentSolaris\Support\Batch;
 
 /**
  * Receives one BatchOutcome per processed batch. Implementations decide where
