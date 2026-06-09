@@ -15,8 +15,11 @@ use Statikbe\FilamentSolaris\Tests\Fixtures\SeedCategory;
 beforeEach(function () {
     AiGenerateActionFake::reset();
     foreach (glob(dirname(__DIR__, 2).'/database/migrations/*.php') as $file) {
-        (include $file)->up();
+        $migration = include $file;
+        $migration->down();   // drop any table leaked by an earlier test (idempotent)
+        $migration->up();
     }
+    Schema::dropIfExists('seed_categories');
     Schema::create('seed_categories', function ($table) {
         $table->id();
         $table->string('name');

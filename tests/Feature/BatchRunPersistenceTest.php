@@ -10,7 +10,9 @@ use Statikbe\FilamentSolaris\Support\Batch\Sinks\DatabaseBatchSink;
 
 beforeEach(function () {
     foreach (glob(dirname(__DIR__, 2).'/database/migrations/*.php') as $file) {
-        (include $file)->up();
+        $migration = include $file;
+        $migration->down();   // drop any table leaked by an earlier test (idempotent)
+        $migration->up();
     }
 });
 
