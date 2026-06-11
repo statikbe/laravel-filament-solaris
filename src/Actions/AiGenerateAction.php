@@ -94,6 +94,8 @@ class AiGenerateAction extends SolarisAction
 
     protected bool|Closure|null $tracked = null;
 
+    protected bool|Closure $queued = false;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -271,6 +273,37 @@ class AiGenerateAction extends SolarisAction
         }
 
         return (bool) $this->evaluate($this->tracked, ['userInput' => $userInput]);
+    }
+
+    /**
+     * Run the records loop on the queue (Bus::batch of per-chunk jobs) instead of
+     * inline in the request. Opt-in; requires ->forModel() + ->createRecords()/
+     * ->updateRecords(). See spec 30.
+     */
+    public function queued(bool|Closure $queued = true): static
+    {
+        $this->queued = $queued;
+
+        return $this;
+    }
+
+    /**
+     * @param  array<string, mixed>  $userInput
+     */
+    protected function isQueued(array $userInput = []): bool
+    {
+        return (bool) ($this->queued instanceof Closure
+            ? $this->evaluate($this->queued, ['userInput' => $userInput])
+            : $this->queued);
+    }
+
+    protected function hasConfiguredAttachments(): bool
+    {
+        return $this->attachmentFieldList instanceof Closure
+            || $this->attachmentFieldList !== []
+            || $this->attachmentUserInputKeyList instanceof Closure
+            || $this->attachmentUserInputKeyList !== []
+            || $this->attachmentClosures !== [];
     }
 
     /**
@@ -608,6 +641,18 @@ class AiGenerateAction extends SolarisAction
         // recordCount defaults to 1; treat any non-1 with source set as misuse.
         if ($this->source !== null && (int) $this->evaluate($this->recordCount) !== 1) {
             throw new RuntimeException('AiGenerateAction ->count() is incompatible with ->sourceRecords() — the source defines how many rows to process.');
+        }
+
+        // Queued guards — only validate when the flag is statically true.
+        // A Closure-gated queued flag is deferred to execution time.
+        $queued = $this->queued === true;
+
+        if ($queued && $this->writeTerminal === null) {
+            throw new RuntimeException('AiGenerateAction ->queued() requires ->createRecords() or ->updateRecords(); handler-mode and custom ->outputSchema() run a closure that cannot be queued.');
+        }
+
+        if ($queued && $this->hasConfiguredAttachments()) {
+            throw new RuntimeException('AiGenerateAction ->queued() with attachments arrives in phase 2 of the queued runner; remove attachments or run inline for now.');
         }
     }
 

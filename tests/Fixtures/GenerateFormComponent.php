@@ -476,6 +476,26 @@ class GenerateFormComponent extends FormsComponent
             ->createRecords();
     }
 
+    public function queuedHandlerAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('queuedHandler')
+            ->prompt('x')
+            ->forModel(SeedCategory::class)
+            ->queued()
+            ->handleUsing(fn () => null);   // handler-mode + queued → invalid
+    }
+
+    public function queuedWithAttachmentsAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('queuedWithAttachments')
+            ->prompt('x')
+            ->forModel(SeedCategory::class)
+            ->sourceRecords([['name' => 'A', 'slug' => 'a']])
+            ->queued()
+            ->attachments(fn () => null)    // attachments + queued → invalid (phase 1)
+            ->createRecords();
+    }
+
     public function render(): string
     {
         return '<div>{{ $this->form }}</div>';
