@@ -210,3 +210,25 @@ it('lets a non-BatchGenerationException throwable propagate (aborts the run)', f
     expect(fn () => $processor->process([['x' => 1]], 10))
         ->toThrow(RuntimeException::class, 'genuine bug');
 });
+
+it('resolves a pk identifier from a plain array descriptor (worker path)', function () {
+    $written = [];
+    $processor = new BatchProcessor(
+        identifierKey: 'id',
+        generateResponse: fn (array $batch) => new BatchResponse(
+            records: [['id' => 7, 'name' => 'Seven']],
+            failed: [],
+        ),
+        persistRecord: function (mixed $row, array $attrs) use (&$written) {
+            $written[] = [$row, $attrs];
+        },
+        sink: $sink = new InMemoryBatchSink,
+    );
+
+    // Worker carries descriptors as plain arrays, NOT Models.
+    $processor->reconcile([['id' => 7]], new BatchResponse([['id' => 7, 'name' => 'Seven']], []));
+
+    expect($written)->toHaveCount(1)
+        ->and($written[0][0])->toBe(['id' => 7])
+        ->and($written[0][1])->toBe(['name' => 'Seven']);
+});
