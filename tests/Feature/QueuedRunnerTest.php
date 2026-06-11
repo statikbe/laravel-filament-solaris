@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
 use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
@@ -10,6 +11,7 @@ use Statikbe\FilamentSolaris\Jobs\ProcessChunkJob;
 use Statikbe\FilamentSolaris\Models\SolarisBatchProblem;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
 use Statikbe\FilamentSolaris\Support\Batch\BatchRunConfig;
+use Statikbe\FilamentSolaris\Support\Batch\Runners\QueuedRunner;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 use Statikbe\FilamentSolaris\Tests\Fixtures\SeedCategory;
 
@@ -87,4 +89,29 @@ it('finalizes a run: marks completed and fires SolarisBatchCompleted', function 
         ->and($run->finished_at)->not->toBeNull();
 
     Event::assertDispatched(SolarisBatchCompleted::class, fn ($e) => $e->runId === $run->id && $e->succeeded === 2 && $e->failed === 1);
+});
+
+it('dispatches one ProcessChunkJob per chunk with pre-rendered prompt + descriptors', function () {
+    Bus::fake();
+
+    $run = SolarisBatchRun::create(['action_name' => 'importCategories', 'status' => BatchRunStatus::Processing, 'total' => 3]);
+    $config = makeRunConfig($run->id);
+
+    $chunks = [
+        [['_index' => 0, 'name' => 'A'], ['_index' => 1, 'name' => 'B']],
+        [['_index' => 0, 'name' => 'C']],
+    ];
+
+    (new QueuedRunner)->dispatch(
+        run: $run,
+        config: $config,
+        chunks: $chunks,
+        renderPrompt: fn (array $chunk) => 'Prompt for '.count($chunk).' rows',
+        buildDescriptors: fn (array $chunk) => $chunk,
+    );
+
+    Bus::assertBatched(function ($batch) {
+        return $batch->jobs->count() === 2
+            && $batch->jobs->first()->prompt === 'Prompt for 2 rows';
+    });
 });
