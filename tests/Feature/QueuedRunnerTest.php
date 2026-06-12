@@ -11,7 +11,6 @@ use Statikbe\FilamentSolaris\Jobs\FinalizeRun;
 use Statikbe\FilamentSolaris\Jobs\ProcessChunkJob;
 use Statikbe\FilamentSolaris\Models\SolarisBatchProblem;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
-use Statikbe\FilamentSolaris\Support\Batch\BatchRunConfig;
 use Statikbe\FilamentSolaris\Support\Batch\Runners\QueuedRunner;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 use Statikbe\FilamentSolaris\Tests\Fixtures\GenerateFormComponent;
@@ -53,19 +52,7 @@ afterEach(function () {
     }
 });
 
-function makeRunConfig(string $runId, string $writeTerminal = 'create', string $identifierKey = '_index'): BatchRunConfig
-{
-    return new BatchRunConfig(
-        actionName: 'importCategories',
-        modelClass: SeedCategory::class,
-        onlyColumns: [], exceptColumns: [], columnHints: [], columnEnums: [],
-        identifierKey: $identifierKey,
-        writeTerminal: $writeTerminal,
-        provider: null, model: null, timeout: null,
-        runId: $runId,
-        temperature: null, maxTokens: null, maxSteps: null, topP: null,
-    );
-}
+// makeRunConfig() is a shared helper in tests/Pest.php.
 
 it('processes one chunk: writes successes + persists failures to the run', function () {
     $run = SolarisBatchRun::create(['action_name' => 'importCategories', 'status' => BatchRunStatus::Processing, 'total' => 2]);
