@@ -20,6 +20,12 @@
             <directory>tests</directory>
         </testsuite>
     </testsuites>
+    <php>
+        <!-- The full suite loads Filament and boots the package migrations per
+             batch test; 128M (PHP's default) is exceeded around ~580 tests.
+             Filament is large — PHPStan needs 512M for the same reason. -->
+        <ini name="memory_limit" value="512M"/>
+    </php>
     <logging>
         <junit outputFile="build/report.junit.xml"/>
     </logging>
