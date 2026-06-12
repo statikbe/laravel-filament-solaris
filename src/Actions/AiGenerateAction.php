@@ -771,26 +771,7 @@ class AiGenerateAction extends SolarisAction
     protected function dispatchQueuedRun(iterable $rows, array $userInput, mixed $provider, ?string $model, ?int $timeout, int $batchSize): void
     {
         $run = $this->startBatchRun($rows);
-        $options = $this->resolveGenerationOptions();
-
-        $config = new BatchRunConfig(
-            actionName: $this->getName(),
-            modelClass: $this->modelClass,
-            onlyColumns: $this->onlyColumns,
-            exceptColumns: $this->exceptColumns,
-            columnHints: $this->columnHints,
-            columnEnums: $this->columnEnums,
-            identifierKey: $this->resolveIdentifierKey(),
-            writeTerminal: $this->writeTerminal,
-            provider: $provider,
-            model: $model,
-            timeout: $timeout,
-            runId: $run->id,
-            temperature: $options->temperature,
-            maxTokens: $options->maxTokens,
-            maxSteps: $options->maxSteps,
-            topP: $options->topP,
-        );
+        $config = $this->buildRunConfig($run, $provider, $model, $timeout);
 
         $attachments = $this->serializeAttachments($this->resolveAttachments($userInput));
 
@@ -818,28 +799,9 @@ class AiGenerateAction extends SolarisAction
         $instruction = $this->resolveInstruction($userInput);
         ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
         $timeout = $this->resolveTimeout();
-        $options = $this->resolveGenerationOptions();
 
         $run = $this->startBatchRun(null);   // total unknown until the model answers
-
-        $config = new BatchRunConfig(
-            actionName: $this->getName(),
-            modelClass: $this->modelClass,
-            onlyColumns: $this->onlyColumns,
-            exceptColumns: $this->exceptColumns,
-            columnHints: $this->columnHints,
-            columnEnums: $this->columnEnums,
-            identifierKey: $this->resolveIdentifierKey(),
-            writeTerminal: $this->writeTerminal,
-            provider: $provider,
-            model: $model,
-            timeout: $timeout,
-            runId: $run->id,
-            temperature: $options->temperature,
-            maxTokens: $options->maxTokens,
-            maxSteps: $options->maxSteps,
-            topP: $options->topP,
-        );
+        $config = $this->buildRunConfig($run, $provider, $model, $timeout);
 
         $attachments = $this->serializeAttachments($this->resolveAttachments($userInput));
 
@@ -862,6 +824,36 @@ class AiGenerateAction extends SolarisAction
             ->dispatch();
 
         $this->sendQueuedStartedNotification();
+    }
+
+    /**
+     * Snapshot this action's config into the pure-scalar BatchRunConfig the worker
+     * rebuilds the agent + schema + write-back from. Shared by both queued entry
+     * points (chunked records-loop and one-job single-call); provider/model/timeout
+     * are passed in because each caller resolves them slightly differently.
+     */
+    protected function buildRunConfig(SolarisBatchRun $run, mixed $provider, ?string $model, ?int $timeout): BatchRunConfig
+    {
+        $options = $this->resolveGenerationOptions();
+
+        return new BatchRunConfig(
+            actionName: $this->getName(),
+            modelClass: $this->modelClass,
+            onlyColumns: $this->onlyColumns,
+            exceptColumns: $this->exceptColumns,
+            columnHints: $this->columnHints,
+            columnEnums: $this->columnEnums,
+            identifierKey: $this->resolveIdentifierKey(),
+            writeTerminal: $this->writeTerminal,
+            provider: $provider,
+            model: $model,
+            timeout: $timeout,
+            runId: $run->id,
+            temperature: $options->temperature,
+            maxTokens: $options->maxTokens,
+            maxSteps: $options->maxSteps,
+            topP: $options->topP,
+        );
     }
 
     /**
