@@ -115,8 +115,7 @@ class ProcessChunkJob implements ShouldQueue
             throw new \RuntimeException('ProcessChunkJob requires a model class for write-back.');
         }
 
-        // Mirrors AiGenerateAction::WRITE_CREATE.
-        if ($this->config->writeTerminal === 'create') {
+        if ($this->config->writeTerminal === AiGenerateAction::WRITE_CREATE) {
             $modelClass::create($attrs);
 
             return;
@@ -154,7 +153,6 @@ class ProcessChunkJob implements ShouldQueue
                 ? $schema->integer()->description('The _index field from the input record. Echo unchanged.')
                 : $schema->integer()->description('The primary key. Echo unchanged.');
 
-            // Keys mirror AiGenerateAction::RECORDS_KEY / ::FAILED_KEY.
             return [
                 AiGenerateAction::RECORDS_KEY => $schema->array()->items($schema->object($properties)),
                 AiGenerateAction::FAILED_KEY => $schema->array()->items($schema->object([
