@@ -257,7 +257,22 @@ What happens on `->queued()`:
 - Queued mode **always persists a run** (the run row is how per-chunk outcomes are aggregated across jobs), regardless of `->trackBatchRuns()`.
 - **Retries:** each `ProcessChunkJob` runs with `tries = 1`. `createRecords` is **not** idempotent — a retried chunk would re-create rows — so retries are off by default. `updateRecords` (update-by-primary-key) is naturally retry-safe.
 - **Source serialization:** `updateRecords` rows travel as their primary key and are re-fetched fresh on the worker (so the write hits current DB state; a row deleted mid-run becomes a recorded failure). Array/`createRecords` rows travel as plain-array snapshots.
-- **Attachments** on a queued action are supported from the single-call import path (see below); the chunked records loop rejects them for now.
+- **Attachments** are first-class on the queue (both the chunked loop and the single-call path below). They're resolved in-request and serialized into the jobs, so they must be **disk-backed** (`Storage`), base64, or remote — a `local-*` filesystem path isn't reachable from a worker and is rejected at dispatch.
+
+#### Generate from an attachment (e.g. import a PDF of products)
+
+With **no `->sourceRecords()`**, a queued action becomes a single-call import: one job reads the attachment and creates every record it extracts.
+
+```php
+AiGenerateAction::make('importPriceList')
+    ->forModel(Product::class)
+    ->prompt('Extract every product (name, sku, price) from the attached PDF.')
+    ->attachmentField('price_list')   // a disk-backed FileUpload field
+    ->queued()
+    ->createRecords();
+```
+
+The number of rows is unknown until the model answers, so the run's `total` stays `null` until it completes.
 
 > **Headless `execute()`:** an action with **no attachment channel** (no `->attachmentField()` / `->attachmentFromUserInput()` / `->attachments()`) can be `->execute()`'d outside a Livewire request — e.g. from a queued job or console command. If you do configure attachments, `execute()` still needs a mounted Livewire host to read the form fields.
 
