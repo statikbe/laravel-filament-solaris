@@ -4,6 +4,7 @@ namespace Statikbe\FilamentSolaris\Actions;
 
 use Closure;
 use Filament\Notifications\Notification;
+use Illuminate\Bus\Batch;
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -819,7 +820,7 @@ class AiGenerateAction extends SolarisAction
         $timeout = $this->resolveTimeout();
         $options = $this->resolveGenerationOptions();
 
-        $run = $this->startBatchRun([]);   // total unknown until the model answers
+        $run = $this->startBatchRun(null);   // total unknown until the model answers
 
         $config = new BatchRunConfig(
             actionName: $this->getName(),
@@ -855,7 +856,7 @@ class AiGenerateAction extends SolarisAction
         ])
             ->name('solaris:'.$runId)
             ->allowFailures()
-            ->finally(function ($batch) use ($runId, $actionName): void {
+            ->finally(function (Batch $batch) use ($runId, $actionName): void {
                 FinalizeRun::dispatch($runId, $actionName, $batch->cancelled());
             })
             ->dispatch();
@@ -919,7 +920,7 @@ class AiGenerateAction extends SolarisAction
     /**
      * @param  iterable<int, array<string, mixed>|Model>  $rows
      */
-    protected function startBatchRun(iterable $rows): SolarisBatchRun
+    protected function startBatchRun(?iterable $rows): SolarisBatchRun
     {
         $livewire = $this->getLivewire();
 
@@ -928,7 +929,8 @@ class AiGenerateAction extends SolarisAction
             'user_id' => ($userId = auth()->id()) === null ? null : (string) $userId,
             'page' => $livewire !== null ? $livewire::class : null,
             'status' => BatchRunStatus::Processing,
-            'total' => is_countable($rows) ? count($rows) : null,
+            // null for the single-call path: the row count is unknown until the model answers.
+            'total' => $rows !== null && is_countable($rows) ? count($rows) : null,
             'started_at' => now(),
         ]);
 
