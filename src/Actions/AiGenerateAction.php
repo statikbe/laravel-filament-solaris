@@ -4,8 +4,6 @@ namespace Statikbe\FilamentSolaris\Actions;
 
 use Closure;
 use Filament\Notifications\Notification;
-use Illuminate\Bus\Batch;
-use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -13,7 +11,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Files\File;
 use Laravel\Ai\Responses\StructuredAgentResponse;
@@ -21,20 +18,17 @@ use LogicException;
 use RuntimeException;
 use Statikbe\FilamentSolaris\Agents\SolarisAgent;
 use Statikbe\FilamentSolaris\Concerns\HasGenerationOptions;
+use Statikbe\FilamentSolaris\Concerns\HasQueuedExecution;
 use Statikbe\FilamentSolaris\Concerns\HasUserInput;
 use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
 use Statikbe\FilamentSolaris\Events\SolarisBatchCompleted;
 use Statikbe\FilamentSolaris\Events\SolarisBatchStarted;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
-use Statikbe\FilamentSolaris\Jobs\FinalizeRun;
-use Statikbe\FilamentSolaris\Jobs\ProcessChunkJob;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
 use Statikbe\FilamentSolaris\Support\Batch\BatchGenerationException;
 use Statikbe\FilamentSolaris\Support\Batch\BatchProcessor;
 use Statikbe\FilamentSolaris\Support\Batch\BatchResponse;
-use Statikbe\FilamentSolaris\Support\Batch\BatchRunConfig;
 use Statikbe\FilamentSolaris\Support\Batch\FailedRecord;
-use Statikbe\FilamentSolaris\Support\Batch\Runners\QueuedRunner;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\CompositeBatchSink;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\DatabaseBatchSink;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\InMemoryBatchSink;
@@ -52,6 +46,7 @@ use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 class AiGenerateAction extends SolarisAction
 {
     use HasGenerationOptions;
+    use HasQueuedExecution;
     use HasUserInput;
 
     public const RECORDS_KEY = BatchResponse::RECORDS;
@@ -100,8 +95,6 @@ class AiGenerateAction extends SolarisAction
     protected int|Closure $batchSize = 10;
 
     protected bool|Closure|null $tracked = null;
-
-    protected bool|Closure $queued = false;
 
     protected function setUp(): void
     {
@@ -280,28 +273,6 @@ class AiGenerateAction extends SolarisAction
         }
 
         return (bool) $this->evaluate($this->tracked, ['userInput' => $userInput]);
-    }
-
-    /**
-     * Run the records loop on the queue (Bus::batch of per-chunk jobs) instead of
-     * inline in the request. Opt-in; requires ->forModel() + ->createRecords()/
-     * ->updateRecords(). See spec 30.
-     */
-    public function queued(bool|Closure $queued = true): static
-    {
-        $this->queued = $queued;
-
-        return $this;
-    }
-
-    /**
-     * @param  array<string, mixed>  $userInput
-     */
-    protected function isQueued(array $userInput = []): bool
-    {
-        return (bool) ($this->queued instanceof Closure
-            ? $this->evaluate($this->queued, ['userInput' => $userInput])
-            : $this->queued);
     }
 
     /**
@@ -754,159 +725,6 @@ class AiGenerateAction extends SolarisAction
                 BatchRunStatus::Completed,
             );
         }
-    }
-
-    /**
-     * Dispatch a queued records-loop run: snapshot config to scalars, pre-render each
-     * chunk's prompt + descriptors in-request, hand off to QueuedRunner (Bus::batch).
-     *
-     * Unlike the inline path (which only persists a run when ->trackBatchRuns() is
-     * on), queued mode ALWAYS creates a SolarisBatchRun: the run row is the only
-     * place per-chunk outcomes can be aggregated across jobs, so its id is required
-     * by every ProcessChunkJob. Queued therefore implies tracking by construction.
-     *
-     * @param  array<string, mixed>  $userInput
-     * @param  iterable<int, array<string, mixed>|Model>  $rows
-     */
-    protected function dispatchQueuedRun(iterable $rows, array $userInput, mixed $provider, ?string $model, ?int $timeout, int $batchSize): void
-    {
-        $run = $this->startBatchRun($rows);
-        $config = $this->buildRunConfig($run, $provider, $model, $timeout);
-
-        $attachments = $this->serializeAttachments($this->resolveAttachments($userInput));
-
-        (new QueuedRunner)->dispatch(
-            run: $run,
-            config: $config,
-            chunks: BatchProcessor::chunkRows($rows, $batchSize),
-            renderPrompt: fn (array $chunk): string => $this->buildBatchInstruction($chunk, $userInput),
-            buildDescriptors: fn (array $chunk): array => $this->buildChunkDescriptors($chunk),
-            attachments: $attachments,
-        );
-
-        $this->sendQueuedStartedNotification();
-    }
-
-    /**
-     * Queued single-call / from-scratch generation (no ->sourceRecords()): one
-     * ProcessChunkJob with no descriptors + serialized attachments. Reuses the
-     * from-scratch branch (rowDescriptors === []) on the worker.
-     *
-     * @param  array<string, mixed>  $userInput
-     */
-    protected function dispatchQueuedSingleCall(array $userInput): void
-    {
-        $instruction = $this->resolveInstruction($userInput);
-        ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
-        $timeout = $this->resolveTimeout();
-
-        $run = $this->startBatchRun(null);   // total unknown until the model answers
-        $config = $this->buildRunConfig($run, $provider, $model, $timeout);
-
-        $attachments = $this->serializeAttachments($this->resolveAttachments($userInput));
-
-        $runId = $run->id;
-        $actionName = $this->getName();
-
-        Bus::batch([
-            new ProcessChunkJob(
-                config: $config,
-                prompt: $instruction,
-                rowDescriptors: [],
-                attachments: $attachments,
-            ),
-        ])
-            ->name('solaris:'.$runId)
-            ->allowFailures()
-            ->finally(function (Batch $batch) use ($runId, $actionName): void {
-                FinalizeRun::dispatch($runId, $actionName, $batch->cancelled());
-            })
-            ->dispatch();
-
-        $this->sendQueuedStartedNotification();
-    }
-
-    /**
-     * Snapshot this action's config into the pure-scalar BatchRunConfig the worker
-     * rebuilds the agent + schema + write-back from. Shared by both queued entry
-     * points (chunked records-loop and one-job single-call); provider/model/timeout
-     * are passed in because each caller resolves them slightly differently.
-     */
-    protected function buildRunConfig(SolarisBatchRun $run, mixed $provider, ?string $model, ?int $timeout): BatchRunConfig
-    {
-        $options = $this->resolveGenerationOptions();
-
-        return new BatchRunConfig(
-            actionName: $this->getName(),
-            modelClass: $this->modelClass,
-            onlyColumns: $this->onlyColumns,
-            exceptColumns: $this->exceptColumns,
-            columnHints: $this->columnHints,
-            columnEnums: $this->columnEnums,
-            identifierKey: $this->resolveIdentifierKey(),
-            writeTerminal: $this->writeTerminal,
-            provider: $provider,
-            model: $model,
-            timeout: $timeout,
-            runId: $run->id,
-            temperature: $options->temperature,
-            maxTokens: $options->maxTokens,
-            maxSteps: $options->maxSteps,
-            topP: $options->topP,
-        );
-    }
-
-    /**
-     * Serialize resolved attachments for the queue. laravel/ai's File::toArray() ⇄
-     * File::fromArray() is symmetric, so disk-backed / base64 / remote files travel
-     * fine. A `local-*` file is a transient local path a worker can't read — reject
-     * it at dispatch rather than failing cryptically on the worker.
-     *
-     * @param  array<int, File>  $files
-     * @return array<int, array<string, mixed>>
-     */
-    protected function serializeAttachments(array $files): array
-    {
-        return array_map(static function (File $file): array {
-            if (! $file instanceof Arrayable) {
-                throw new RuntimeException('AiGenerateAction ->queued() attachments must be serializable (Arrayable). Got: '.$file::class);
-            }
-
-            /** @var array<string, mixed> $data */
-            $data = $file->toArray();
-
-            if (str_starts_with((string) ($data['type'] ?? ''), 'local-')) {
-                throw new RuntimeException('AiGenerateAction ->queued() attachments must be disk-backed (Storage) or base64; a local filesystem path is not reachable from a worker. Got: '.$data['type']);
-            }
-
-            return $data;
-        }, $files);
-    }
-
-    /**
-     * Minimal per-row descriptor the worker needs to match + write back (spec 30 §5.3):
-     * updateRecords carries just the pk; create/from-source carries the positional snapshot.
-     *
-     * @param  array<int, array<string, mixed>|Model>  $chunk
-     * @return array<int, array<string, mixed>>
-     */
-    protected function buildChunkDescriptors(array $chunk): array
-    {
-        $identifierKey = $this->resolveIdentifierKey();
-
-        if ($identifierKey !== '_index') {
-            return array_map(static fn ($row): array => [$identifierKey => $row->getKey()], $chunk);
-        }
-
-        return array_map(static fn ($row): array => $row instanceof Model ? $row->toArray() : $row, array_values($chunk));
-    }
-
-    protected function sendQueuedStartedNotification(): void
-    {
-        Notification::make()
-            ->title(filament_solaris_trans('notifications.batch_queued'))
-            ->success()
-            ->send();
     }
 
     /**
