@@ -32,28 +32,21 @@ beforeEach(function () {
         $table->timestamps();
     });
 
-    // Bus::batch persists batch metadata to job_batches; Testbench has no such
-    // table. Point the batch repo at the default (in-memory) connection and
-    // create the canonical schema so queued end-to-end tests can run under sync.
+    // Bus::batch persists batch metadata to Laravel's own `job_batches` table.
+    // Don't hand-roll its schema (it would drift if Laravel changes it) — run
+    // Testbench's maintained jobs migration, which mirrors Laravel upstream.
+    // Point the batch repo at the default (in-memory) connection so sync-driver
+    // end-to-end tests can find the table.
     config()->set('queue.batching.database', config('database.default'));
-    Schema::dropIfExists('job_batches');
-    Schema::create('job_batches', function ($table) {
-        $table->string('id')->primary();
-        $table->string('name');
-        $table->integer('total_jobs');
-        $table->integer('pending_jobs');
-        $table->integer('failed_jobs');
-        $table->longText('failed_job_ids');
-        $table->mediumText('options')->nullable();
-        $table->integer('cancelled_at')->nullable();
-        $table->integer('created_at');
-        $table->integer('finished_at')->nullable();
-    });
+    if (! Schema::hasTable('job_batches')) {
+        foreach (glob(dirname(__DIR__, 2).'/vendor/orchestra/testbench-core/laravel/migrations/*_create_jobs_table.php') as $file) {
+            (include $file)->up();
+        }
+    }
 });
 
 afterEach(function () {
     AiGenerateActionFake::reset();
-    Schema::dropIfExists('job_batches');
     Schema::dropIfExists('seed_categories');
     foreach (glob(dirname(__DIR__, 2).'/database/migrations/*.php') as $file) {
         (include $file)->down();
