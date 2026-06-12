@@ -955,20 +955,14 @@ class AiGenerateAction extends SolarisAction
 
         // Worker path: descriptor is a plain array carrying the pk. Re-fetch fresh so we
         // write to current DB state; a row deleted mid-run becomes a recorded failure.
-        if (is_array($row)) {
-            $key = $row[(new ($this->modelClass)())->getKeyName()] ?? null;
-            $model = $key === null ? null : $this->modelClass::find($key);
+        $key = $row[(new ($this->modelClass)())->getKeyName()] ?? null;
+        $model = $key === null ? null : $this->modelClass::find($key);
 
-            if ($model === null) {
-                throw new RuntimeException('updateRecords target no longer exists for identifier '.json_encode($key));
-            }
-
-            $model->update($attrs);
-
-            return;
+        if ($model === null) {
+            throw new RuntimeException('updateRecords target no longer exists for identifier '.json_encode($key));
         }
 
-        throw new RuntimeException('updateRecords source items must be Eloquent models, got '.get_debug_type($row));
+        $model->update($attrs);
     }
 
     /**
