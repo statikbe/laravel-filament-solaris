@@ -31,10 +31,29 @@ beforeEach(function () {
         $table->string('slug');
         $table->timestamps();
     });
+
+    // Bus::batch persists batch metadata to job_batches; Testbench has no such
+    // table. Point the batch repo at the default (in-memory) connection and
+    // create the canonical schema so queued end-to-end tests can run under sync.
+    config()->set('queue.batching.database', config('database.default'));
+    Schema::dropIfExists('job_batches');
+    Schema::create('job_batches', function ($table) {
+        $table->string('id')->primary();
+        $table->string('name');
+        $table->integer('total_jobs');
+        $table->integer('pending_jobs');
+        $table->integer('failed_jobs');
+        $table->longText('failed_job_ids');
+        $table->mediumText('options')->nullable();
+        $table->integer('cancelled_at')->nullable();
+        $table->integer('created_at');
+        $table->integer('finished_at')->nullable();
+    });
 });
 
 afterEach(function () {
     AiGenerateActionFake::reset();
+    Schema::dropIfExists('job_batches');
     Schema::dropIfExists('seed_categories');
     foreach (glob(dirname(__DIR__, 2).'/database/migrations/*.php') as $file) {
         (include $file)->down();
@@ -120,21 +139,6 @@ it('dispatches one ProcessChunkJob per chunk with pre-rendered prompt + descript
 
 it('end-to-end: ->queued() dispatches a batch that creates all rows', function () {
     config()->set('queue.default', 'sync');
-    config()->set('queue.batching.database', config('database.default'));
-
-    Schema::dropIfExists('job_batches');
-    Schema::create('job_batches', function ($table) {
-        $table->string('id')->primary();
-        $table->string('name');
-        $table->integer('total_jobs');
-        $table->integer('pending_jobs');
-        $table->integer('failed_jobs');
-        $table->longText('failed_job_ids');
-        $table->mediumText('options')->nullable();
-        $table->integer('cancelled_at')->nullable();
-        $table->integer('created_at');
-        $table->integer('finished_at')->nullable();
-    });
 
     AiGenerateAction::fakeEach([
         ['records' => [['_index' => 0, 'name' => 'A', 'slug' => 'a'], ['_index' => 1, 'name' => 'B', 'slug' => 'b']], 'failed' => []],

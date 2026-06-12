@@ -762,8 +762,13 @@ class AiGenerateAction extends SolarisAction
      * Dispatch a queued records-loop run: snapshot config to scalars, pre-render each
      * chunk's prompt + descriptors in-request, hand off to QueuedRunner (Bus::batch).
      *
-     * @param  iterable<int, array<string, mixed>|Model>  $rows
+     * Unlike the inline path (which only persists a run when ->trackBatchRuns() is
+     * on), queued mode ALWAYS creates a SolarisBatchRun: the run row is the only
+     * place per-chunk outcomes can be aggregated across jobs, so its id is required
+     * by every ProcessChunkJob. Queued therefore implies tracking by construction.
+     *
      * @param  array<string, mixed>  $userInput
+     * @param  iterable<int, array<string, mixed>|Model>  $rows
      */
     protected function dispatchQueuedRun(iterable $rows, array $userInput, mixed $provider, ?string $model, ?int $timeout, int $batchSize): void
     {
