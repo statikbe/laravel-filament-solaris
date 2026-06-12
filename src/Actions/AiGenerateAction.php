@@ -864,13 +864,6 @@ class AiGenerateAction extends SolarisAction
     }
 
     /**
-     * Minimal per-row descriptor the worker needs to match + write back (spec 30 §5.3):
-     * updateRecords carries just the pk; create/from-source carries the positional snapshot.
-     *
-     * @param  array<int, array<string, mixed>|Model>  $chunk
-     * @return array<int, array<string, mixed>>
-     */
-    /**
      * Serialize resolved attachments for the queue. laravel/ai's File::toArray() ⇄
      * File::fromArray() is symmetric, so disk-backed / base64 / remote files travel
      * fine. A `local-*` file is a transient local path a worker can't read — reject
@@ -897,6 +890,13 @@ class AiGenerateAction extends SolarisAction
         }, $files);
     }
 
+    /**
+     * Minimal per-row descriptor the worker needs to match + write back (spec 30 §5.3):
+     * updateRecords carries just the pk; create/from-source carries the positional snapshot.
+     *
+     * @param  array<int, array<string, mixed>|Model>  $chunk
+     * @return array<int, array<string, mixed>>
+     */
     protected function buildChunkDescriptors(array $chunk): array
     {
         $identifierKey = $this->resolveIdentifierKey();
