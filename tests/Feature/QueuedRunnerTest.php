@@ -92,6 +92,19 @@ it('finalizes a run: marks completed and fires SolarisBatchCompleted', function 
     Event::assertDispatched(SolarisBatchCompleted::class, fn ($e) => $e->runId === $run->id && $e->succeeded === 2 && $e->failed === 1);
 });
 
+it('finalizes a cancelled batch as Failed', function () {
+    Event::fake([SolarisBatchCompleted::class]);
+
+    $run = SolarisBatchRun::create(['action_name' => 'importCategories', 'status' => BatchRunStatus::Processing, 'total' => 3]);
+
+    (new FinalizeRun($run->id, 'importCategories', cancelled: true))->handle();
+
+    expect($run->refresh()->status)->toBe(BatchRunStatus::Failed)
+        ->and($run->finished_at)->not->toBeNull();
+
+    Event::assertDispatched(SolarisBatchCompleted::class, fn ($e) => $e->runId === $run->id && $e->status === BatchRunStatus::Failed);
+});
+
 it('dispatches one ProcessChunkJob per chunk with pre-rendered prompt + descriptors', function () {
     Bus::fake();
 
