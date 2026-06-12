@@ -17,9 +17,11 @@ use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
 use Statikbe\FilamentSolaris\Agents\SolarisAgent;
 use Statikbe\FilamentSolaris\Events\SolarisBatchProgressed;
 use Statikbe\FilamentSolaris\Support\Batch\BatchGenerationException;
+use Statikbe\FilamentSolaris\Support\Batch\BatchOutcome;
 use Statikbe\FilamentSolaris\Support\Batch\BatchProcessor;
 use Statikbe\FilamentSolaris\Support\Batch\BatchResponse;
 use Statikbe\FilamentSolaris\Support\Batch\BatchRunConfig;
+use Statikbe\FilamentSolaris\Support\Batch\FailedRecord;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\CompositeBatchSink;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\DatabaseBatchSink;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\InMemoryBatchSink;
@@ -58,15 +60,19 @@ class ProcessChunkJob implements ShouldQueue
         $collector = new InMemoryBatchSink;
         $sink = new CompositeBatchSink([$collector, new DatabaseBatchSink($this->config->runId)]);
 
-        $processor = new BatchProcessor(
-            $this->config->identifierKey,
-            fn (array $batch): BatchResponse => $this->generate(),
-            fn (mixed $row, array $attrs) => $this->writeRow($row, $attrs),
-            $sink,
-        );
+        if ($this->rowDescriptors === []) {
+            $this->processFromScratch($sink);
+        } else {
+            $processor = new BatchProcessor(
+                $this->config->identifierKey,
+                fn (array $batch): BatchResponse => $this->generate(),
+                fn (mixed $row, array $attrs) => $this->writeRow($row, $attrs),
+                $sink,
+            );
 
-        // One job == one chunk: a batchSize >= count keeps it a single chunk.
-        $processor->process($this->rowDescriptors, max(1, count($this->rowDescriptors)));
+            // One job == one chunk: a batchSize >= count keeps it a single chunk.
+            $processor->process($this->rowDescriptors, max(1, count($this->rowDescriptors)));
+        }
 
         SolarisBatchProgressed::dispatch(
             $this->config->runId,
@@ -75,6 +81,40 @@ class ProcessChunkJob implements ShouldQueue
             count($collector->failures()),
             count($collector->discarded()),
         );
+    }
+
+    /**
+     * Single-call / from-scratch (no input rows): generate once and create every
+     * returned record. Mirrors AiGenerateAction::handleSingleCallResponse's
+     * WRITE_CREATE loop, but emits the outcome to the sink instead of notifying.
+     */
+    private function processFromScratch(CompositeBatchSink $sink): void
+    {
+        try {
+            $response = $this->generate();
+        } catch (BatchGenerationException $e) {
+            $sink->record(new BatchOutcome(0, [new FailedRecord(null, $e->getMessage(), null)], []));
+
+            return;
+        }
+
+        $succeeded = 0;
+        $failures = $response->failed;
+        $key = $this->config->identifierKey;
+
+        foreach ($response->records as $index => $record) {
+            $attrs = $record;
+            unset($attrs[$key]);
+
+            try {
+                $this->writeRow($record, $attrs);
+                $succeeded++;
+            } catch (\Throwable $e) {
+                $failures[] = new FailedRecord($record[$key] ?? $index, 'write error: '.$e->getMessage(), $record);
+            }
+        }
+
+        $sink->record(new BatchOutcome($succeeded, $failures, []));
     }
 
     private function generate(): BatchResponse
