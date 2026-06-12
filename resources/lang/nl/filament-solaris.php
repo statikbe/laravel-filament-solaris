@@ -21,6 +21,7 @@ return [
         'handler_error' => 'Er ging iets mis bij het verwerken van het AI-resultaat. Probeer het opnieuw.',
         'batch_completed' => ':count records verwerkt.',
         'batch_partial_failure' => ':count records verwerkt, :failed mislukt — zie logs.',
+        'batch_queued' => 'Je batch wordt op de achtergrond verwerkt…',
     ],
 
     'preview' => [

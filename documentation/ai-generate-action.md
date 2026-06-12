@@ -230,11 +230,53 @@ The callback is additive: registering it does not suppress the summary notificat
 
 > **`report()` vs the manifest.** Expected per-row outcomes — AI-reported failures, silent drops, write errors, and hallucinated/duplicate identifiers — are aggregated into the failure manifest (the gated `Log::warning` above) and never `report()`ed per row, so a large job with many bad rows won't flood your error tracker (Sentry/Flare). `report()` is reserved for genuine **exceptions** worth a stack trace: a failed AI call, a throwing `->handleUsing()` handler, or a throwing `->onPartialFailure()` callback.
 
-### Large imports — queue the work
+### Large imports — `->queued()`
 
-For more than ~50 rows, running AI calls synchronously in a web request will exceed timeouts and block the UI. A queued-execution mode (`->queued()`) is planned for a future version. Until then, dispatch a queued job from your `->handleUsing()` closure (single-call variant) or wrap the action invocation in a job yourself.
+For more than ~50 rows, running AI calls synchronously in a web request exceeds timeouts and blocks the UI. `->queued()` flips the records loop onto the queue: the request returns immediately after dispatching a `Bus::batch` of per-chunk jobs, each making one AI call on a worker.
+
+```php
+AiGenerateAction::make('enrichProducts')
+    ->forModel(Product::class)
+    ->prompt(fn (array $rows) => 'Write an SEO meta description for each product below.')
+    ->sourceRecords(fn () => Product::whereNull('meta_description'))
+    ->batchSize(20)
+    ->queued()        // ← dispatch instead of running inline
+    ->updateRecords();
+```
+
+What happens on `->queued()`:
+
+1. **In the request:** the source is resolved and chunked, each chunk's prompt is pre-rendered (your `->prompt(fn ($rows) => …)` closure runs here, where it has the live rows + `$userInput`), and a serializable config snapshot is captured. A `Bus::batch` of `ProcessChunkJob`s is dispatched, and the user gets a "processing in the background" notification.
+2. **On the worker:** each job rebuilds the agent from the config (no closures), makes its AI call synchronously, reconciles the response to its chunk, writes rows, and persists per-chunk outcomes.
+3. **On completion:** a `FinalizeRun` job marks the run finished and fires `SolarisBatchCompleted`. (Per-row failures are persisted throughout — see [Run tracking & events](#run-tracking--events).)
+
+**Requirements & limits:**
+
+- Your queue must support **batching** — `->queued()` uses `Bus::batch`, which needs Laravel's `job_batches` table (`php artisan queue:batches-table` if it isn't already in your migrations) and a batch-capable queue connection. The package ships no migration for this; it's the standard Laravel batch requirement.
+- Requires `->forModel()` **and** `->createRecords()`/`->updateRecords()`. `->handleUsing()` and a custom `->outputSchema()` run a closure at completion that cannot cross the serialization boundary, so they stay inline-only — `->queued()` with either throws.
+- Queued mode **always persists a run** (the run row is how per-chunk outcomes are aggregated across jobs), regardless of `->trackBatchRuns()`.
+- **Retries:** each `ProcessChunkJob` runs with `tries = 1`. `createRecords` is **not** idempotent — a retried chunk would re-create rows — so retries are off by default. `updateRecords` (update-by-primary-key) is naturally retry-safe.
+- **Source serialization:** `updateRecords` rows travel as their primary key and are re-fetched fresh on the worker (so the write hits current DB state; a row deleted mid-run becomes a recorded failure). Array/`createRecords` rows travel as plain-array snapshots.
+- **Attachments** are first-class on the queue (both the chunked loop and the single-call path below). They're resolved in-request and serialized into the jobs, so they must be **disk-backed** (`Storage`), base64, or remote — a `local-*` filesystem path isn't reachable from a worker and is rejected at dispatch.
+
+#### Generate from an attachment (e.g. import a PDF of products)
+
+With **no `->sourceRecords()`**, a queued action becomes a single-call import: one job reads the attachment and creates every record it extracts.
+
+```php
+AiGenerateAction::make('importPriceList')
+    ->forModel(Product::class)
+    ->prompt('Extract every product (name, sku, price) from the attached PDF.')
+    ->attachmentField('price_list')   // a disk-backed FileUpload field
+    ->queued()
+    ->createRecords();
+```
+
+The number of rows is unknown until the model answers, so the run's `total` stays `null` until it completes.
 
 > **Headless `execute()`:** an action with **no attachment channel** (no `->attachmentField()` / `->attachmentFromUserInput()` / `->attachments()`) can be `->execute()`'d outside a Livewire request — e.g. from a queued job or console command. If you do configure attachments, `execute()` still needs a mounted Livewire host to read the form fields.
+
+> **Completion notification & live updates:** `->queued()` sends a *started* notification in-request and fires `SolarisBatchCompleted` when done. A configurable completion-handler strategy (e.g. a custom "done" notification) and a live-progress spinner are planned follow-ups; until then, listen for `SolarisBatchCompleted` to react when a run finishes.
 
 ### Testing
 

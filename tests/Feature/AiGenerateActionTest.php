@@ -225,6 +225,13 @@ it('errors when createRecords is used without ->forModel()', function () {
         ->toThrow(RuntimeException::class, 'require ->forModel()');
 });
 
+it('rejects ->queued() with handler mode (closure cannot serialize)', function () {
+    AiGenerateAction::fake(['x' => 1]);
+
+    expect(fn () => Livewire::test(GenerateFormComponent::class)->callAction('queuedHandler'))
+        ->toThrow(RuntimeException::class, 'queued');
+});
+
 it('passes the batch as $rows to the prompt closure per records loop', function () {
     Schema::create('seed_categories', function ($table) {
         $table->id();

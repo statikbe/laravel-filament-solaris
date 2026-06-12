@@ -18,6 +18,7 @@ use LogicException;
 use RuntimeException;
 use Statikbe\FilamentSolaris\Agents\SolarisAgent;
 use Statikbe\FilamentSolaris\Concerns\HasGenerationOptions;
+use Statikbe\FilamentSolaris\Concerns\HasQueuedExecution;
 use Statikbe\FilamentSolaris\Concerns\HasUserInput;
 use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
 use Statikbe\FilamentSolaris\Events\SolarisBatchCompleted;
@@ -45,6 +46,7 @@ use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 class AiGenerateAction extends SolarisAction
 {
     use HasGenerationOptions;
+    use HasQueuedExecution;
     use HasUserInput;
 
     public const RECORDS_KEY = BatchResponse::RECORDS;
@@ -303,6 +305,12 @@ class AiGenerateAction extends SolarisAction
 
         if ($this->source !== null) {
             $this->executeRecordsLoop($userInput);
+
+            return;
+        }
+
+        if ($this->isQueued($userInput) && $this->writeTerminal !== null) {
+            $this->dispatchQueuedSingleCall($userInput);
 
             return;
         }
@@ -609,6 +617,14 @@ class AiGenerateAction extends SolarisAction
         if ($this->source !== null && (int) $this->evaluate($this->recordCount) !== 1) {
             throw new RuntimeException('AiGenerateAction ->count() is incompatible with ->sourceRecords() — the source defines how many rows to process.');
         }
+
+        // Queued guards — only validate when the flag is statically true.
+        // A Closure-gated queued flag is deferred to execution time.
+        $queued = $this->queued === true;
+
+        if ($queued && $this->writeTerminal === null) {
+            throw new RuntimeException('AiGenerateAction ->queued() requires ->createRecords() or ->updateRecords(); handler-mode and custom ->outputSchema() run a closure that cannot be queued.');
+        }
     }
 
     /**
@@ -665,9 +681,16 @@ class AiGenerateAction extends SolarisAction
         $rows = $this->resolveRecordsSource($userInput);
         ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
         $timeout = $this->resolveTimeout();
+        $batchSize = $this->resolveBatchSize($userInput);
+
+        if ($this->isQueued($userInput)) {
+            $this->dispatchQueuedRun($rows, $userInput, $provider, $model, $timeout, $batchSize);
+
+            return;
+        }
+
         $resolver = $this->resolveSchemaResolver();
         $attachments = $this->resolveAttachments($userInput);
-        $batchSize = $this->resolveBatchSize($userInput);
 
         $collector = new InMemoryBatchSink;
 
@@ -707,7 +730,7 @@ class AiGenerateAction extends SolarisAction
     /**
      * @param  iterable<int, array<string, mixed>|Model>  $rows
      */
-    protected function startBatchRun(iterable $rows): SolarisBatchRun
+    protected function startBatchRun(?iterable $rows): SolarisBatchRun
     {
         $livewire = $this->getLivewire();
 
@@ -716,7 +739,8 @@ class AiGenerateAction extends SolarisAction
             'user_id' => ($userId = auth()->id()) === null ? null : (string) $userId,
             'page' => $livewire !== null ? $livewire::class : null,
             'status' => BatchRunStatus::Processing,
-            'total' => is_countable($rows) ? count($rows) : null,
+            // null for the single-call path: the row count is unknown until the model answers.
+            'total' => $rows !== null && is_countable($rows) ? count($rows) : null,
             'started_at' => now(),
         ]);
 
@@ -902,11 +926,22 @@ class AiGenerateAction extends SolarisAction
         }
 
         // WRITE_UPDATE
-        if (! $row instanceof Model) {
-            throw new RuntimeException('updateRecords source items must be Eloquent models, got '.get_debug_type($row));
+        if ($row instanceof Model) {
+            $row->update($attrs);
+
+            return;
         }
 
-        $row->update($attrs);
+        // Worker path: descriptor is a plain array carrying the pk. Re-fetch fresh so we
+        // write to current DB state; a row deleted mid-run becomes a recorded failure.
+        $key = $row[(new ($this->modelClass)())->getKeyName()] ?? null;
+        $model = $key === null ? null : $this->modelClass::find($key);
+
+        if ($model === null) {
+            throw new RuntimeException('updateRecords target no longer exists for identifier '.json_encode($key));
+        }
+
+        $model->update($attrs);
     }
 
     /**

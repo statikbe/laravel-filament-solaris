@@ -8,6 +8,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\FormsComponent;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
+use Laravel\Ai\Files\Document;
 use Laravel\Ai\Files\Image;
 use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
 use Statikbe\FilamentSolaris\Support\UserInput;
@@ -473,6 +474,43 @@ class GenerateFormComponent extends FormsComponent
             ->batchSize(10)
             ->prompt(fn (array $rows) => 'Process '.count($rows).' rows.')
             ->trackBatchRuns()
+            ->createRecords();
+    }
+
+    public function queuedImportAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('queuedImport')
+            ->forModel(SeedCategory::class)
+            ->prompt(fn (array $rows) => 'Create '.count($rows).' rows.')
+            ->sourceRecords([
+                ['name' => 'A', 'slug' => 'a'],
+                ['name' => 'B', 'slug' => 'b'],
+                ['name' => 'C', 'slug' => 'c'],
+            ])
+            ->batchSize(2)
+            ->trackBatchRuns()
+            ->queued()
+            ->createRecords();
+    }
+
+    public function queuedHandlerAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('queuedHandler')
+            ->prompt('x')
+            ->forModel(SeedCategory::class)
+            ->queued()
+            ->handleUsing(fn () => null);   // handler-mode + queued → invalid
+    }
+
+    public function queuedPdfImportAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('queuedPdfImport')
+            ->forModel(SeedCategory::class)
+            ->prompt('Extract products from the attached PDF.')
+            ->attachments(fn () => Document::fromStorage('invoices/list.pdf', 'local'))
+            ->count(1)
+            ->trackBatchRuns()
+            ->queued()
             ->createRecords();
     }
 

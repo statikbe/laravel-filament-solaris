@@ -2,6 +2,14 @@
 
 All notable changes to `laravel-filament-solaris` will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- `AiGenerateAction::queued()` — run the records loop on the queue (`Bus::batch` of per-chunk jobs) instead of inline, for imports/enrichment beyond ~50 rows. Pre-renders each chunk's prompt in-request, dispatches `ProcessChunkJob`s that reconcile + write on the worker, and finalizes via `FinalizeRun` (fires `SolarisBatchCompleted`). Requires `->forModel()` + `->createRecords()`/`->updateRecords()`; handler-mode and custom `->outputSchema()` stay inline-only. Queued mode always persists a `SolarisBatchRun`. Jobs run with `tries = 1` (`createRecords` is not idempotent; `updateRecords` is retry-safe). See `documentation/ai-generate-action.md` → "Large imports — `->queued()`".
+- Queued single-call imports: `->queued()` with **no `->sourceRecords()`** dispatches one job that generates from scratch (e.g. extract a product list from an attached PDF). Attachments are first-class on the queue — resolved in-request and serialized into the jobs; they must be disk-backed/base64/remote (a local filesystem path is rejected at dispatch).
+- `SolarisBatchProgressed` event (per-chunk progress substrate).
+
 ## 0.3.0 - 2026-05-28
 
 ### What's Changed

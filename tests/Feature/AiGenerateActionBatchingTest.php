@@ -294,3 +294,17 @@ it('throws when ->sourceRecords() yields an unsupported type', function () {
     expect(fn () => Livewire::test(GenerateFormComponent::class)->callAction('invalidSourceType'))
         ->toThrow(RuntimeException::class, 'must yield a Builder, Collection, or array');
 });
+
+it('updates by pk when given a plain array descriptor (worker write-back)', function () {
+    $row = SeedCategory::create(['name' => 'Old', 'slug' => 'old']);
+
+    $action = (new ReflectionClass(AiGenerateAction::class))->newInstanceWithoutConstructor();
+    $write = (new ReflectionMethod(AiGenerateAction::class, 'writeRow'))->getClosure($action);
+    foreach (['writeTerminal' => 'update', 'modelClass' => SeedCategory::class] as $prop => $val) {
+        (new ReflectionProperty(AiGenerateAction::class, $prop))->setValue($action, $val);
+    }
+
+    $write(['id' => $row->id], ['name' => 'New', 'slug' => 'new']);
+
+    expect($row->refresh()->name)->toBe('New');
+});

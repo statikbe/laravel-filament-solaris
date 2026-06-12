@@ -6,9 +6,29 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Features\SupportFileUploads\FileUploadConfiguration;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use Statikbe\FilamentSolaris\Support\Batch\BatchRunConfig;
+use Statikbe\FilamentSolaris\Tests\Fixtures\SeedCategory;
 use Statikbe\FilamentSolaris\Tests\TestCase;
 
 uses(TestCase::class)->in(__DIR__);
+
+/**
+ * Build a serializable BatchRunConfig for the queued-runner tests. Shared so
+ * both QueuedRunnerTest and QueuedSingleCallTest can use it in isolation.
+ */
+function makeRunConfig(string $runId, string $writeTerminal = 'create', string $identifierKey = '_index'): BatchRunConfig
+{
+    return new BatchRunConfig(
+        actionName: 'importCategories',
+        modelClass: SeedCategory::class,
+        onlyColumns: [], exceptColumns: [], columnHints: [], columnEnums: [],
+        identifierKey: $identifierKey,
+        writeTerminal: $writeTerminal,
+        provider: null, model: null, timeout: null,
+        runId: $runId,
+        temperature: null, maxTokens: null, maxSteps: null, topP: null,
+    );
+}
 
 function createTempUploadedFile(string $originalName, string $mimeType, string $contents): TemporaryUploadedFile
 {

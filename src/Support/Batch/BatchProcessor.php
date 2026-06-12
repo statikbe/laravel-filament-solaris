@@ -123,7 +123,8 @@ final class BatchProcessor
 
     /**
      * Resolve a batch row's identifier: its position when keyed by `_index`,
-     * otherwise the model key (null for non-models).
+     * otherwise the model key for Eloquent models, or the keyed array value
+     * for plain-array descriptors (worker path).
      *
      * @param  array<string, mixed>|Model  $row
      */
@@ -133,14 +134,28 @@ final class BatchProcessor
             return $index;
         }
 
-        return $row instanceof Model ? $row->getKey() : null;
+        return $row instanceof Model
+            ? $row->getKey()
+            : ($row[$this->identifierKey] ?? null);
+    }
+
+    /**
+     * Chunk rows into batchSize-sized slices. Delegates to the public static
+     * `chunkRows()` so external callers (e.g. QueuedRunner) can chunk identically.
+     *
+     * @param  iterable<int, array<string, mixed>|Model>  $rows
+     * @return iterable<int, array<int, array<string, mixed>|Model>>
+     */
+    private function chunk(iterable $rows, int $batchSize): iterable
+    {
+        return self::chunkRows($rows, $batchSize);
     }
 
     /**
      * @param  iterable<int, array<string, mixed>|Model>  $rows
      * @return iterable<int, array<int, array<string, mixed>|Model>>
      */
-    private function chunk(iterable $rows, int $batchSize): iterable
+    public static function chunkRows(iterable $rows, int $batchSize): iterable
     {
         if ($rows instanceof Collection || $rows instanceof EloquentCollection) {
             foreach ($rows->chunk($batchSize) as $chunk) {

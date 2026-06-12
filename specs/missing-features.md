@@ -241,3 +241,17 @@ resolution share the text-generation plumbing between `HasPromptPipeline`
 is now a DTO, not an array (`$options->temperature`, not `$options['temperature']`).
 
 **Shipped:** see `specs/25-shared-ai-call-plumbing.md`.
+
+---
+
+### 15. Queued-batch run status: job-level (infra) failures
+
+`->queued()` (spec 30, piece #3) finalizes via `Bus::batch(...)->finally(FinalizeRun)`.
+`FinalizeRun` maps `cancelled → Failed`, else `Completed`. With `allowFailures()`
++ `tries = 1`, a chunk job that throws at the **infrastructure** level (DB error in
+`DatabaseBatchSink::record`, OOM, worker kill) does NOT cancel the batch — so the
+run is marked `Completed` even though that chunk's rows were lost. Per-row data
+failures are unaffected (caught in-sink and counted on the run). Consider
+`$batch->hasFailures()` → a `Failed`/partial status, or surface it via the
+completion-handler strategy (piece #4) which is the natural home. Flagged by the
+piece-#3 final review (2026-06-12), deferred to piece #4.
