@@ -11,6 +11,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Laravel\Ai\Files\File;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
 use Statikbe\FilamentSolaris\Agents\SolarisAgent;
@@ -37,11 +38,15 @@ class ProcessChunkJob implements ShouldQueue
 
     public int $tries = 1;
 
-    /** @param  array<int, array<string, mixed>>  $rowDescriptors */
+    /**
+     * @param  array<int, array<string, mixed>>  $rowDescriptors
+     * @param  array<int, array<string, mixed>>  $attachments  serialized File::toArray() payloads
+     */
     public function __construct(
         public BatchRunConfig $config,
         public string $prompt,
         public array $rowDescriptors,
+        public array $attachments = [],
     ) {}
 
     public function handle(): void
@@ -93,7 +98,7 @@ class ProcessChunkJob implements ShouldQueue
             ->withTopP($this->config->topP);
 
         try {
-            $response = $agent->prompt($this->prompt, [], $this->config->provider, $this->config->model, $this->config->timeout);
+            $response = $agent->prompt($this->prompt, $this->rehydrateAttachments(), $this->config->provider, $this->config->model, $this->config->timeout);
         } catch (\Throwable $e) {
             throw new BatchGenerationException($e->getMessage());
         }
@@ -104,6 +109,17 @@ class ProcessChunkJob implements ShouldQueue
         }
 
         return BatchResponse::fromArray($response->toArray());
+    }
+
+    /**
+     * @return array<int, File>
+     */
+    private function rehydrateAttachments(): array
+    {
+        return array_values(array_filter(array_map(
+            static fn (array $data): ?File => File::fromArray($data),
+            $this->attachments,
+        )));
     }
 
     /** @param  array<string, mixed>  $attrs */
