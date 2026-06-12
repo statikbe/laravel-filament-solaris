@@ -232,13 +232,6 @@ it('rejects ->queued() with handler mode (closure cannot serialize)', function (
         ->toThrow(RuntimeException::class, 'queued');
 });
 
-it('rejects ->queued() when attachments are configured (phase 2 deferred)', function () {
-    AiGenerateAction::fake(['x' => 1]);
-
-    expect(fn () => Livewire::test(GenerateFormComponent::class)->callAction('queuedWithAttachments'))
-        ->toThrow(RuntimeException::class, 'queued');
-});
-
 it('passes the batch as $rows to the prompt closure per records loop', function () {
     Schema::create('seed_categories', function ($table) {
         $table->id();

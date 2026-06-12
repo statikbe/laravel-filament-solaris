@@ -22,6 +22,7 @@ final class QueuedRunner
      * @param  iterable<int, array<int, mixed>>  $chunks
      * @param  Closure(array<int, mixed>): string  $renderPrompt
      * @param  Closure(array<int, mixed>): array<int, array<string, mixed>>  $buildDescriptors
+     * @param  array<int, array<string, mixed>>  $attachments
      */
     public function dispatch(
         SolarisBatchRun $run,
@@ -29,6 +30,7 @@ final class QueuedRunner
         iterable $chunks,
         Closure $renderPrompt,
         Closure $buildDescriptors,
+        array $attachments = [],
     ): void {
         $jobs = [];
 
@@ -37,6 +39,7 @@ final class QueuedRunner
                 config: $config,
                 prompt: $renderPrompt($chunk),
                 rowDescriptors: array_values($buildDescriptors($chunk)),
+                attachments: $attachments,
             );
         }
 

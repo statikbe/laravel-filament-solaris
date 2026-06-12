@@ -1,13 +1,16 @@
 <?php
 
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Ai\Files\Document;
+use Livewire\Livewire;
 use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
 use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
 use Statikbe\FilamentSolaris\Jobs\ProcessChunkJob;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
 use Statikbe\FilamentSolaris\Support\Batch\BatchRunConfig;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
+use Statikbe\FilamentSolaris\Tests\Fixtures\GenerateFormComponent;
 use Statikbe\FilamentSolaris\Tests\Fixtures\SeedCategory;
 
 it('round-trips attachments through File::toArray()/fromArray()', function () {
@@ -96,4 +99,20 @@ it('from-scratch: creates every returned record when there are no input rows', f
 
     expect(SeedCategory::count())->toBe(2)
         ->and($run->refresh()->succeeded)->toBe(2);
+});
+
+it('end-to-end: queued from-scratch import with a disk attachment creates rows', function () {
+    config()->set('queue.default', 'sync');
+    Storage::fake('local');
+    Storage::disk('local')->put('invoices/list.pdf', '%PDF-1.4 fake');
+
+    AiGenerateAction::fakeEach([[
+        'records' => [['_index' => 0, 'name' => 'Widget', 'slug' => 'widget']],
+        'failed' => [],
+    ]]);
+
+    Livewire::test(GenerateFormComponent::class)->callAction('queuedPdfImport');
+
+    expect(SeedCategory::where('name', 'Widget')->exists())->toBeTrue();
+    expect(SolarisBatchRun::first()->status)->toBe(BatchRunStatus::Completed);
 });

@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Files\File;
 use Laravel\Ai\Responses\StructuredAgentResponse;
@@ -24,6 +25,8 @@ use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
 use Statikbe\FilamentSolaris\Events\SolarisBatchCompleted;
 use Statikbe\FilamentSolaris\Events\SolarisBatchStarted;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
+use Statikbe\FilamentSolaris\Jobs\FinalizeRun;
+use Statikbe\FilamentSolaris\Jobs\ProcessChunkJob;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
 use Statikbe\FilamentSolaris\Support\Batch\BatchGenerationException;
 use Statikbe\FilamentSolaris\Support\Batch\BatchProcessor;
@@ -300,15 +303,6 @@ class AiGenerateAction extends SolarisAction
             : $this->queued);
     }
 
-    protected function hasConfiguredAttachments(): bool
-    {
-        return $this->attachmentFieldList instanceof Closure
-            || $this->attachmentFieldList !== []
-            || $this->attachmentUserInputKeyList instanceof Closure
-            || $this->attachmentUserInputKeyList !== []
-            || $this->attachmentClosures !== [];
-    }
-
     /**
      * Register a callback invoked when a batched run finishes with one or more
      * failed records (AI-reported failures, silent drops, unmatched
@@ -339,6 +333,12 @@ class AiGenerateAction extends SolarisAction
 
         if ($this->source !== null) {
             $this->executeRecordsLoop($userInput);
+
+            return;
+        }
+
+        if ($this->isQueued($userInput) && $this->writeTerminal !== null) {
+            $this->dispatchQueuedSingleCall($userInput);
 
             return;
         }
@@ -653,10 +653,6 @@ class AiGenerateAction extends SolarisAction
         if ($queued && $this->writeTerminal === null) {
             throw new RuntimeException('AiGenerateAction ->queued() requires ->createRecords() or ->updateRecords(); handler-mode and custom ->outputSchema() run a closure that cannot be queued.');
         }
-
-        if ($queued && $this->hasConfiguredAttachments()) {
-            throw new RuntimeException('AiGenerateAction ->queued() with attachments arrives in phase 2 of the queued runner; remove attachments or run inline for now.');
-        }
     }
 
     /**
@@ -795,13 +791,74 @@ class AiGenerateAction extends SolarisAction
             topP: $options->topP,
         );
 
+        $attachments = $this->serializeAttachments($this->resolveAttachments($userInput));
+
         (new QueuedRunner)->dispatch(
             run: $run,
             config: $config,
             chunks: BatchProcessor::chunkRows($rows, $batchSize),
             renderPrompt: fn (array $chunk): string => $this->buildBatchInstruction($chunk, $userInput),
             buildDescriptors: fn (array $chunk): array => $this->buildChunkDescriptors($chunk),
+            attachments: $attachments,
         );
+
+        $this->sendQueuedStartedNotification();
+    }
+
+    /**
+     * Queued single-call / from-scratch generation (no ->sourceRecords()): one
+     * ProcessChunkJob with no descriptors + serialized attachments. Reuses the
+     * from-scratch branch (rowDescriptors === []) on the worker.
+     *
+     * @param  array<string, mixed>  $userInput
+     */
+    protected function dispatchQueuedSingleCall(array $userInput): void
+    {
+        $instruction = $this->resolveInstruction($userInput);
+        ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
+        $timeout = $this->resolveTimeout();
+        $options = $this->resolveGenerationOptions();
+
+        $run = $this->startBatchRun([]);   // total unknown until the model answers
+
+        $config = new BatchRunConfig(
+            actionName: $this->getName(),
+            modelClass: $this->modelClass,
+            onlyColumns: $this->onlyColumns,
+            exceptColumns: $this->exceptColumns,
+            columnHints: $this->columnHints,
+            columnEnums: $this->columnEnums,
+            identifierKey: $this->resolveIdentifierKey(),
+            writeTerminal: $this->writeTerminal,
+            provider: $provider,
+            model: $model,
+            timeout: $timeout,
+            runId: $run->id,
+            temperature: $options->temperature,
+            maxTokens: $options->maxTokens,
+            maxSteps: $options->maxSteps,
+            topP: $options->topP,
+        );
+
+        $attachments = $this->serializeAttachments($this->resolveAttachments($userInput));
+
+        $runId = $run->id;
+        $actionName = $this->getName();
+
+        Bus::batch([
+            new ProcessChunkJob(
+                config: $config,
+                prompt: $instruction,
+                rowDescriptors: [],
+                attachments: $attachments,
+            ),
+        ])
+            ->name('solaris:'.$runId)
+            ->allowFailures()
+            ->finally(function ($batch) use ($runId, $actionName): void {
+                FinalizeRun::dispatch($runId, $actionName, $batch->cancelled());
+            })
+            ->dispatch();
 
         $this->sendQueuedStartedNotification();
     }
@@ -819,12 +876,17 @@ class AiGenerateAction extends SolarisAction
      * fine. A `local-*` file is a transient local path a worker can't read — reject
      * it at dispatch rather than failing cryptically on the worker.
      *
-     * @param  array<int, File&Arrayable>  $files
+     * @param  array<int, File>  $files
      * @return array<int, array<string, mixed>>
      */
     protected function serializeAttachments(array $files): array
     {
-        return array_map(static function (File&Arrayable $file): array {
+        return array_map(static function (File $file): array {
+            if (! $file instanceof Arrayable) {
+                throw new RuntimeException('AiGenerateAction ->queued() attachments must be serializable (Arrayable). Got: '.$file::class);
+            }
+
+            /** @var array<string, mixed> $data */
             $data = $file->toArray();
 
             if (str_starts_with((string) ($data['type'] ?? ''), 'local-')) {

@@ -8,6 +8,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\FormsComponent;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
+use Laravel\Ai\Files\Document;
 use Laravel\Ai\Files\Image;
 use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
 use Statikbe\FilamentSolaris\Support\UserInput;
@@ -501,14 +502,15 @@ class GenerateFormComponent extends FormsComponent
             ->handleUsing(fn () => null);   // handler-mode + queued → invalid
     }
 
-    public function queuedWithAttachmentsAction(): AiGenerateAction
+    public function queuedPdfImportAction(): AiGenerateAction
     {
-        return AiGenerateAction::make('queuedWithAttachments')
-            ->prompt('x')
+        return AiGenerateAction::make('queuedPdfImport')
             ->forModel(SeedCategory::class)
-            ->sourceRecords([['name' => 'A', 'slug' => 'a']])
+            ->prompt('Extract products from the attached PDF.')
+            ->attachments(fn () => Document::fromStorage('invoices/list.pdf', 'local'))
+            ->count(1)
+            ->trackBatchRuns()
             ->queued()
-            ->attachments(fn () => null)    // attachments + queued → invalid (phase 1)
             ->createRecords();
     }
 
