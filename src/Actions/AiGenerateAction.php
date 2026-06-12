@@ -4,6 +4,7 @@ namespace Statikbe\FilamentSolaris\Actions;
 
 use Closure;
 use Filament\Notifications\Notification;
+use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -812,6 +813,28 @@ class AiGenerateAction extends SolarisAction
      * @param  array<int, array<string, mixed>|Model>  $chunk
      * @return array<int, array<string, mixed>>
      */
+    /**
+     * Serialize resolved attachments for the queue. laravel/ai's File::toArray() ⇄
+     * File::fromArray() is symmetric, so disk-backed / base64 / remote files travel
+     * fine. A `local-*` file is a transient local path a worker can't read — reject
+     * it at dispatch rather than failing cryptically on the worker.
+     *
+     * @param  array<int, File&Arrayable>  $files
+     * @return array<int, array<string, mixed>>
+     */
+    protected function serializeAttachments(array $files): array
+    {
+        return array_map(static function (File&Arrayable $file): array {
+            $data = $file->toArray();
+
+            if (str_starts_with((string) ($data['type'] ?? ''), 'local-')) {
+                throw new RuntimeException('AiGenerateAction ->queued() attachments must be disk-backed (Storage) or base64; a local filesystem path is not reachable from a worker. Got: '.$data['type']);
+            }
+
+            return $data;
+        }, $files);
+    }
+
     protected function buildChunkDescriptors(array $chunk): array
     {
         $identifierKey = $this->resolveIdentifierKey();
