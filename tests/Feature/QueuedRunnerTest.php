@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
+use Livewire\Livewire;
 use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
 use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
 use Statikbe\FilamentSolaris\Events\SolarisBatchCompleted;
@@ -13,6 +14,7 @@ use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
 use Statikbe\FilamentSolaris\Support\Batch\BatchRunConfig;
 use Statikbe\FilamentSolaris\Support\Batch\Runners\QueuedRunner;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
+use Statikbe\FilamentSolaris\Tests\Fixtures\GenerateFormComponent;
 use Statikbe\FilamentSolaris\Tests\Fixtures\SeedCategory;
 
 beforeEach(function () {
@@ -114,4 +116,35 @@ it('dispatches one ProcessChunkJob per chunk with pre-rendered prompt + descript
         return $batch->jobs->count() === 2
             && $batch->jobs->first()->prompt === 'Prompt for 2 rows';
     });
+});
+
+it('end-to-end: ->queued() dispatches a batch that creates all rows', function () {
+    config()->set('queue.default', 'sync');
+    config()->set('queue.batching.database', config('database.default'));
+
+    Schema::dropIfExists('job_batches');
+    Schema::create('job_batches', function ($table) {
+        $table->string('id')->primary();
+        $table->string('name');
+        $table->integer('total_jobs');
+        $table->integer('pending_jobs');
+        $table->integer('failed_jobs');
+        $table->longText('failed_job_ids');
+        $table->mediumText('options')->nullable();
+        $table->integer('cancelled_at')->nullable();
+        $table->integer('created_at');
+        $table->integer('finished_at')->nullable();
+    });
+
+    AiGenerateAction::fakeEach([
+        ['records' => [['_index' => 0, 'name' => 'A', 'slug' => 'a'], ['_index' => 1, 'name' => 'B', 'slug' => 'b']], 'failed' => []],
+        ['records' => [['_index' => 0, 'name' => 'C', 'slug' => 'c']], 'failed' => []],
+    ]);
+
+    Livewire::test(GenerateFormComponent::class)->callAction('queuedImport');
+
+    expect(SeedCategory::count())->toBe(3);
+    $run = SolarisBatchRun::first();
+    expect($run->status)->toBe(BatchRunStatus::Completed)
+        ->and($run->succeeded)->toBe(3);
 });

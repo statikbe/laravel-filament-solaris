@@ -21,6 +21,7 @@ return [
         'handler_error' => 'Une erreur est survenue lors du traitement du résultat de l\'IA. Veuillez réessayer.',
         'batch_completed' => ':count enregistrements traités.',
         'batch_partial_failure' => ':count enregistrements traités, :failed en échec — voir les logs.',
+        'batch_queued' => 'Votre lot est en cours de traitement en arrière-plan…',
     ],
 
     'preview' => [

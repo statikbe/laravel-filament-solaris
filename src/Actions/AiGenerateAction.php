@@ -27,7 +27,9 @@ use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
 use Statikbe\FilamentSolaris\Support\Batch\BatchGenerationException;
 use Statikbe\FilamentSolaris\Support\Batch\BatchProcessor;
 use Statikbe\FilamentSolaris\Support\Batch\BatchResponse;
+use Statikbe\FilamentSolaris\Support\Batch\BatchRunConfig;
 use Statikbe\FilamentSolaris\Support\Batch\FailedRecord;
+use Statikbe\FilamentSolaris\Support\Batch\Runners\QueuedRunner;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\CompositeBatchSink;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\DatabaseBatchSink;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\InMemoryBatchSink;
@@ -710,9 +712,16 @@ class AiGenerateAction extends SolarisAction
         $rows = $this->resolveRecordsSource($userInput);
         ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
         $timeout = $this->resolveTimeout();
+        $batchSize = $this->resolveBatchSize($userInput);
+
+        if ($this->isQueued($userInput)) {
+            $this->dispatchQueuedRun($rows, $userInput, $provider, $model, $timeout, $batchSize);
+
+            return;
+        }
+
         $resolver = $this->resolveSchemaResolver();
         $attachments = $this->resolveAttachments($userInput);
-        $batchSize = $this->resolveBatchSize($userInput);
 
         $collector = new InMemoryBatchSink;
 
@@ -747,6 +756,74 @@ class AiGenerateAction extends SolarisAction
                 BatchRunStatus::Completed,
             );
         }
+    }
+
+    /**
+     * Dispatch a queued records-loop run: snapshot config to scalars, pre-render each
+     * chunk's prompt + descriptors in-request, hand off to QueuedRunner (Bus::batch).
+     *
+     * @param  iterable<int, array<string, mixed>|Model>  $rows
+     * @param  array<string, mixed>  $userInput
+     */
+    protected function dispatchQueuedRun(iterable $rows, array $userInput, mixed $provider, ?string $model, ?int $timeout, int $batchSize): void
+    {
+        $run = $this->startBatchRun($rows);
+        $options = $this->resolveGenerationOptions();
+
+        $config = new BatchRunConfig(
+            actionName: $this->getName(),
+            modelClass: $this->modelClass,
+            onlyColumns: $this->onlyColumns,
+            exceptColumns: $this->exceptColumns,
+            columnHints: $this->columnHints,
+            columnEnums: $this->columnEnums,
+            identifierKey: $this->resolveIdentifierKey(),
+            writeTerminal: $this->writeTerminal,
+            provider: $provider,
+            model: $model,
+            timeout: $timeout,
+            runId: $run->id,
+            temperature: $options->temperature,
+            maxTokens: $options->maxTokens,
+            maxSteps: $options->maxSteps,
+            topP: $options->topP,
+        );
+
+        (new QueuedRunner)->dispatch(
+            run: $run,
+            config: $config,
+            chunks: BatchProcessor::chunkRows($rows, $batchSize),
+            renderPrompt: fn (array $chunk): string => $this->buildBatchInstruction($chunk, $userInput),
+            buildDescriptors: fn (array $chunk): array => $this->buildChunkDescriptors($chunk),
+        );
+
+        $this->sendQueuedStartedNotification();
+    }
+
+    /**
+     * Minimal per-row descriptor the worker needs to match + write back (spec 30 §5.3):
+     * updateRecords carries just the pk; create/from-source carries the positional snapshot.
+     *
+     * @param  array<int, array<string, mixed>|Model>  $chunk
+     * @return array<int, array<string, mixed>>
+     */
+    protected function buildChunkDescriptors(array $chunk): array
+    {
+        $identifierKey = $this->resolveIdentifierKey();
+
+        if ($identifierKey !== '_index') {
+            return array_map(static fn ($row): array => [$identifierKey => $row->getKey()], $chunk);
+        }
+
+        return array_map(static fn ($row): array => $row instanceof Model ? $row->toArray() : $row, array_values($chunk));
+    }
+
+    protected function sendQueuedStartedNotification(): void
+    {
+        Notification::make()
+            ->title(filament_solaris_trans('notifications.batch_queued'))
+            ->success()
+            ->send();
     }
 
     /**

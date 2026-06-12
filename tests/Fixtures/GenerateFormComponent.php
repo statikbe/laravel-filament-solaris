@@ -476,6 +476,22 @@ class GenerateFormComponent extends FormsComponent
             ->createRecords();
     }
 
+    public function queuedImportAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('queuedImport')
+            ->forModel(SeedCategory::class)
+            ->prompt(fn (array $rows) => 'Create '.count($rows).' rows.')
+            ->sourceRecords([
+                ['name' => 'A', 'slug' => 'a'],
+                ['name' => 'B', 'slug' => 'b'],
+                ['name' => 'C', 'slug' => 'c'],
+            ])
+            ->batchSize(2)
+            ->trackBatchRuns()
+            ->queued()
+            ->createRecords();
+    }
+
     public function queuedHandlerAction(): AiGenerateAction
     {
         return AiGenerateAction::make('queuedHandler')
