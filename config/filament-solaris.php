@@ -212,6 +212,7 @@ return [
         'enabled' => (bool) env('FILAMENT_SOLARIS_BATCH_TRACKING', false),
         'runs_table' => 'solaris_batch_runs',
         'problems_table' => 'solaris_batch_problems',
+        'notify_on_completion' => true,
     ],
 
     /*
