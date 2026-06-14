@@ -202,10 +202,16 @@ return [
     | Batch Tracking
     |--------------------------------------------------------------------------
     |
-    | When `enabled` (or per action via ->tracked()), AiGenerateAction records-
-    | loop runs persist a solaris_batch_runs row + their problems (failed rows +
-    | discarded outputs) and fire SolarisBatchStarted/Completed events. Default
-    | off so small in-request runs stay zero-overhead. Run the package migrations.
+    | When `enabled` (or per action via ->trackBatchRuns()), AiGenerateAction
+    | records-loop runs persist a solaris_batch_runs row + their problems (failed
+    | rows + discarded outputs) and fire SolarisBatchStarted/Completed events.
+    | Default off so small in-request runs stay zero-overhead (queued runs always
+    | track). Run the package migrations.
+    |
+    | When a run finishes, the `completion_handlers` (BatchCompletionHandler
+    | classes, run in order) fire — inline or queued alike. `->onCompletion()`
+    | overrides this list per action. The default notifies; `notify_on_completion`
+    | toggles that built-in notification without replacing the handler list.
     |
     */
 
@@ -213,7 +219,9 @@ return [
         'enabled' => (bool) env('FILAMENT_SOLARIS_BATCH_TRACKING', false),
         'runs_table' => 'solaris_batch_runs',
         'problems_table' => 'solaris_batch_problems',
+        // Notification sent by the default handler when a run finishes.
         'notify_on_completion' => true,
+        // BatchCompletionHandler classes run (in order) on completion.
         'completion_handlers' => [NotifyOnBatchCompletion::class],
     ],
 
