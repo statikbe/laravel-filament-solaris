@@ -28,6 +28,8 @@ use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
 use Statikbe\FilamentSolaris\Support\Batch\BatchGenerationException;
 use Statikbe\FilamentSolaris\Support\Batch\BatchProcessor;
 use Statikbe\FilamentSolaris\Support\Batch\BatchResponse;
+use Statikbe\FilamentSolaris\Support\Batch\BatchSummary;
+use Statikbe\FilamentSolaris\Support\Batch\CompletionHandlerRunner;
 use Statikbe\FilamentSolaris\Support\Batch\FailedRecord;
 use Statikbe\FilamentSolaris\Support\Batch\Handlers\NotifyOnBatchCompletion;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\CompositeBatchSink;
@@ -80,8 +82,6 @@ class AiGenerateAction extends SolarisAction
     protected array $columnEnums = [];
 
     protected ?Closure $handler = null;
-
-    protected ?Closure $onPartialFailure = null;
 
     /** @var Builder<Model>|Collection<int, array<string, mixed>>|EloquentCollection<int, Model>|array<int, array<string, mixed>|Model>|Closure|null */
     protected Builder|Collection|EloquentCollection|array|Closure|null $source = null;
@@ -294,26 +294,6 @@ class AiGenerateAction extends SolarisAction
     }
 
     /**
-     * Register a callback invoked when a batched run finishes with one or more
-     * failed records (AI-reported failures, silent drops, unmatched
-     * identifiers' rows, write errors, or whole-batch AI errors).
-     *
-     * The callback receives these named arguments (plus Filament's standard
-     * injections like $livewire and $record):
-     *   - array<int, FailedRecord> $failures — each with ->identifier, ->reason, ->input
-     *   - int $succeeded — rows written successfully
-     *   - int $failed — count($failures)
-     *   - int $total — $succeeded + $failed
-     *   - array<string, mixed> $userInput — the resolved user-input values
-     */
-    public function onPartialFailure(Closure $callback): static
-    {
-        $this->onPartialFailure = $callback;
-
-        return $this;
-    }
-
-    /**
      * @param  array<string, mixed>  $userInput
      */
     public function execute(array $userInput = []): void
@@ -424,7 +404,7 @@ class AiGenerateAction extends SolarisAction
                         }
                     }
 
-                    $this->finishBatchRun($succeeded, $failures, $userInput);
+                    $this->finishBatchRun($succeeded, $failures, $userInput, null);
 
                     return;
                 }
@@ -712,7 +692,7 @@ class AiGenerateAction extends SolarisAction
 
         $collector = new InMemoryBatchSink;
 
-        $run = $this->isTracked($userInput) ? $this->startBatchRun($rows) : null;
+        $run = $this->isTracked($userInput) ? $this->startBatchRun($rows, $userInput) : null;
         $sink = $run === null
             ? $collector
             : new CompositeBatchSink([$collector, new DatabaseBatchSink($run->id)]);
@@ -730,7 +710,7 @@ class AiGenerateAction extends SolarisAction
             $this->logToFailureChannel($discarded->reason);
         }
 
-        $this->finishBatchRun($collector->succeeded(), $collector->failures(), $userInput);
+        $this->finishBatchRun($collector->succeeded(), $collector->failures(), $userInput, $run);
 
         if ($run !== null) {
             $run->markCompleted();
@@ -839,41 +819,35 @@ class AiGenerateAction extends SolarisAction
     }
 
     /**
-     * Close out a batched run: log + surface any failures, then notify.
+     * Close out a batched run: log any failures, then run the resolved
+     * completion handlers against a path-agnostic summary.
      *
      * @param  array<int, FailedRecord>  $failures
      * @param  array<string, mixed>  $userInput
      */
-    protected function finishBatchRun(int $succeeded, array $failures, array $userInput): void
+    protected function finishBatchRun(int $succeeded, array $failures, array $userInput, ?SolarisBatchRun $run = null): void
     {
-        $failed = count($failures);
-
         if ($failures !== []) {
             $this->reportFailures($failures);
-
-            if ($this->onPartialFailure !== null) {
-                // A throwing callback must not abort the run after rows are
-                // already written, nor swallow the summary notification.
-                try {
-                    $this->evaluate($this->onPartialFailure, [
-                        'failures' => $failures,
-                        'succeeded' => $succeeded,
-                        'failed' => $failed,
-                        'total' => $succeeded + $failed,
-                        'userInput' => $userInput,
-                    ]);
-                } catch (\Throwable $e) {
-                    report($e);
-                }
-            }
         }
 
-        $this->sendBatchSummary($succeeded, $failed);
+        $summary = new BatchSummary(
+            actionName: $this->getName(),
+            runId: $run?->id,
+            succeeded: $succeeded,
+            failed: count($failures),
+            discarded: $run === null ? 0 : $run->discarded,
+            status: $run === null ? BatchRunStatus::Completed : $run->status,
+            queued: false,
+            userInput: $userInput,
+        );
+
+        (new CompletionHandlerRunner)->run($this->resolveCompletionHandlers(), $summary);
     }
 
     /**
-     * Log the failure manifest so failures are never silently dropped, even when
-     * no ->onPartialFailure() callback is registered. Models are reduced to their
+     * Log the failure manifest so failures are never silently dropped, regardless
+     * of which completion handlers are registered. Models are reduced to their
      * key to keep the log readable.
      *
      * @param  array<int, FailedRecord>  $failures
@@ -1110,26 +1084,6 @@ For any input you cannot process (e.g., malformed line, ambiguous source data), 
 TXT;
 
         return trim($instruction)."\n\n".$boilerplate;
-    }
-
-    protected function sendBatchSummary(int $succeeded, int $failed): void
-    {
-        if ($failed === 0) {
-            Notification::make()
-                ->title(filament_solaris_trans('notifications.batch_completed', ['count' => $succeeded]))
-                ->success()
-                ->send();
-
-            return;
-        }
-
-        Notification::make()
-            ->title(filament_solaris_trans('notifications.batch_partial_failure', [
-                'count' => $succeeded,
-                'failed' => $failed,
-            ]))
-            ->warning()
-            ->send();
     }
 
     // ── Testing ──────────────────────────────────────────────────

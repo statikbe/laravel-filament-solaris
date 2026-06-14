@@ -514,6 +514,17 @@ class GenerateFormComponent extends FormsComponent
             ->createRecords();
     }
 
+    public function completionInlineAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('completionInline')
+            ->forModel(SeedCategory::class)
+            ->prompt(fn (array $rows) => 'Process.')
+            ->sourceRecords([['name' => 'A', 'slug' => 'a'], ['name' => 'B', 'slug' => 'b']])
+            ->batchSize(10)
+            ->onCompletion(RecordingHandler::class)
+            ->createRecords();
+    }
+
     public function render(): string
     {
         return '<div>{{ $this->form }}</div>';
