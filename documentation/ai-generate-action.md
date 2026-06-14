@@ -201,34 +201,59 @@ In `forModel` mode the schema unconditionally includes a `failed: [{identifier, 
 - `->reason` — a short failure reason.
 - `->input` — the originating source row (array or Eloquent model) when it can be recovered, so you can retry or report it. `null` only for AI-reported failures with no matching input (e.g. single-call createRecords parsing).
 
-Failures are surfaced three ways, layered for different audiences:
+Failures are surfaced two ways, layered for different audiences:
 
-1. **Logged** (dev) — the full manifest is written via `Log::warning(...)` whenever any row fails, so failures are never silently dropped, even with no callback registered. Toggle with `failure_logging.enabled` (default `true`, or the `FILAMENT_SOLARIS_FAILURE_LOGGING` env var) and route to a dedicated log with `failure_logging.channel`.
-2. **Callback** (app) — register `->onPartialFailure(...)` to take ownership of failure handling (flash a detailed notice, persist for retry, dispatch a job, …). It fires only when there is at least one failure, and receives:
+1. **Logged** (dev) — the full manifest is written via `Log::warning(...)` whenever any row fails, so failures are never silently dropped, independent of which completion handlers are registered. Toggle with `failure_logging.enabled` (default `true`, or the `FILAMENT_SOLARIS_FAILURE_LOGGING` env var) and route to a dedicated log with `failure_logging.channel`.
+2. **Completion handlers** (app + user) — see the next section. The default handler turns the run into a user-facing summary notification; register your own to take ownership.
 
-   ```php
-   AiGenerateAction::make('enrich')
-       ->forModel(Article::class)
-       ->sourceRecords(fn () => Article::needsEnrichment()->get())
-       ->batchSize(20)
-       ->updateRecords()
-       ->onPartialFailure(function (array $failures, int $succeeded, int $failed, int $total, array $userInput, $livewire) {
-           // $failures is FailedRecord[] — each ->identifier, ->reason, ->input
-           Notification::make()
-               ->title("{$succeeded}/{$total} enriched, {$failed} need attention")
-               ->warning()
-               ->send();
-       });
-   ```
+> **`report()` vs the manifest.** Expected per-row outcomes — AI-reported failures, silent drops, write errors, and hallucinated/duplicate identifiers — are aggregated into the failure manifest (the gated `Log::warning` above) and never `report()`ed per row, so a large job with many bad rows won't flood your error tracker (Sentry/Flare). `report()` is reserved for genuine **exceptions** worth a stack trace: a failed AI call or a throwing `->handleUsing()` handler. (A throwing completion handler is also `report()`ed but never aborts the run — see below.)
 
-   Named args: `$failures` (`FailedRecord[]`), `$succeeded`, `$failed`, `$total`, `$userInput` — plus Filament's standard injections (`$livewire`, `$record`, …).
-3. **Notification** (user) — a single **summary notification** is always shown at the end of the loop:
-   - All succeeded → `"Processed N records."`
-   - Some failed → `"Processed N records, M failed — check logs."`
+### Completion handlers
 
-The callback is additive: registering it does not suppress the summary notification or the log line. Per-batch AI error toasts are suppressed to avoid notification spam on large jobs.
+When a run finishes — **inline or queued, identically** — it invokes one or more `BatchCompletionHandler`s. Each receives a `BatchSummary` (a serializable value object: `actionName`, `runId`, `succeeded`, `failed`, `discarded`, `status`, `queued`, `userInput`).
 
-> **`report()` vs the manifest.** Expected per-row outcomes — AI-reported failures, silent drops, write errors, and hallucinated/duplicate identifiers — are aggregated into the failure manifest (the gated `Log::warning` above) and never `report()`ed per row, so a large job with many bad rows won't flood your error tracker (Sentry/Flare). `report()` is reserved for genuine **exceptions** worth a stack trace: a failed AI call, a throwing `->handleUsing()` handler, or a throwing `->onPartialFailure()` callback.
+```php
+use Statikbe\FilamentSolaris\Support\Batch\BatchCompletionHandler;
+use Statikbe\FilamentSolaris\Support\Batch\BatchSummary;
+
+class NotifyTeam implements BatchCompletionHandler
+{
+    public function handle(BatchSummary $summary): void
+    {
+        if ($summary->failed > 0) {
+            // failure DETAIL lives in solaris_batch_problems (see Run tracking) —
+            // query it by $summary->runId when you need per-row reasons/inputs.
+            SlackAlert::send("{$summary->succeeded}/{$summary->total()} ok, {$summary->failed} failed");
+        }
+    }
+}
+```
+
+Register per action — one class or an ordered list (they run in order):
+
+```php
+AiGenerateAction::make('enrich')
+    ->forModel(Article::class)
+    ->sourceRecords(fn () => Article::needsEnrichment()->get())
+    ->updateRecords()
+    ->onCompletion(NotifyTeam::class);
+    // or compose: ->onCompletion([NotifyOnBatchCompletion::class, NotifyTeam::class])
+```
+
+Resolution: per-action `->onCompletion()` → config `batch_tracking.completion_handlers` → the framework default `[NotifyOnBatchCompletion::class]`. **`->onCompletion()` replaces the default**, so include `NotifyOnBatchCompletion::class` in the list to keep the built-in notification alongside your own.
+
+Key points:
+
+- **Class strings, not closures** — so the handler list serializes onto the queue. (For inline-only ad-hoc logic, a handler class is still required; this is the one place the closure ergonomics of the old `->onPartialFailure()` were traded for queue-safety.)
+- **Failure detail requires a persisted run.** `BatchSummary` carries counts, not the `FailedRecord[]` (a 10k-row queued job must not hold them in memory). Handlers needing per-row reasons/inputs query `solaris_batch_problems` by `runId`, which means enabling `->trackBatchRuns()` (queued runs always track).
+- **A throwing handler never aborts the run** — it's `report()`ed and the remaining handlers still run.
+
+**The default handler — `NotifyOnBatchCompletion`** — sends a summary notification, severity by outcome:
+- all succeeded → success `"Processed N records."`
+- some rows failed → warning `"Processed N records, M failed."`
+- run failed (cancelled / job-level failure) → danger.
+
+Delivery adapts to the path: **inline** flashes a session toast; **queued** (no session on the worker) sends a Filament **database** notification to the run's initiating user, falling back to a log line if no notifiable resolves. Disable it entirely with `batch_tracking.notify_on_completion => false`.
 
 ### Large imports — `->queued()`
 
@@ -432,7 +457,7 @@ Identifiers are matched tolerantly (string/int coercion). An output row whose id
 
 Opt a records-loop run into persistence with `->trackBatchRuns()` (or globally via the `batch_tracking.enabled` config / `FILAMENT_SOLARIS_BATCH_TRACKING` env var). Default is **off** — small in-request runs stay zero-overhead. Run the package migrations first to create `solaris_batch_runs` + `solaris_batch_problems`.
 
-A tracked run writes a `SolarisBatchRun` row (`status`, `total` / `succeeded` / `failed` / `discarded`, the triggering `user_id` + Filament `page`), one `SolarisBatchProblem` per failed input row (`type: failure`) **and** per discarded output (`type: discard` — the AI's unmatched/duplicate records, kept for review), and fires `SolarisBatchStarted` / `SolarisBatchCompleted`. Failure surfacing (`->onPartialFailure()`, the manifest log, the summary notification) is unchanged.
+A tracked run writes a `SolarisBatchRun` row (`status`, `total` / `succeeded` / `failed` / `discarded`, the triggering `user_id` + Filament `page`), one `SolarisBatchProblem` per failed input row (`type: failure`) **and** per discarded output (`type: discard` — the AI's unmatched/duplicate records, kept for review), and fires `SolarisBatchStarted` / `SolarisBatchCompleted`. Failure surfacing (the manifest log + completion handlers) is described under [Partial-failure handling](#partial-failure-handling).
 
 ```php
 AiGenerateAction::make('enrich-articles')
