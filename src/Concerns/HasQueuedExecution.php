@@ -64,7 +64,7 @@ trait HasQueuedExecution
      */
     protected function dispatchQueuedRun(iterable $rows, array $userInput, mixed $provider, ?string $model, ?int $timeout, int $batchSize): void
     {
-        $run = $this->startBatchRun($rows);
+        $run = $this->startBatchRun($rows, $userInput);
         $config = $this->buildRunConfig($run, $provider, $model, $timeout);
 
         $attachments = $this->serializeAttachments($this->resolveAttachments($userInput));
@@ -94,7 +94,7 @@ trait HasQueuedExecution
         ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
         $timeout = $this->resolveTimeout();
 
-        $run = $this->startBatchRun(null);   // total unknown until the model answers
+        $run = $this->startBatchRun(null, $userInput);   // total unknown until the model answers
         $config = $this->buildRunConfig($run, $provider, $model, $timeout);
 
         $attachments = $this->serializeAttachments($this->resolveAttachments($userInput));

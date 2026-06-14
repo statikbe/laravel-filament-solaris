@@ -755,9 +755,10 @@ class AiGenerateAction extends SolarisAction
     }
 
     /**
-     * @param  iterable<int, array<string, mixed>|Model>  $rows
+     * @param  iterable<int, array<string, mixed>|Model>|null  $rows
+     * @param  array<string, mixed>  $userInput
      */
-    protected function startBatchRun(?iterable $rows): SolarisBatchRun
+    protected function startBatchRun(?iterable $rows, array $userInput = []): SolarisBatchRun
     {
         $livewire = $this->getLivewire();
 
@@ -768,6 +769,10 @@ class AiGenerateAction extends SolarisAction
             'status' => BatchRunStatus::Processing,
             // null for the single-call path: the row count is unknown until the model answers.
             'total' => $rows !== null && is_countable($rows) ? count($rows) : null,
+            'meta' => [
+                'userInput' => $userInput,
+                'completionHandlers' => $this->resolveCompletionHandlers(),
+            ],
             'started_at' => now(),
         ]);
 

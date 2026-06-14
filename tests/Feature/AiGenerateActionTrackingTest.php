@@ -10,6 +10,7 @@ use Statikbe\FilamentSolaris\Events\SolarisBatchStarted;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 use Statikbe\FilamentSolaris\Tests\Fixtures\GenerateFormComponent;
+use Statikbe\FilamentSolaris\Tests\Fixtures\RecordingHandler;
 use Statikbe\FilamentSolaris\Tests\Fixtures\SeedCategory;
 
 beforeEach(function () {
@@ -66,6 +67,17 @@ it('persists a tracked run with failure + discard problems and fires events', fu
     Event::assertDispatched(SolarisBatchCompleted::class, fn ($e) => $e->succeeded === 2 && $e->failed === 1 && $e->discarded === 1);
 
     expect(SeedCategory::count())->toBe(2);
+});
+
+it('stashes userInput + resolved completion handlers in run meta', function () {
+    $action = AiGenerateAction::make('metaCheck')
+        ->forModel(SeedCategory::class)
+        ->onCompletion(RecordingHandler::class);
+
+    $run = (new ReflectionMethod($action, 'startBatchRun'))->invoke($action, [['x' => 1]], ['focus' => 'seo']);
+
+    expect($run->meta['userInput'])->toBe(['focus' => 'seo'])
+        ->and($run->meta['completionHandlers'])->toBe([RecordingHandler::class]);
 });
 
 it('does not persist a run or fire events on the untracked default path', function () {

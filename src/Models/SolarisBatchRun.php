@@ -17,6 +17,7 @@ use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
  * @property int $succeeded
  * @property int $failed
  * @property int $discarded
+ * @property ?array $meta
  */
 class SolarisBatchRun extends Model
 {
@@ -36,6 +37,7 @@ class SolarisBatchRun extends Model
         'succeeded' => 'integer',
         'failed' => 'integer',
         'discarded' => 'integer',
+        'meta' => 'array',
         'started_at' => 'datetime',
         'finished_at' => 'datetime',
     ];

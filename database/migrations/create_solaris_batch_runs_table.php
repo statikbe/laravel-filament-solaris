@@ -20,6 +20,7 @@ return new class extends Migration
             $table->unsignedInteger('failed')->default(0);
             $table->unsignedInteger('discarded')->default(0);
             $table->uuid('bus_batch_id')->nullable();
+            $table->json('meta')->nullable();
             $table->timestamp('started_at')->nullable();
             $table->timestamp('finished_at')->nullable();
             $table->timestamps();
