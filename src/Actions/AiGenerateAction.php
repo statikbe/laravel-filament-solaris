@@ -31,7 +31,6 @@ use Statikbe\FilamentSolaris\Support\Batch\BatchResponse;
 use Statikbe\FilamentSolaris\Support\Batch\BatchSummary;
 use Statikbe\FilamentSolaris\Support\Batch\CompletionHandlerRunner;
 use Statikbe\FilamentSolaris\Support\Batch\FailedRecord;
-use Statikbe\FilamentSolaris\Support\Batch\Handlers\NotifyOnBatchCompletion;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\CompositeBatchSink;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\DatabaseBatchSink;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\InMemoryBatchSink;
@@ -737,8 +736,7 @@ class AiGenerateAction extends SolarisAction
      */
     protected function resolveCompletionHandlers(): array
     {
-        return $this->completionHandlers
-            ?? config('filament-solaris.batch_tracking.completion_handlers', [NotifyOnBatchCompletion::class]);
+        return CompletionHandlerRunner::resolve($this->completionHandlers);
     }
 
     /**

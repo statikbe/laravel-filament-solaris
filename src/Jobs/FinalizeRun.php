@@ -12,7 +12,6 @@ use Statikbe\FilamentSolaris\Events\SolarisBatchCompleted;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
 use Statikbe\FilamentSolaris\Support\Batch\BatchSummary;
 use Statikbe\FilamentSolaris\Support\Batch\CompletionHandlerRunner;
-use Statikbe\FilamentSolaris\Support\Batch\Handlers\NotifyOnBatchCompletion;
 
 /**
  * Bus ->finally hook: mark the run done (Failed on cancel or job-level failure),
@@ -54,8 +53,7 @@ class FinalizeRun implements ShouldQueue
             userInput: $run->meta['userInput'] ?? [],
         );
 
-        $handlers = $run->meta['completionHandlers']
-            ?? config('filament-solaris.batch_tracking.completion_handlers', [NotifyOnBatchCompletion::class]);
+        $handlers = CompletionHandlerRunner::resolve($run->meta['completionHandlers'] ?? null);
 
         (new CompletionHandlerRunner)->run($handlers, $summary);
     }
