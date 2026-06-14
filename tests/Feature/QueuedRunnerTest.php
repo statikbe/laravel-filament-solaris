@@ -145,3 +145,29 @@ it('end-to-end: ->queued() dispatches a batch that creates all rows', function (
     expect($run->status)->toBe(BatchRunStatus::Completed)
         ->and($run->succeeded)->toBe(3);
 });
+
+use Statikbe\FilamentSolaris\Tests\Fixtures\RecordingHandler;
+
+it('runs completion handlers from meta after marking the run, with queued summary', function () {
+    RecordingHandler::$received = [];
+    $run = SolarisBatchRun::create([
+        'action_name' => 'importCategories', 'status' => BatchRunStatus::Processing,
+        'total' => 2, 'succeeded' => 2, 'failed' => 0,
+        'meta' => ['userInput' => ['focus' => 'seo'], 'completionHandlers' => [RecordingHandler::class]],
+    ]);
+
+    (new FinalizeRun($run->id, 'importCategories'))->handle();
+
+    expect(RecordingHandler::$received)->toHaveCount(1)
+        ->and(RecordingHandler::$received[0]->queued)->toBeTrue()
+        ->and(RecordingHandler::$received[0]->succeeded)->toBe(2)
+        ->and(RecordingHandler::$received[0]->userInput)->toBe(['focus' => 'seo']);
+});
+
+it('marks a run Failed when the batch had job-level failures', function () {
+    $run = SolarisBatchRun::create(['action_name' => 'a', 'status' => BatchRunStatus::Processing, 'total' => 1]);
+
+    (new FinalizeRun($run->id, 'a', cancelled: false, hasFailures: true))->handle();
+
+    expect($run->refresh()->status)->toBe(BatchRunStatus::Failed);
+});

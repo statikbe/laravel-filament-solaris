@@ -10,12 +10,14 @@ use Illuminate\Queue\SerializesModels;
 use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
 use Statikbe\FilamentSolaris\Events\SolarisBatchCompleted;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
+use Statikbe\FilamentSolaris\Support\Batch\BatchSummary;
+use Statikbe\FilamentSolaris\Support\Batch\CompletionHandlerRunner;
+use Statikbe\FilamentSolaris\Support\Batch\Handlers\NotifyOnBatchCompletion;
 
 /**
- * Bus ->finally hook: read the persisted run aggregate, mark it completed, fire
- * SolarisBatchCompleted. The configurable completion handler + notification +
- * report are later pieces (#4 / #6); the built-in notification is wired in a
- * later task of this same piece.
+ * Bus ->finally hook: mark the run done (Failed on cancel or job-level failure),
+ * fire SolarisBatchCompleted (the event substrate), then run the run's completion
+ * handlers (resolved from run.meta) against a queued BatchSummary.
  */
 class FinalizeRun implements ShouldQueue
 {
@@ -25,6 +27,7 @@ class FinalizeRun implements ShouldQueue
         public string $runId,
         public string $actionName,
         public bool $cancelled = false,
+        public bool $hasFailures = false,
     ) {}
 
     public function handle(): void
@@ -35,16 +38,25 @@ class FinalizeRun implements ShouldQueue
             return;
         }
 
-        $status = $this->cancelled ? BatchRunStatus::Failed : BatchRunStatus::Completed;
+        $status = ($this->cancelled || $this->hasFailures) ? BatchRunStatus::Failed : BatchRunStatus::Completed;
         $run->markCompleted($status);
 
-        SolarisBatchCompleted::dispatch(
-            $run->id,
-            $run->action_name,
-            $run->succeeded,
-            $run->failed,
-            $run->discarded,
-            $status,
+        SolarisBatchCompleted::dispatch($run->id, $run->action_name, $run->succeeded, $run->failed, $run->discarded, $status);
+
+        $summary = new BatchSummary(
+            actionName: $run->action_name,
+            runId: $run->id,
+            succeeded: $run->succeeded,
+            failed: $run->failed,
+            discarded: $run->discarded,
+            status: $status,
+            queued: true,
+            userInput: $run->meta['userInput'] ?? [],
         );
+
+        $handlers = $run->meta['completionHandlers']
+            ?? config('filament-solaris.batch_tracking.completion_handlers', [NotifyOnBatchCompletion::class]);
+
+        (new CompletionHandlerRunner)->run($handlers, $summary);
     }
 }
