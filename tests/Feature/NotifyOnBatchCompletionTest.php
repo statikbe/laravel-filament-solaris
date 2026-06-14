@@ -1,6 +1,7 @@
 <?php
 
 use Filament\Notifications\Notification;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
@@ -60,11 +61,15 @@ it('sends a database notification to the run user on the queued path', function 
 });
 
 it('logs instead of throwing when the queued user is unresolvable', function () {
+    Log::spy();
+
     app(NotifyOnBatchCompletion::class)->handle(
         new BatchSummary('act', 'run-x', 1, 0, 0, BatchRunStatus::Completed, queued: true),
     );
 
-    expect(true)->toBeTrue(); // no exception thrown
+    Log::shouldHaveReceived('warning')
+        ->withArgs(fn (string $message) => str_contains($message, 'run-x'))
+        ->once();
 });
 
 it('does nothing when notify_on_completion is disabled', function () {

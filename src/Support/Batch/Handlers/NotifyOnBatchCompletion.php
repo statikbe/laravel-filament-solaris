@@ -37,6 +37,8 @@ final class NotifyOnBatchCompletion implements BatchCompletionHandler
     protected function buildNotification(BatchSummary $summary): Notification
     {
         if ($summary->status === BatchRunStatus::Failed) {
+            // "X of Y not processed" — Y is succeeded+failed (total()); discarded
+            // outputs are excluded intentionally (they're a separate, AI-side counter).
             return Notification::make()
                 ->title(filament_solaris_trans('notifications.batch_failed', [
                     'count' => $summary->total(),
@@ -65,7 +67,7 @@ final class NotifyOnBatchCompletion implements BatchCompletionHandler
             $run = $summary->runId === null ? null : SolarisBatchRun::find($summary->runId);
             $userId = $run?->user_id;
             $userModel = config('auth.providers.users.model');
-            $notifiable = ($userId === null || $userModel === null) ? null : $userModel::find($userId);
+            $notifiable = ($userId === null || ! is_string($userModel) || $userModel === '') ? null : $userModel::find($userId);
 
             if ($notifiable === null) {
                 throw new \RuntimeException('no resolvable notifiable for run '.$summary->runId);
