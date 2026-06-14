@@ -404,7 +404,7 @@ class AiGenerateAction extends SolarisAction
                         }
                     }
 
-                    $this->finishBatchRun($succeeded, $failures, $userInput, null);
+                    $this->finishBatchRun($succeeded, $failures, 0, $userInput, null);
 
                     return;
                 }
@@ -710,19 +710,26 @@ class AiGenerateAction extends SolarisAction
             $this->logToFailureChannel($discarded->reason);
         }
 
-        $this->finishBatchRun($collector->succeeded(), $collector->failures(), $userInput, $run);
+        $succeeded = $collector->succeeded();
+        $failures = $collector->failures();
+        $discarded = count($collector->discarded());
 
+        // Mirror the queued FinalizeRun ordering: complete the run + fire the event
+        // (the substrate) before running completion handlers (the strategy), so a
+        // tracked run's summary reflects the final Completed status.
         if ($run !== null) {
             $run->markCompleted();
             SolarisBatchCompleted::dispatch(
                 $run->id,
                 $this->getName(),
-                $collector->succeeded(),
-                count($collector->failures()),
-                count($collector->discarded()),
+                $succeeded,
+                count($failures),
+                $discarded,
                 BatchRunStatus::Completed,
             );
         }
+
+        $this->finishBatchRun($succeeded, $failures, $discarded, $userInput, $run);
     }
 
     /**
@@ -825,7 +832,7 @@ class AiGenerateAction extends SolarisAction
      * @param  array<int, FailedRecord>  $failures
      * @param  array<string, mixed>  $userInput
      */
-    protected function finishBatchRun(int $succeeded, array $failures, array $userInput, ?SolarisBatchRun $run = null): void
+    protected function finishBatchRun(int $succeeded, array $failures, int $discarded, array $userInput, ?SolarisBatchRun $run = null): void
     {
         if ($failures !== []) {
             $this->reportFailures($failures);
@@ -836,7 +843,7 @@ class AiGenerateAction extends SolarisAction
             runId: $run?->id,
             succeeded: $succeeded,
             failed: count($failures),
-            discarded: $run === null ? 0 : $run->discarded,
+            discarded: $discarded,
             status: $run === null ? BatchRunStatus::Completed : $run->status,
             queued: false,
             userInput: $userInput,
