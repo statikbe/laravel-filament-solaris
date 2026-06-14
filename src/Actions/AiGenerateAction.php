@@ -29,6 +29,7 @@ use Statikbe\FilamentSolaris\Support\Batch\BatchGenerationException;
 use Statikbe\FilamentSolaris\Support\Batch\BatchProcessor;
 use Statikbe\FilamentSolaris\Support\Batch\BatchResponse;
 use Statikbe\FilamentSolaris\Support\Batch\FailedRecord;
+use Statikbe\FilamentSolaris\Support\Batch\Handlers\NotifyOnBatchCompletion;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\CompositeBatchSink;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\DatabaseBatchSink;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\InMemoryBatchSink;
@@ -95,6 +96,9 @@ class AiGenerateAction extends SolarisAction
     protected int|Closure $batchSize = 10;
 
     protected bool|Closure|null $tracked = null;
+
+    /** @var array<int, class-string>|null */
+    protected ?array $completionHandlers = null;
 
     protected function setUp(): void
     {
@@ -259,6 +263,20 @@ class AiGenerateAction extends SolarisAction
     public function trackBatchRuns(bool|Closure $tracked = true): static
     {
         $this->tracked = $tracked;
+
+        return $this;
+    }
+
+    /**
+     * Run-completion handler(s) — one class or an ordered list. Replaces the default
+     * notification handler; include it explicitly to keep notifications. Class strings
+     * (not closures) so they serialize onto the queue. See spec 31.
+     *
+     * @param  class-string|array<int, class-string>  $handlers
+     */
+    public function onCompletion(string|array $handlers): static
+    {
+        $this->completionHandlers = is_array($handlers) ? array_values($handlers) : [$handlers];
 
         return $this;
     }
@@ -725,6 +743,15 @@ class AiGenerateAction extends SolarisAction
                 BatchRunStatus::Completed,
             );
         }
+    }
+
+    /**
+     * @return array<int, class-string>
+     */
+    protected function resolveCompletionHandlers(): array
+    {
+        return $this->completionHandlers
+            ?? config('filament-solaris.batch_tracking.completion_handlers', [NotifyOnBatchCompletion::class]);
     }
 
     /**

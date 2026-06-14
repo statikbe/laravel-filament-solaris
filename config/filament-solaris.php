@@ -25,6 +25,7 @@ use Statikbe\FilamentSolaris\Factories\RichEditorFactory;
 use Statikbe\FilamentSolaris\Factories\SelectFactory;
 use Statikbe\FilamentSolaris\Factories\TagsFactory;
 use Statikbe\FilamentSolaris\Factories\TextFactory;
+use Statikbe\FilamentSolaris\Support\Batch\Handlers\NotifyOnBatchCompletion;
 
 return [
 
@@ -213,6 +214,7 @@ return [
         'runs_table' => 'solaris_batch_runs',
         'problems_table' => 'solaris_batch_problems',
         'notify_on_completion' => true,
+        'completion_handlers' => [NotifyOnBatchCompletion::class],
     ],
 
     /*
