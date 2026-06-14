@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Laravel\Ai\Files\Document;
 use Laravel\Ai\Files\Image;
 use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
+use Statikbe\FilamentSolaris\Support\Batch\Handlers\NotifyOnBatchCompletion;
 use Statikbe\FilamentSolaris\Support\UserInput;
 
 class GenerateFormComponent extends FormsComponent
@@ -307,41 +308,16 @@ class GenerateFormComponent extends FormsComponent
             ->createRecords();
     }
 
-    public function partialFailureCaptureAction(): AiGenerateAction
+    public function trackedUpdateCaptureAction(): AiGenerateAction
     {
-        return AiGenerateAction::make('partialFailureCapture')
-            ->forModel(SeedCategory::class)
-            ->only(['name', 'slug'])
-            ->sourceRecords([
-                ['name' => 'A', 'slug' => 'a'],
-                ['name' => 'B', 'slug' => 'b'],
-                ['name' => 'C', 'slug' => 'c'],
-            ])
-            ->batchSize(10)
-            ->prompt(fn (array $rows) => 'Process '.count($rows).' rows.')
-            ->onPartialFailure(fn (array $failures, int $succeeded, int $failed, int $total, array $userInput, $livewire) => $livewire->handledData = [
-                'succeeded' => $succeeded,
-                'failed' => $failed,
-                'total' => $total,
-                'ids' => array_map(fn ($f) => $f->identifier, $failures),
-                'reasons' => array_map(fn ($f) => $f->reason, $failures),
-                'inputs' => array_map(fn ($f) => $f->input, $failures),
-            ])
-            ->createRecords();
-    }
-
-    public function partialFailureUpdateCaptureAction(): AiGenerateAction
-    {
-        return AiGenerateAction::make('partialFailureUpdateCapture')
+        // Tracked update run: PK identifiers + Model inputs land in solaris_batch_problems.
+        return AiGenerateAction::make('trackedUpdateCapture')
             ->forModel(SeedCategory::class)
             ->only(['slug'])
             ->sourceRecords(fn () => SeedCategory::all())
             ->batchSize(10)
             ->prompt(fn (array $rows) => 'Process.')
-            ->onPartialFailure(fn (array $failures, $livewire) => $livewire->handledData = [
-                'ids' => array_map(fn ($f) => $f->identifier, $failures),
-                'inputIsModel' => array_map(fn ($f) => $f->input instanceof Model, $failures),
-            ])
+            ->trackBatchRuns()
             ->updateRecords();
     }
 
@@ -351,12 +327,6 @@ class GenerateFormComponent extends FormsComponent
             ->prompt('Parse the input into categories.')
             ->forModel(SeedCategory::class)
             ->count(2)
-            ->onPartialFailure(fn (array $failures, int $succeeded, int $failed, $livewire) => $livewire->handledData = [
-                'succeeded' => $succeeded,
-                'failed' => $failed,
-                'ids' => array_map(fn ($f) => $f->identifier, $failures),
-                'reasons' => array_map(fn ($f) => $f->reason, $failures),
-            ])
             ->createRecords();
     }
 
@@ -369,15 +339,17 @@ class GenerateFormComponent extends FormsComponent
             ->handleUsing(fn ($data) => null);   // invalid: handler never runs per batch
     }
 
-    public function throwingPartialFailureAction(): AiGenerateAction
+    public function throwingCompletionAction(): AiGenerateAction
     {
-        return AiGenerateAction::make('throwingPartialFailure')
+        // First handler throws; the runner report()s it and continues to the
+        // second handler (the framework notification), so the run still notifies.
+        return AiGenerateAction::make('throwingCompletion')
             ->forModel(SeedCategory::class)
             ->only(['name', 'slug'])
             ->sourceRecords([['name' => 'A', 'slug' => 'a']])
             ->batchSize(10)
             ->prompt(fn (array $rows) => 'x')
-            ->onPartialFailure(fn () => throw new \RuntimeException('callback boom'))
+            ->onCompletion([ThrowingHandler::class, NotifyOnBatchCompletion::class])
             ->createRecords();
     }
 
@@ -394,11 +366,6 @@ class GenerateFormComponent extends FormsComponent
             ])
             ->batchSize(2)
             ->prompt(fn (array $rows) => 'x')
-            ->onPartialFailure(fn (array $failures, int $succeeded, int $failed, $livewire) => $livewire->handledData = [
-                'succeeded' => $succeeded,
-                'failed' => $failed,
-                'ids' => array_map(fn ($f) => $f->identifier, $failures),
-            ])
             ->createRecords();
     }
 
