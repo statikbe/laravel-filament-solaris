@@ -42,7 +42,7 @@ class SolarisNotification
                 ->title(filament_solaris_trans('notifications.success', ['fields' => static::formatFieldList($filledLabels)]))
                 ->success()
                 ->send();
-        } elseif (! empty($filledLabels) && ! empty($failedLabels)) {
+        } elseif (! empty($filledLabels)) {   // reached only when $failedLabels is non-empty (first branch ruled out the empty case)
             Notification::make()
                 ->title(filament_solaris_trans_choice('notifications.partial_failure', count($failedLabels), ['fields' => static::formatFieldList($failedLabels)]))
                 ->warning()
