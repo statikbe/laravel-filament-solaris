@@ -706,8 +706,8 @@ class AiGenerateAction extends SolarisAction
 
         $processor->process($rows, $batchSize);
 
-        foreach ($collector->discarded() as $discarded) {
-            $this->logToFailureChannel($discarded->reason);
+        foreach ($collector->discarded() as $drop) {
+            $this->logToFailureChannel($drop->reason);
         }
 
         $succeeded = $collector->succeeded();

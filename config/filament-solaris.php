@@ -186,8 +186,8 @@ return [
     |
     | When `enabled`, AiGenerateAction logs a failure manifest (identifier,
     | reason, and source row) whenever a batched run finishes with one or more
-    | failed records — so failures are never silently dropped, even when no
-    | ->onPartialFailure() callback is registered. Enabled by default (failures
+    | failed records — so failures are never silently dropped, independent of
+    | which completion handlers are registered. Enabled by default (failures
     | are exceptional). `channel` routes the manifest to a dedicated log file.
     |
     */
