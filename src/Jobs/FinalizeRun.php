@@ -31,7 +31,7 @@ class FinalizeRun implements ShouldQueue
 
     public function handle(): void
     {
-        $run = SolarisBatchRun::find($this->runId);
+        $run = $this->run();
 
         if ($run === null) {
             return;
@@ -56,5 +56,15 @@ class FinalizeRun implements ShouldQueue
         $handlers = CompletionHandlerRunner::resolve($run->meta['completionHandlers'] ?? null);
 
         (new CompletionHandlerRunner)->run($handlers, $summary);
+    }
+
+    /**
+     * Fetch the persisted run row (null for an untracked inline run). A fresh query
+     * per call — call once. Detail-only handlers should query solaris_batch_problems
+     * by ->runId rather than loading the run just for that.
+     */
+    public function run(): ?SolarisBatchRun
+    {
+        return $this->runId === null ? null : SolarisBatchRun::find($this->runId);
     }
 }
