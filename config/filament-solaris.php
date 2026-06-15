@@ -223,6 +223,10 @@ return [
         'notify_on_completion' => true,
         // BatchCompletionHandler classes run (in order) on completion.
         'completion_handlers' => [NotifyOnBatchCompletion::class],
+        // solaris:prune-batches retention window (days). null = must pass --days.
+        'prune_after_days' => null,
+        // Rows deleted per iteration by solaris:prune-batches.
+        'prune_chunk' => 500,
     ],
 
     /*
