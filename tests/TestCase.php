@@ -60,6 +60,10 @@ class TestCase extends Orchestra
     {
         config()->set('database.default', 'testing');
 
+        // Enforce FKs on the in-memory SQLite test DB (off by default in Testbench)
+        // so cascading deletes behave as they do on MySQL/Postgres in production.
+        config()->set('database.connections.testing.foreign_key_constraints', true);
+
         config()->set('app.key', 'base64:'.base64_encode(random_bytes(32)));
     }
 }

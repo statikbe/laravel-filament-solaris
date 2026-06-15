@@ -468,8 +468,24 @@ AiGenerateAction::make('enrich-articles')
     ->updateRecords();
 ```
 
-- `SolarisBatchRun` exposes `->problems()`, `->failures()`, and `->discards()` relations (the latter two scoped by `type`).
+- `SolarisBatchRun` exposes `->problems()`, `->failures()`, and `->discards()` relations (the latter two scoped by `type`). `solaris_batch_problems.batch_run_id` has a cascading FK, so deleting a run removes its problems.
 - Events carry ids and counts only (no row data, PII-conscious): `SolarisBatchStarted { runId, actionName, userId, page, total }` and `SolarisBatchCompleted { runId, actionName, succeeded, failed, discarded, status }`.
+
+### Pruning old runs
+
+`solaris:prune-batches` deletes old runs (their problems cascade) to keep the tracking tables tidy:
+
+```bash
+php artisan solaris:prune-batches --days=30 --force
+```
+
+Retention is **opt-in** — pass `--days=N` or set `batch_tracking.prune_after_days` (default `null`); with neither, the command refuses and deletes nothing. It removes only **terminal** runs (`Completed`/`Failed`) finished before the cutoff, in chunks (`batch_tracking.prune_chunk`, default 500); in-flight runs are never touched. `--force` skips the production confirmation (required for unattended runs). Schedule it yourself:
+
+```php
+use Illuminate\Support\Facades\Schedule;
+
+Schedule::command('solaris:prune-batches', ['--force'])->daily();
+```
 
 This is the foundation for queued execution and a failure report (coming next).
 

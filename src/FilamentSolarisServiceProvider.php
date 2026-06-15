@@ -9,6 +9,7 @@ use Filament\Support\Facades\FilamentAsset;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
+use Statikbe\FilamentSolaris\Commands\PruneBatchRunsCommand;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris as FilamentSolarisFacade;
 use Statikbe\FilamentSolaris\Factories\SpatieMediaLibraryFileUploadFactory;
 use Statikbe\FilamentSolaris\RichEditor\DictationRichEditorPlugin;
@@ -25,7 +26,8 @@ class FilamentSolarisServiceProvider extends PackageServiceProvider
             ->hasViews()
             ->hasTranslations()
             ->hasMigration('create_solaris_batch_runs_table')
-            ->hasMigration('create_solaris_batch_problems_table');
+            ->hasMigration('create_solaris_batch_problems_table')
+            ->hasCommand(PruneBatchRunsCommand::class);
     }
 
     public function packageRegistered(): void

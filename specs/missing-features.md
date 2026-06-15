@@ -267,7 +267,16 @@ piece-#3 final review (2026-06-12), deferred to piece #4.
 
 ---
 
-### 16. Batch table pruning command
+### 16. Batch table pruning command ✅ Shipped (spec 32)
+
+**Shipped 2026-06-15:** `solaris:prune-batches {--days=} {--force}` — opt-in retention
+(`--days` or `batch_tracking.prune_after_days`), deletes terminal runs older than the
+cutoff in chunks; `solaris_batch_problems` cascade via a new FK on `batch_run_id`.
+See `specs/32-batch-table-pruning.md`.
+
+---
+
+#### Original note
 
 `solaris_batch_runs` + `solaris_batch_problems` grow unbounded once batch tracking
 / `->queued()` are in use (umbrella §10 "run cleanup / pruning", deferred). Add a

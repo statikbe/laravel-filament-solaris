@@ -10,7 +10,9 @@ return new class extends Migration
     {
         Schema::create(config('filament-solaris.batch_tracking.problems_table', 'solaris_batch_problems'), function (Blueprint $table) {
             $table->bigIncrements('id');
-            $table->uuid('batch_run_id')->index();
+            $table->foreignUuid('batch_run_id')
+                ->constrained(config('filament-solaris.batch_tracking.runs_table', 'solaris_batch_runs'))
+                ->cascadeOnDelete();
             $table->string('type')->index();
             $table->string('identifier')->nullable();
             $table->text('reason');

@@ -73,3 +73,22 @@ it('persists failures and discards as typed problem rows with atomic counts', fu
         ->and($run->discards()->first()->identifier)->toBe('99')
         ->and($run->discards()->first()->input)->toBe(['_index' => 99, 'name' => 'ghost']);
 });
+
+it('cascade-deletes problems when their run is deleted', function () {
+    $run = SolarisBatchRun::create(['action_name' => 'x', 'status' => BatchRunStatus::Completed]);
+    SolarisBatchProblem::create(['batch_run_id' => $run->id, 'type' => 'failure', 'reason' => 'boom']);
+    SolarisBatchProblem::create(['batch_run_id' => $run->id, 'type' => 'discard', 'reason' => 'dropped']);
+
+    $run->delete();
+
+    expect(SolarisBatchProblem::where('batch_run_id', $run->id)->count())->toBe(0);
+});
+
+it('cascades on a bulk whereKey delete too', function () {
+    $run = SolarisBatchRun::create(['action_name' => 'x', 'status' => BatchRunStatus::Completed]);
+    SolarisBatchProblem::create(['batch_run_id' => $run->id, 'type' => 'failure', 'reason' => 'boom']);
+
+    SolarisBatchRun::whereKey($run->id)->delete();
+
+    expect(SolarisBatchProblem::count())->toBe(0);
+});
