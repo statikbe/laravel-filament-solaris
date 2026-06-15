@@ -244,7 +244,16 @@ is now a DTO, not an array (`$options->temperature`, not `$options['temperature'
 
 ---
 
-### 15. Queued-batch run status: job-level (infra) failures
+### 15. Queued-batch run status: job-level (infra) failures ✅ Resolved (piece #4)
+
+**Resolved 2026-06-15 (spec 31):** `FinalizeRun` now takes `hasFailures` (passed from
+`$batch->hasFailures()` in the `Bus` finally hook) and maps `cancelled || hasFailures
+→ Failed`. A batch with job-level failures now finalizes as `Failed`, and the
+completion handler's `BatchSummary` reflects it.
+
+---
+
+#### Original note
 
 `->queued()` (spec 30, piece #3) finalizes via `Bus::batch(...)->finally(FinalizeRun)`.
 `FinalizeRun` maps `cancelled → Failed`, else `Completed`. With `allowFailures()`
