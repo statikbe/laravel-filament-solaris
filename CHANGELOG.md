@@ -9,6 +9,12 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
 - `AiGenerateAction::queued()` — run the records loop on the queue (`Bus::batch` of per-chunk jobs) instead of inline, for imports/enrichment beyond ~50 rows. Pre-renders each chunk's prompt in-request, dispatches `ProcessChunkJob`s that reconcile + write on the worker, and finalizes via `FinalizeRun` (fires `SolarisBatchCompleted`). Requires `->forModel()` + `->createRecords()`/`->updateRecords()`; handler-mode and custom `->outputSchema()` stay inline-only. Queued mode always persists a `SolarisBatchRun`. Jobs run with `tries = 1` (`createRecords` is not idempotent; `updateRecords` is retry-safe). See `documentation/ai-generate-action.md` → "Large imports — `->queued()`".
 - Queued single-call imports: `->queued()` with **no `->sourceRecords()`** dispatches one job that generates from scratch (e.g. extract a product list from an attached PDF). Attachments are first-class on the queue — resolved in-request and serialized into the jobs; they must be disk-backed/base64/remote (a local filesystem path is rejected at dispatch).
 - `SolarisBatchProgressed` event (per-chunk progress substrate).
+- `AiGenerateAction::onCompletion()` — a unified `BatchCompletionHandler` strategy invoked when a records-loop run finishes, **inline or queued identically**. Accepts one class or an ordered list; resolves per-action → config `batch_tracking.completion_handlers` → framework default `[NotifyOnBatchCompletion]`. Handlers receive a serializable `BatchSummary` (counts/status; failure detail via `solaris_batch_problems` by `runId`). The default `NotifyOnBatchCompletion` flashes a toast inline and sends a Filament database notification to the run's user when queued (config `batch_tracking.notify_on_completion`). Closes the queued completion-notification gap and the job-level-failure run-status gap (a batch with failed jobs now finalizes as `Failed`).
+
+### Changed / removed (internal, unreleased)
+
+- **Removed `AiGenerateAction::onPartialFailure()`** — superseded by `->onCompletion()` handlers (the closure couldn't cross to the queue). Failure detail moved to `solaris_batch_problems` (requires `->trackBatchRuns()`); the always-on failure-manifest log is unchanged. Both inline and queued completion now follow `markCompleted → SolarisBatchCompleted → handlers`.
+- `solaris_batch_runs` gains a nullable `meta` json column (stashes `userInput` + the resolved completion-handler list for the queued finalizer).
 
 ## 0.3.0 - 2026-05-28
 

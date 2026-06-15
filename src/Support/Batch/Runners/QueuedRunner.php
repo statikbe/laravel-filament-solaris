@@ -78,7 +78,7 @@ final class QueuedRunner
             ->name('solaris:'.$runId)
             ->allowFailures()
             ->finally(function (Batch $batch) use ($runId, $actionName) {
-                FinalizeRun::dispatch($runId, $actionName, $batch->cancelled());
+                FinalizeRun::dispatch($runId, $actionName, $batch->cancelled(), $batch->hasFailures());
             })
             ->dispatch();
     }

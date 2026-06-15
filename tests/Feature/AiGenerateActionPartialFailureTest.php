@@ -5,12 +5,20 @@ use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;
 use Psr\Log\LoggerInterface;
 use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
+use Statikbe\FilamentSolaris\Models\SolarisBatchProblem;
+use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 use Statikbe\FilamentSolaris\Tests\Fixtures\GenerateFormComponent;
 use Statikbe\FilamentSolaris\Tests\Fixtures\SeedCategory;
 
 beforeEach(function () {
     AiGenerateActionFake::reset();
+    foreach (glob(dirname(__DIR__, 2).'/database/migrations/*.php') as $file) {
+        $migration = include $file;
+        $migration->down();   // drop any table leaked by an earlier test (idempotent)
+        $migration->up();
+    }
+    Schema::dropIfExists('seed_categories');
     Schema::create('seed_categories', function ($table) {
         $table->id();
         $table->string('name');
@@ -22,92 +30,36 @@ beforeEach(function () {
 afterEach(function () {
     AiGenerateActionFake::reset();
     Schema::dropIfExists('seed_categories');
+    foreach (glob(dirname(__DIR__, 2).'/database/migrations/*.php') as $file) {
+        (include $file)->down();
+    }
 });
 
-it('invokes onPartialFailure with _index identifiers and input rows on a whole-batch error', function () {
-    AiGenerateAction::fakeError('provider down');
-
-    Livewire::test(GenerateFormComponent::class)
-        ->callAction('partialFailureCapture')
-        ->assertSet('handledData', [
-            'succeeded' => 0,
-            'failed' => 3,
-            'total' => 3,
-            'ids' => [0, 1, 2],
-            'reasons' => ['provider down', 'provider down', 'provider down'],
-            'inputs' => [
-                ['name' => 'A', 'slug' => 'a'],
-                ['name' => 'B', 'slug' => 'b'],
-                ['name' => 'C', 'slug' => 'c'],
-            ],
-        ]);
-
-    expect(SeedCategory::count())->toBe(0);
-});
-
-it('does NOT invoke onPartialFailure when every row succeeds', function () {
-    AiGenerateAction::fakeEach([
-        [
-            'records' => [
-                ['_index' => 0, 'name' => 'A', 'slug' => 'a'],
-                ['_index' => 1, 'name' => 'B', 'slug' => 'b'],
-                ['_index' => 2, 'name' => 'C', 'slug' => 'c'],
-            ],
-            'failed' => [],
-        ],
-    ]);
-
-    Livewire::test(GenerateFormComponent::class)
-        ->callAction('partialFailureCapture')
-        ->assertSet('handledData', []);
-
-    expect(SeedCategory::count())->toBe(3);
-});
-
-it('surfaces an AI-reported failed entry with its matched input row to the callback', function () {
-    AiGenerateAction::fakeEach([
-        [
-            'records' => [
-                ['_index' => 0, 'name' => 'A', 'slug' => 'a'],
-                ['_index' => 1, 'name' => 'B', 'slug' => 'b'],
-            ],
-            'failed' => [
-                ['identifier' => 2, 'reason' => 'ambiguous data'],
-            ],
-        ],
-    ]);
-
-    Livewire::test(GenerateFormComponent::class)
-        ->callAction('partialFailureCapture')
-        ->assertSet('handledData', [
-            'succeeded' => 2,
-            'failed' => 1,
-            'total' => 3,
-            'ids' => [2],
-            'reasons' => ['ambiguous data'],
-            'inputs' => [
-                ['name' => 'C', 'slug' => 'c'],
-            ],
-        ]);
-
-    expect(SeedCategory::count())->toBe(2);
-});
-
-it('passes PK identifiers and Model inputs to the callback for updateRecords failures', function () {
+it('persists PK identifiers and source descriptors to batch problems for updateRecords failures', function () {
     SeedCategory::create(['name' => 'One', 'slug' => 'one']);
     SeedCategory::create(['name' => 'Two', 'slug' => 'two']);
 
     AiGenerateAction::fakeError('provider down');
 
-    Livewire::test(GenerateFormComponent::class)
-        ->callAction('partialFailureUpdateCapture')
-        ->assertSet('handledData', [
-            'ids' => [1, 2],
-            'inputIsModel' => [true, true],
-        ]);
+    Livewire::test(GenerateFormComponent::class)->callAction('trackedUpdateCapture');
+
+    $run = SolarisBatchRun::sole();
+    $problems = SolarisBatchProblem::query()
+        ->where('batch_run_id', $run->id)
+        ->where('type', 'failure')
+        ->orderBy('identifier')
+        ->get();
+
+    expect($problems)->toHaveCount(2)
+        // updateRecords keys failures by primary key, not by a synthetic _index.
+        ->and($problems->pluck('identifier')->all())->toBe(['1', '2'])
+        // The persisted input is the PK descriptor for the source row (the run
+        // is serializable, so the Model is reduced to its identifier).
+        ->and($problems->first()->input)->toBe(['id' => 1])
+        ->and($problems->last()->input)->toBe(['id' => 2]);
 });
 
-it('logs the failure manifest even without an onPartialFailure callback', function () {
+it('logs the failure manifest even without a completion handler', function () {
     Log::spy();
 
     AiGenerateAction::fakeError('provider down');
@@ -146,28 +98,6 @@ it('routes the failure manifest to the configured log channel', function () {
         ->once();
 });
 
-it('surfaces a single-call createRecords write failure to onPartialFailure and the summary', function () {
-    AiGenerateAction::fake([
-        'records' => [
-            ['_index' => 0, 'name' => 'A', 'slug' => 'a'],
-            ['_index' => 1, 'slug' => 'b-no-name'],   // NOT NULL on name → write error
-        ],
-        'failed' => [],
-    ]);
-
-    $component = Livewire::test(GenerateFormComponent::class)
-        ->callAction('seedCategoriesCreateCapture')
-        ->assertNotified();
-
-    $data = $component->get('handledData');
-    expect($data['succeeded'])->toBe(1)
-        ->and($data['failed'])->toBe(1)
-        ->and($data['ids'])->toBe([1])
-        ->and($data['reasons'][0])->toStartWith('write error:');
-
-    expect(SeedCategory::count())->toBe(1);
-});
-
 it('sends a summary notification on a fully successful single-call createRecords run', function () {
     AiGenerateAction::fake([
         'records' => [
@@ -179,23 +109,22 @@ it('sends a summary notification on a fully successful single-call createRecords
 
     Livewire::test(GenerateFormComponent::class)
         ->callAction('seedCategoriesCreateCapture')
-        ->assertNotified()
-        ->assertSet('handledData', []);   // onPartialFailure NOT invoked on full success
+        ->assertNotified();
 
     expect(SeedCategory::count())->toBe(2);
 });
 
-it('completes the run and still notifies when an onPartialFailure callback throws', function () {
+it('completes the run and still notifies when a completion handler throws', function () {
     AiGenerateAction::fakeError('provider down');
 
-    // If the throwing callback aborted the run, callAction would bubble the
-    // exception and this assertion would never be reached.
+    // The first handler (ThrowingHandler) throws; the runner report()s it and
+    // continues to NotifyOnBatchCompletion, so the run still completes + notifies.
     Livewire::test(GenerateFormComponent::class)
-        ->callAction('throwingPartialFailure')
+        ->callAction('throwingCompletion')
         ->assertNotified();
 });
 
-it('aggregates success and failure across multiple batches into one summary + callback', function () {
+it('aggregates success and failure across multiple batches into one summary notification', function () {
     AiGenerateAction::fakeEach([
         ['records' => [['_index' => 0, 'name' => 'A', 'slug' => 'a'], ['_index' => 1, 'name' => 'B', 'slug' => 'b']], 'failed' => []],
         ['records' => [['_index' => 0, 'name' => 'C', 'slug' => 'c']], 'failed' => [['identifier' => 1, 'reason' => 'bad row']]],
@@ -203,11 +132,7 @@ it('aggregates success and failure across multiple batches into one summary + ca
 
     Livewire::test(GenerateFormComponent::class)
         ->callAction('crossBatchCapture')
-        ->assertSet('handledData', [
-            'succeeded' => 3,
-            'failed' => 1,
-            'ids' => [1],
-        ]);
+        ->assertNotified();
 
     expect(SeedCategory::count())->toBe(3);
 });
