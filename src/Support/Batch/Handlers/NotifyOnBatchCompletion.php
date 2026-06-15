@@ -5,7 +5,6 @@ namespace Statikbe\FilamentSolaris\Support\Batch\Handlers;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Log;
 use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
-use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
 use Statikbe\FilamentSolaris\Support\Batch\BatchCompletionHandler;
 use Statikbe\FilamentSolaris\Support\Batch\BatchSummary;
 
@@ -64,10 +63,7 @@ final class NotifyOnBatchCompletion implements BatchCompletionHandler
     protected function sendToRunUser(Notification $notification, BatchSummary $summary): void
     {
         try {
-            $run = $summary->runId === null ? null : SolarisBatchRun::find($summary->runId);
-            $userId = $run?->user_id;
-            $userModel = config('auth.providers.users.model');
-            $notifiable = ($userId === null || ! is_string($userModel) || $userModel === '') ? null : $userModel::find($userId);
+            $notifiable = $summary->run()?->getUser();
 
             if ($notifiable === null) {
                 throw new \RuntimeException('no resolvable notifiable for run '.$summary->runId);

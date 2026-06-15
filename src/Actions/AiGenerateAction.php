@@ -675,16 +675,16 @@ class AiGenerateAction extends SolarisAction
      */
     protected function executeRecordsLoop(array $userInput = []): void
     {
+        if ($this->isQueued($userInput)) {
+            $this->dispatchQueuedRun($userInput);
+
+            return;
+        }
+
         $rows = $this->resolveRecordsSource($userInput);
         ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
         $timeout = $this->resolveTimeout();
         $batchSize = $this->resolveBatchSize($userInput);
-
-        if ($this->isQueued($userInput)) {
-            $this->dispatchQueuedRun($rows, $userInput, $provider, $model, $timeout, $batchSize);
-
-            return;
-        }
 
         $resolver = $this->resolveSchemaResolver();
         $attachments = $this->resolveAttachments($userInput);

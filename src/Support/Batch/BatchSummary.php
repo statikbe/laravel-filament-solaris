@@ -3,6 +3,7 @@
 namespace Statikbe\FilamentSolaris\Support\Batch;
 
 use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
+use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
 
 /**
  * Path-agnostic, serializable snapshot of a finished records-loop run handed to
@@ -29,5 +30,15 @@ final readonly class BatchSummary
     public function total(): int
     {
         return $this->succeeded + $this->failed;
+    }
+
+    /**
+     * Fetch the persisted run row (null for an untracked inline run). A fresh query
+     * per call — call once. Detail-only handlers should query solaris_batch_problems
+     * by ->runId rather than loading the run just for that.
+     */
+    public function run(): ?SolarisBatchRun
+    {
+        return $this->runId === null ? null : SolarisBatchRun::find($this->runId);
     }
 }

@@ -66,4 +66,20 @@ class SolarisBatchRun extends Model
     {
         $this->update(['status' => $status, 'finished_at' => now()]);
     }
+
+    /**
+     * Resolve the user who triggered this run via the configured auth user model.
+     * Not a relationship — the user model is config-driven, not a fixed FK. Returns
+     * null when there is no user_id or the configured model isn't an Eloquent model.
+     */
+    public function getUser(): ?Model
+    {
+        $userModel = config('auth.providers.users.model');
+
+        if ($this->user_id === null || ! is_string($userModel) || ! is_subclass_of($userModel, Model::class)) {
+            return null;
+        }
+
+        return $userModel::find($this->user_id);
+    }
 }

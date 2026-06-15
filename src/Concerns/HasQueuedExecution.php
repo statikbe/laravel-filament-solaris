@@ -59,13 +59,15 @@ trait HasQueuedExecution
      * place per-chunk outcomes can be aggregated across jobs, so its id is required
      * by every ProcessChunkJob. Queued therefore implies tracking by construction.
      *
-     * @param  iterable<int, array<string, mixed>|Model>  $rows
      * @param  array<string, mixed>  $userInput
      */
-    protected function dispatchQueuedRun(iterable $rows, array $userInput, mixed $provider, ?string $model, ?int $timeout, int $batchSize): void
+    protected function dispatchQueuedRun(array $userInput): void
     {
+        $rows = $this->resolveRecordsSource($userInput);
+        $batchSize = $this->resolveBatchSize($userInput);
+
         $run = $this->startBatchRun($rows, $userInput);
-        $config = $this->buildRunConfig($run, $provider, $model, $timeout);
+        $config = $this->buildRunConfig($run);
 
         $attachments = $this->serializeAttachments($this->resolveAttachments($userInput));
 
@@ -91,11 +93,9 @@ trait HasQueuedExecution
     protected function dispatchQueuedSingleCall(array $userInput): void
     {
         $instruction = $this->resolveInstruction($userInput);
-        ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
-        $timeout = $this->resolveTimeout();
 
         $run = $this->startBatchRun(null, $userInput);   // total unknown until the model answers
-        $config = $this->buildRunConfig($run, $provider, $model, $timeout);
+        $config = $this->buildRunConfig($run);
 
         $attachments = $this->serializeAttachments($this->resolveAttachments($userInput));
 
@@ -107,11 +107,13 @@ trait HasQueuedExecution
     /**
      * Snapshot this action's config into the pure-scalar BatchRunConfig the worker
      * rebuilds the agent + schema + write-back from. Shared by both queued entry
-     * points (chunked records-loop and one-job single-call); provider/model/timeout
-     * are passed in because each caller resolves them slightly differently.
+     * points (chunked records-loop and one-job single-call); resolves the
+     * provider/model/timeout/options itself so both callers stay symmetric.
      */
-    protected function buildRunConfig(SolarisBatchRun $run, mixed $provider, ?string $model, ?int $timeout): BatchRunConfig
+    protected function buildRunConfig(SolarisBatchRun $run): BatchRunConfig
     {
+        ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
+        $timeout = $this->resolveTimeout();
         $options = $this->resolveGenerationOptions();
 
         return new BatchRunConfig(
