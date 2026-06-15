@@ -255,3 +255,18 @@ failures are unaffected (caught in-sink and counted on the run). Consider
 `$batch->hasFailures()` → a `Failed`/partial status, or surface it via the
 completion-handler strategy (piece #4) which is the natural home. Flagged by the
 piece-#3 final review (2026-06-12), deferred to piece #4.
+
+---
+
+### 16. Batch table pruning command
+
+`solaris_batch_runs` + `solaris_batch_problems` grow unbounded once batch tracking
+/ `->queued()` are in use (umbrella §10 "run cleanup / pruning", deferred). Add a
+schedulable artisan command — e.g. `solaris:prune-batches {--days=}` — that deletes
+runs older than a retention window (default from config, e.g.
+`batch_tracking.prune_after_days`) and cascades their problem rows (chunked delete to
+avoid loading everything; respect the configurable table names). Document registering
+it in the app scheduler (`Schedule::command('solaris:prune-batches')->daily()`), or
+ship a scheduled registration behind a config flag. Keep only finished runs
+(`Completed`/`Failed`) in scope so an in-flight `Processing` run is never pruned.
+Requested 2026-06-15; independent of pieces #5/#6.
