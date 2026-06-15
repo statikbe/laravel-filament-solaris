@@ -59,12 +59,11 @@ class FinalizeRun implements ShouldQueue
     }
 
     /**
-     * Fetch the persisted run row (null for an untracked inline run). A fresh query
-     * per call — call once. Detail-only handlers should query solaris_batch_problems
-     * by ->runId rather than loading the run just for that.
+     * Fetch the persisted run row. `runId` is always set for a queued run, so this
+     * is null only if the row was deleted before the finally hook fired.
      */
     public function run(): ?SolarisBatchRun
     {
-        return $this->runId === null ? null : SolarisBatchRun::find($this->runId);
+        return SolarisBatchRun::find($this->runId);
     }
 }
