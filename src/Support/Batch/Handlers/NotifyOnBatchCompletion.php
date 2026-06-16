@@ -84,7 +84,7 @@ final class NotifyOnBatchCompletion implements BatchCompletionHandler
             && config('filament-solaris.batch_tracking.attach_failure_report', true);
     }
 
-    protected function sendToRunUser(Notification $notification, BatchSummary $summary): bool
+    protected function sendToRunUser(Notification $notification, BatchSummary $summary): void
     {
         try {
             $notifiable = $summary->run()?->getUser();
@@ -94,15 +94,12 @@ final class NotifyOnBatchCompletion implements BatchCompletionHandler
             }
 
             $notification->sendToDatabase($notifiable);
-
-            return true;
         } catch (\Throwable $e) {
+            // Only the queued path relies on database delivery; inline still flashes.
             if ($summary->queued) {
                 Log::warning('FilamentSolaris: batch completion notification could not be delivered ('.$e->getMessage().'); '
                     .'run '.$summary->runId.' — '.$summary->succeeded.' ok, '.$summary->failed.' failed.');
             }
-
-            return false;
         }
     }
 }

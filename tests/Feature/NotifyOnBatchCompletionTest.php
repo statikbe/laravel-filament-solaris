@@ -125,3 +125,18 @@ it('omits download actions when attach_failure_report is off', function () {
     $data = $user->fresh()->notifications()->first()->data;
     expect(collect($data['actions'] ?? [])->pluck('url')->filter())->toBeEmpty();
 });
+
+it('a tracked inline run both persists to the bell and flashes a toast', function () {
+    $user = NotifiableUser::create(['name' => 'D', 'email' => 'd@x.test', 'password' => 'x']);
+    $run = SolarisBatchRun::create([
+        'action_name' => 'x', 'user_id' => (string) $user->getKey(),
+        'status' => BatchRunStatus::Completed, 'succeeded' => 1, 'failed' => 0,
+    ]);
+
+    app(NotifyOnBatchCompletion::class)->handle(
+        new BatchSummary('x', $run->id, 1, 0, 0, BatchRunStatus::Completed, queued: false),
+    );
+
+    Notification::assertNotified();                          // flashed for immediacy
+    expect($user->fresh()->notifications()->count())->toBe(1); // and persisted to the bell
+});
