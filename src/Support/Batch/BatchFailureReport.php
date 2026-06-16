@@ -11,7 +11,7 @@ use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
  * Streams a batch run's solaris_batch_problems as a CSV/XLSX report via openspout.
  * Generate-on-demand (no stored files); the query is chunked so large runs stream.
  */
-class BatchFailureReport
+final class BatchFailureReport
 {
     private const HEADER = ['identifier', 'type', 'reason', 'input'];
 
