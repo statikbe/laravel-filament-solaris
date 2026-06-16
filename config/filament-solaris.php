@@ -221,6 +221,8 @@ return [
         'problems_table' => 'solaris_batch_problems',
         // Notification sent by the default handler when a run finishes.
         'notify_on_completion' => true,
+        // Attach "Download CSV"/"Download XLSX" actions to the completion notification.
+        'attach_failure_report' => true,
         // BatchCompletionHandler classes run (in order) on completion.
         'completion_handlers' => [NotifyOnBatchCompletion::class],
         // solaris:prune-batches retention window (days). null = must pass --days.

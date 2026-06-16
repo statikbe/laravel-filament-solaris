@@ -23,6 +23,8 @@ return [
         'batch_partial_failure' => ':count records verwerkt, :failed mislukt — zie logs.',
         'batch_failed' => 'De batchverwerking is mislukt — :failed van :count records niet verwerkt.',
         'batch_queued' => 'Je batch wordt op de achtergrond verwerkt…',
+        'download_failures_csv' => 'Fouten downloaden (CSV)',
+        'download_failures_xlsx' => 'Fouten downloaden (XLSX)',
     ],
 
     'preview' => [

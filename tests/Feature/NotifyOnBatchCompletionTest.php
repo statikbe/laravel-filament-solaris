@@ -5,6 +5,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
+use Statikbe\FilamentSolaris\Support\Batch\BatchFailureReport;
+use Statikbe\FilamentSolaris\Support\Batch\BatchReportFormat;
 use Statikbe\FilamentSolaris\Support\Batch\BatchSummary;
 use Statikbe\FilamentSolaris\Support\Batch\Handlers\NotifyOnBatchCompletion;
 use Statikbe\FilamentSolaris\Tests\Fixtures\NotifiableUser;
@@ -80,4 +82,46 @@ it('does nothing when notify_on_completion is disabled', function () {
     );
 
     Notification::assertNotNotified();
+});
+
+it('attaches CSV + XLSX download actions to a queued completion with failures', function () {
+    $user = NotifiableUser::create(['name' => 'A', 'email' => 'a@x.test', 'password' => 'x']);
+    $run = SolarisBatchRun::create([
+        'action_name' => 'x', 'user_id' => (string) $user->getKey(),
+        'status' => BatchRunStatus::Completed, 'succeeded' => 2, 'failed' => 1,
+    ]);
+
+    app(NotifyOnBatchCompletion::class)->handle(
+        new BatchSummary('x', $run->id, 2, 1, 0, BatchRunStatus::Completed, queued: true),
+    );
+
+    $data = $user->fresh()->notifications()->first()->data;
+    $urls = collect($data['actions'] ?? [])->pluck('url')->filter()->values();
+    expect($urls)->toContain(BatchFailureReport::downloadUrl($run->id, BatchReportFormat::Csv))
+        ->and($urls)->toContain(BatchFailureReport::downloadUrl($run->id, BatchReportFormat::Xlsx));
+});
+
+it('omits download actions when there are no failures', function () {
+    $user = NotifiableUser::create(['name' => 'B', 'email' => 'b@x.test', 'password' => 'x']);
+    $run = SolarisBatchRun::create(['action_name' => 'x', 'user_id' => (string) $user->getKey(), 'status' => BatchRunStatus::Completed, 'succeeded' => 3, 'failed' => 0]);
+
+    app(NotifyOnBatchCompletion::class)->handle(
+        new BatchSummary('x', $run->id, 3, 0, 0, BatchRunStatus::Completed, queued: true),
+    );
+
+    $data = $user->fresh()->notifications()->first()->data;
+    expect(collect($data['actions'] ?? [])->pluck('url')->filter())->toBeEmpty();
+});
+
+it('omits download actions when attach_failure_report is off', function () {
+    config()->set('filament-solaris.batch_tracking.attach_failure_report', false);
+    $user = NotifiableUser::create(['name' => 'C', 'email' => 'c@x.test', 'password' => 'x']);
+    $run = SolarisBatchRun::create(['action_name' => 'x', 'user_id' => (string) $user->getKey(), 'status' => BatchRunStatus::Failed, 'succeeded' => 0, 'failed' => 2]);
+
+    app(NotifyOnBatchCompletion::class)->handle(
+        new BatchSummary('x', $run->id, 0, 2, 0, BatchRunStatus::Failed, queued: true),
+    );
+
+    $data = $user->fresh()->notifications()->first()->data;
+    expect(collect($data['actions'] ?? [])->pluck('url')->filter())->toBeEmpty();
 });

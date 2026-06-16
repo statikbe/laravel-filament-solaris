@@ -23,6 +23,8 @@ return [
         'batch_partial_failure' => ':count enregistrements traités, :failed en échec — voir les logs.',
         'batch_failed' => 'Le traitement par lot a échoué — :failed sur :count enregistrements non traités.',
         'batch_queued' => 'Votre lot est en cours de traitement en arrière-plan…',
+        'download_failures_csv' => 'Télécharger les échecs (CSV)',
+        'download_failures_xlsx' => 'Télécharger les échecs (XLSX)',
     ],
 
     'preview' => [
