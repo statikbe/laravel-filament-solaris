@@ -471,6 +471,12 @@ AiGenerateAction::make('enrich-articles')
 - `SolarisBatchRun` exposes `->problems()`, `->failures()`, and `->discards()` relations (the latter two scoped by `type`). `solaris_batch_problems.batch_run_id` has a cascading FK, so deleting a run removes its problems.
 - Events carry ids and counts only (no row data, PII-conscious): `SolarisBatchStarted { runId, actionName, userId, page, total }` and `SolarisBatchCompleted { runId, actionName, succeeded, failed, discarded, status }`.
 
+### Failure report (download)
+
+When a **tracked or queued** run finishes with failures, its completion notification (in the Filament bell) carries **"Download failures (CSV)"** and **"Download failures (XLSX)"** actions. The file is generated **on click** from `solaris_batch_problems` (via openspout) and streamed through a **signed** download route — nothing is stored on disk, so it stays current until the run is pruned.
+
+Toggle the actions with `batch_tracking.attach_failure_report` (default `true`). The download URL is signed (tamper-proof); the route applies no per-user authorization by default — add your own middleware/gate to the `filament-solaris.batch-failures.download` route if downloads must be restricted beyond holding the signed link. Columns: `identifier`, `type` (failure/discard), `reason`, `input` (the row snapshot).
+
 ### Pruning old runs
 
 `solaris:prune-batches` deletes old runs (their problems cascade) to keep the tracking tables tidy:
@@ -487,7 +493,7 @@ use Illuminate\Support\Facades\Schedule;
 Schedule::command('solaris:prune-batches', ['--force'])->daily();
 ```
 
-This is the foundation for queued execution and a failure report (coming next).
+This is the foundation for queued execution, the failure report above, and live-progress updates (coming next).
 
 ## User Input
 
