@@ -39,7 +39,8 @@ streams the run's `solaris_batch_problems` rows to an openspout writer.
 - Writes to an openspout `Writer` opened on a stream (`php://output` for download).
   CSV → `OpenSpout\Writer\CSV\Writer`; XLSX → `OpenSpout\Writer\XLSX\Writer`.
 - A tiny `BatchReportFormat` enum (`Csv='csv'`, `Xlsx='xlsx'`) maps to the writer +
-  the download MIME/extension. Unknown `?format=` falls back to the config default.
+  the download MIME/extension, with a `fromRequest(?string): self` that defaults to
+  `Csv` when the value is absent/unknown.
 
 ### 3.2 Signed download route + controller
 - Route (registered by the service provider): `GET` a signed URL, e.g.
@@ -58,10 +59,12 @@ streams the run's `solaris_batch_problems` rows to an openspout writer.
 When a finished run has failures and the report is enabled, attach a download action
 to the completion notification and make it persistent:
 
-- Add the **"Download failures"** action (Filament `Notification` action → the signed
-  route URL for `summary->runId`, format = config default) **iff**
-  `summary->failed > 0` **and** `config('filament-solaris.batch_tracking.attach_failure_report')`
-  **and** `summary->runId !== null`.
+- Add **two** download actions — **"Download CSV"** and **"Download XLSX"** (Filament
+  `Notification` actions → the signed route URL for `summary->runId` with
+  `?format=csv` / `?format=xlsx`) **iff** `summary->failed > 0` **and**
+  `config('filament-solaris.batch_tracking.attach_failure_report')` **and**
+  `summary->runId !== null`. (Both formats offered; the user picks at click time —
+  no configured default needed.)
 - **Delivery rule:**
   - `summary->runId !== null` and `run->getUser()` resolves → **`->sendToDatabase($user)`**
     (persists in the bell, carries the download action). If the run is **inline**
@@ -77,11 +80,10 @@ there are no persisted problems to export).
 
 Add to the `batch_tracking` block:
 ```php
-// Attach a "Download failures" action to the completion notification (generate-on-click).
+// Attach "Download CSV"/"Download XLSX" actions to the completion notification (generate-on-click).
 'attach_failure_report' => true,
-// Default report format: 'csv' or 'xlsx'.
-'report_format' => 'csv',
 ```
+(No format config — the notification offers both, and the route defaults to CSV when `?format` is absent/invalid.)
 
 ## 5. Out of scope
 
@@ -101,7 +103,8 @@ Add to the `batch_tracking` block:
   `Content-Disposition`/`Content-Type`; an **unsigned** request is rejected (403); a
   missing/pruned run → 404; `?format=xlsx` switches format.
 - **Notification integration:** a queued run with failures + `attach_failure_report`
-  on → the database notification carries a download action whose URL is the signed
-  route for the run; with the config off, or zero failures, or no `runId` → no
-  action. Inline-tracked run → both flashed and persisted.
+  on → the database notification carries **both** download actions (CSV + XLSX),
+  each a signed route URL for the run with the right `?format`; with the config off,
+  or zero failures, or no `runId` → no actions. Inline-tracked run → both flashed and
+  persisted.
 - **Chunking:** more problems than the chunk size all appear in the output.
