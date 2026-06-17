@@ -28,14 +28,27 @@ final class BatchFailureReport
             ->lazy()
             ->each(function (SolarisBatchProblem $problem) use ($writer): void {
                 $writer->addRow(Row::fromValues([
-                    (string) ($problem->identifier ?? ''),
-                    $problem->type,
-                    $problem->reason,
-                    $problem->input === null ? '' : json_encode($problem->input),
+                    self::neutralize((string) ($problem->identifier ?? '')),
+                    self::neutralize($problem->type),
+                    self::neutralize($problem->reason),
+                    self::neutralize($problem->input === null ? '' : json_encode($problem->input)),
                 ]));
             });
 
         $writer->close();
+    }
+
+    /**
+     * Defuse CSV/spreadsheet formula injection: a cell starting with a formula
+     * trigger (= + - @, tab, CR) is prefixed with a single quote so Excel/Sheets
+     * render it as literal text rather than evaluating it. The values here are
+     * model- and source-derived, so they're untrusted.
+     */
+    private static function neutralize(string $value): string
+    {
+        return $value !== '' && in_array($value[0], ['=', '+', '-', '@', "\t", "\r"], true)
+            ? "'".$value
+            : $value;
     }
 
     /**

@@ -92,3 +92,17 @@ it('streams every problem across lazy() chunk boundaries', function () {
     expect(count(file($path, FILE_SKIP_EMPTY_LINES)))->toBe(1002); // header + 1001 rows
     @unlink($path);
 });
+
+it('neutralizes CSV formula-injection in cell values', function () {
+    $run = SolarisBatchRun::create(['action_name' => 'x', 'status' => BatchRunStatus::Completed]);
+    SolarisBatchProblem::create(['batch_run_id' => $run->id, 'type' => 'failure', 'identifier' => '=cmd()', 'reason' => '@SUM(A1)', 'input' => null]);
+
+    $path = tempnam(sys_get_temp_dir(), 'rep').'.csv';
+    (new BatchFailureReport)->write($run, BatchReportFormat::Csv, $path);
+
+    $csv = file_get_contents($path);
+    expect($csv)->toContain("'=cmd()")        // leading quote → rendered as text
+        ->and($csv)->toContain("'@SUM(A1)")
+        ->and($csv)->not->toContain(',=cmd()'); // the raw unprefixed form is gone
+    @unlink($path);
+});
