@@ -75,3 +75,20 @@ it('only includes the given run\'s problems', function () {
     expect(file_get_contents($path))->not->toContain('nope');
     @unlink($path);
 });
+
+it('streams every problem across lazy() chunk boundaries', function () {
+    $run = SolarisBatchRun::create(['action_name' => 'x', 'status' => BatchRunStatus::Completed]);
+
+    $now = now();
+    $rows = [];
+    foreach (range(1, 1001) as $i) {           // > lazy()'s default 1000 chunk
+        $rows[] = ['batch_run_id' => $run->id, 'type' => 'failure', 'identifier' => (string) $i, 'reason' => "r{$i}", 'input' => null, 'created_at' => $now, 'updated_at' => $now];
+    }
+    SolarisBatchProblem::insert($rows);
+
+    $path = tempnam(sys_get_temp_dir(), 'rep').'.csv';
+    (new BatchFailureReport)->write($run, BatchReportFormat::Csv, $path);
+
+    expect(count(file($path, FILE_SKIP_EMPTY_LINES)))->toBe(1002); // header + 1001 rows
+    @unlink($path);
+});
