@@ -475,7 +475,7 @@ AiGenerateAction::make('enrich-articles')
 
 When a **tracked or queued** run finishes with failures, its completion notification (in the Filament bell) carries **"Download failures (CSV)"** and **"Download failures (XLSX)"** actions. The file is generated **on click** from `solaris_batch_problems` (via openspout) and streamed through a **signed** download route — nothing is stored on disk, so it stays current until the run is pruned.
 
-Toggle the actions with `batch_tracking.attach_failure_report` (default `true`). The download URL is signed (tamper-proof); the route applies no per-user authorization by default — add your own middleware/gate to the `filament-solaris.batch-failures.download` route if downloads must be restricted beyond holding the signed link. Columns: `identifier`, `type` (failure/discard), `reason`, `input` (the row snapshot).
+Toggle the actions globally with `batch_tracking.attach_failure_report` (default `true`), or per action with `->withFailureReport()` / `->withFailureReport(false)` (a `bool` or `Closure`) — per-action wins over config. The download URL is signed (tamper-proof); the route applies no per-user authorization by default — add your own middleware/gate to the `filament-solaris.batch-failures.download` route if downloads must be restricted beyond holding the signed link. Columns: `identifier`, `type` (failure/discard), `reason`, `input` (the row snapshot).
 
 ### Pruning old runs
 

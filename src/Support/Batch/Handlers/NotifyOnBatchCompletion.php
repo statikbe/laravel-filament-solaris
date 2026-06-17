@@ -79,9 +79,14 @@ final class NotifyOnBatchCompletion implements BatchCompletionHandler
 
     protected function shouldAttachReport(BatchSummary $summary): bool
     {
-        return $summary->failed > 0
-            && $summary->runId !== null
-            && config('filament-solaris.batch_tracking.attach_failure_report', true);
+        if ($summary->failed === 0 || $summary->runId === null) {
+            return false;
+        }
+
+        // Per-action override (->withFailureReport()) is stashed in run.meta at
+        // dispatch; fall back to the global config for runs without it.
+        return (bool) ($summary->run()?->meta['attach_failure_report']
+            ?? config('filament-solaris.batch_tracking.attach_failure_report', true));
     }
 
     protected function sendToRunUser(Notification $notification, BatchSummary $summary): void

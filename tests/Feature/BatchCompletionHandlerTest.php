@@ -70,3 +70,22 @@ it('invokes the completion handler once on an inline run with the right counts',
         ->and(RecordingHandler::$received[0]->failed)->toBe(1)
         ->and(RecordingHandler::$received[0]->queued)->toBeFalse();
 });
+
+it('resolves attach-failure-report: per-action overrides config, else default true', function () {
+    $resolve = fn (AiGenerateAction $a): bool => (new ReflectionMethod($a, 'resolveAttachFailureReport'))->invoke($a);
+
+    // default (nothing set) → config default true
+    expect($resolve(AiGenerateAction::make('a')))->toBeTrue();
+
+    // per-action false wins even when config is on
+    config()->set('filament-solaris.batch_tracking.attach_failure_report', true);
+    expect($resolve(AiGenerateAction::make('a')->withFailureReport(false)))->toBeFalse();
+
+    // per-action true wins even when config is off
+    config()->set('filament-solaris.batch_tracking.attach_failure_report', false);
+    expect($resolve(AiGenerateAction::make('a')->withFailureReport()))->toBeTrue()
+        ->and($resolve(AiGenerateAction::make('a')))->toBeFalse(); // unset → config (off)
+
+    // closure
+    expect($resolve(AiGenerateAction::make('a')->withFailureReport(fn () => true)))->toBeTrue();
+});

@@ -99,6 +99,8 @@ class AiGenerateAction extends SolarisAction
     /** @var array<int, class-string>|null */
     protected ?array $completionHandlers = null;
 
+    protected bool|Closure|null $attachFailureReport = null;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -278,6 +280,34 @@ class AiGenerateAction extends SolarisAction
         $this->completionHandlers = is_array($handlers) ? array_values($handlers) : [$handlers];
 
         return $this;
+    }
+
+    /**
+     * Per-action override for the "Download failures" actions on the completion
+     * notification (default handler). Overrides config `batch_tracking.attach_failure_report`
+     * for this action; pass `false` to suppress the download links even when the
+     * global flag is on. Requires a tracked/queued run (the report reads persisted
+     * problems).
+     */
+    public function withFailureReport(bool|Closure $attach = true): static
+    {
+        $this->attachFailureReport = $attach;
+
+        return $this;
+    }
+
+    /**
+     * Resolve whether this run attaches the failure report: per-action setting →
+     * config → default true. Stashed into the run's meta at dispatch so the
+     * (action-less) completion handler can honor it on the queue.
+     */
+    protected function resolveAttachFailureReport(): bool
+    {
+        if ($this->attachFailureReport !== null) {
+            return (bool) $this->evaluate($this->attachFailureReport);
+        }
+
+        return (bool) config('filament-solaris.batch_tracking.attach_failure_report', true);
     }
 
     /**
@@ -757,6 +787,7 @@ class AiGenerateAction extends SolarisAction
             'meta' => [
                 'userInput' => $userInput,
                 'completionHandlers' => $this->resolveCompletionHandlers(),
+                'attach_failure_report' => $this->resolveAttachFailureReport(),
             ],
             'started_at' => now(),
         ]);

@@ -140,3 +140,38 @@ it('a tracked inline run both persists to the bell and flashes a toast', functio
     Notification::assertNotified();                          // flashed for immediacy
     expect($user->fresh()->notifications()->count())->toBe(1); // and persisted to the bell
 });
+
+it('honors the per-action attach_failure_report override from run meta', function () {
+    // config ON, but the run opted OUT via ->withFailureReport(false) (stashed in meta) → no actions
+    config()->set('filament-solaris.batch_tracking.attach_failure_report', true);
+    $user = NotifiableUser::create(['name' => 'E', 'email' => 'e@x.test', 'password' => 'x']);
+    $run = SolarisBatchRun::create([
+        'action_name' => 'x', 'user_id' => (string) $user->getKey(),
+        'status' => BatchRunStatus::Completed, 'succeeded' => 1, 'failed' => 1,
+        'meta' => ['attach_failure_report' => false],
+    ]);
+
+    app(NotifyOnBatchCompletion::class)->handle(
+        new BatchSummary('x', $run->id, 1, 1, 0, BatchRunStatus::Completed, queued: true),
+    );
+
+    $data = $user->fresh()->notifications()->first()->data;
+    expect(collect($data['actions'] ?? [])->pluck('url')->filter())->toBeEmpty();
+});
+
+it('attaches the report when the run opted in via meta even with config off', function () {
+    config()->set('filament-solaris.batch_tracking.attach_failure_report', false);
+    $user = NotifiableUser::create(['name' => 'F', 'email' => 'f@x.test', 'password' => 'x']);
+    $run = SolarisBatchRun::create([
+        'action_name' => 'x', 'user_id' => (string) $user->getKey(),
+        'status' => BatchRunStatus::Completed, 'succeeded' => 1, 'failed' => 1,
+        'meta' => ['attach_failure_report' => true],
+    ]);
+
+    app(NotifyOnBatchCompletion::class)->handle(
+        new BatchSummary('x', $run->id, 1, 1, 0, BatchRunStatus::Completed, queued: true),
+    );
+
+    $data = $user->fresh()->notifications()->first()->data;
+    expect(collect($data['actions'] ?? [])->pluck('url')->filter())->not->toBeEmpty();
+});
