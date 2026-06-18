@@ -47,16 +47,19 @@ class SolarisBatchRun extends Model
         return config('filament-solaris.batch_tracking.runs_table', 'solaris_batch_runs');
     }
 
+    /** @return HasMany<SolarisBatchProblem, $this> */
     public function problems(): HasMany
     {
         return $this->hasMany(SolarisBatchProblem::class, 'batch_run_id');
     }
 
+    /** @return HasMany<SolarisBatchProblem, $this> */
     public function failures(): HasMany
     {
         return $this->problems()->where('type', 'failure');
     }
 
+    /** @return HasMany<SolarisBatchProblem, $this> */
     public function discards(): HasMany
     {
         return $this->problems()->where('type', 'discard');

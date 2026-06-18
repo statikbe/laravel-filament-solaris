@@ -27,7 +27,8 @@ class FilamentSolarisServiceProvider extends PackageServiceProvider
             ->hasTranslations()
             ->hasMigration('create_solaris_batch_runs_table')
             ->hasMigration('create_solaris_batch_problems_table')
-            ->hasCommand(PruneBatchRunsCommand::class);
+            ->hasCommand(PruneBatchRunsCommand::class)
+            ->hasRoute('web');
     }
 
     public function packageRegistered(): void

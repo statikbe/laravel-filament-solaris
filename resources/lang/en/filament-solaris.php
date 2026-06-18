@@ -27,6 +27,8 @@ return [
         'batch_partial_failure' => 'Processed :count records, :failed failed — check logs.',
         'batch_failed' => 'The batch run failed — :failed of :count records were not processed.',
         'batch_queued' => 'Your batch is processing in the background…',
+        'download_failures_csv' => 'Download failures (CSV)',
+        'download_failures_xlsx' => 'Download failures (XLSX)',
     ],
 
     'preview' => [
