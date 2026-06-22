@@ -286,7 +286,7 @@ class AiGenerateAction extends SolarisAction
 
     /**
      * Per-action override for the "Download failures" actions on the completion
-     * notification (default handler). Overrides config `batch_tracking.attach_failure_report`
+     * notification (default handler). Overrides config `batch_tracking.completion.failure_report`
      * for this action; pass `false` to suppress the download links even when the
      * global flag is on. Requires a tracked/queued run (the report reads persisted
      * problems).

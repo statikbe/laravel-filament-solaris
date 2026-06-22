@@ -240,7 +240,7 @@ AiGenerateAction::make('enrich')
     // or compose: ->onCompletion([NotifyOnBatchCompletion::class, NotifyTeam::class])
 ```
 
-Resolution: per-action `->onCompletion()` → config `batch_tracking.completion_handlers` → the framework default `[NotifyOnBatchCompletion::class]`. **`->onCompletion()` replaces the default**, so include `NotifyOnBatchCompletion::class` in the list to keep the built-in notification alongside your own.
+Resolution: per-action `->onCompletion()` → config `batch_tracking.completion.handlers` → the framework default `[NotifyOnBatchCompletion::class]`. **`->onCompletion()` replaces the default**, so include `NotifyOnBatchCompletion::class` in the list to keep the built-in notification alongside your own.
 
 Key points:
 
@@ -253,7 +253,7 @@ Key points:
 - some rows failed → warning `"Processed N records, M failed."`
 - run failed (cancelled / job-level failure) → danger.
 
-Delivery adapts to the path: **inline** flashes a session toast; **queued** (no session on the worker) sends a Filament **database** notification to the run's initiating user, falling back to a log line if no notifiable resolves. Disable it entirely with `batch_tracking.notify_on_completion => false`.
+Delivery adapts to the path: **inline** flashes a session toast; **queued** (no session on the worker) sends a Filament **database** notification to the run's initiating user, falling back to a log line if no notifiable resolves. Disable it entirely with `batch_tracking.completion.notify => false`.
 
 ### Large imports — `->queued()`
 
@@ -496,7 +496,7 @@ The `batch_tracking` config is grouped: `database.tables.{runs,problems}`, `data
 
 When a **tracked or queued** run finishes with failures, its completion notification (in the Filament bell) carries **"Download failures (CSV)"** and **"Download failures (XLSX)"** actions. The file is generated **on click** from `solaris_batch_problems` (via openspout) and streamed through a **signed** download route — nothing is stored on disk, so it stays current until the run is pruned.
 
-Toggle the actions globally with `batch_tracking.attach_failure_report` (default `true`), or per action with `->withFailureReport()` / `->withFailureReport(false)` (a `bool` or `Closure`) — per-action wins over config. The download URL is signed (tamper-proof); the route applies no per-user authorization by default — add your own middleware/gate to the `filament-solaris.batch-failures.download` route if downloads must be restricted beyond holding the signed link. Columns: `identifier`, `type` (failure/discard), `reason`, `input` (the row snapshot).
+Toggle the actions globally with `batch_tracking.completion.failure_report` (default `true`), or per action with `->withFailureReport()` / `->withFailureReport(false)` (a `bool` or `Closure`) — per-action wins over config. The download URL is signed (tamper-proof); the route applies no per-user authorization by default — add your own middleware/gate to the `filament-solaris.batch-failures.download` route if downloads must be restricted beyond holding the signed link. Columns: `identifier`, `type` (failure/discard), `reason`, `input` (the row snapshot).
 
 ### Pruning old runs
 
@@ -506,7 +506,7 @@ Toggle the actions globally with `batch_tracking.attach_failure_report` (default
 php artisan solaris:prune-batches --days=30 --force
 ```
 
-Retention is **opt-in** — pass `--days=N` or set `batch_tracking.prune_after_days` (default `null`); with neither, the command refuses and deletes nothing. It removes only **terminal** runs (`Completed`/`Failed`) finished before the cutoff, in chunks (`batch_tracking.prune_chunk`, default 500); in-flight runs are never touched. `--force` skips the production confirmation (required for unattended runs). Schedule it yourself:
+Retention is **opt-in** — pass `--days=N` or set `batch_tracking.database.pruning.after_days` (default `null`); with neither, the command refuses and deletes nothing. It removes only **terminal** runs (`Completed`/`Failed`) finished before the cutoff, in chunks (`batch_tracking.database.pruning.chunk`, default 500); in-flight runs are never touched. `--force` skips the production confirmation (required for unattended runs). Schedule it yourself:
 
 ```php
 use Illuminate\Support\Facades\Schedule;

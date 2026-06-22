@@ -208,9 +208,9 @@ return [
     | Default off so small in-request runs stay zero-overhead (queued runs always
     | track). Run the package migrations.
     |
-    | When a run finishes, the `completion_handlers` (BatchCompletionHandler
+    | When a run finishes, the `completion.handlers` (BatchCompletionHandler
     | classes, run in order) fire — inline or queued alike. `->onCompletion()`
-    | overrides this list per action. The default notifies; `notify_on_completion`
+    | overrides this list per action. The default notifies; `completion.notify`
     | toggles that built-in notification without replacing the handler list.
     |
     */
