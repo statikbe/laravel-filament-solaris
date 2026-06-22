@@ -22,7 +22,7 @@ class SolarisBatchProblem extends Model
 
     public function getTable(): string
     {
-        return config('filament-solaris.batch_tracking.problems_table', 'solaris_batch_problems');
+        return config('filament-solaris.batch_tracking.database.tables.problems', 'solaris_batch_problems');
     }
 
     public function batchRun(): BelongsTo

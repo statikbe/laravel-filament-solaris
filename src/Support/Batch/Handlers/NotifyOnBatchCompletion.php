@@ -21,7 +21,7 @@ final class NotifyOnBatchCompletion implements BatchCompletionHandler
 {
     public function handle(BatchSummary $summary): void
     {
-        if (! config('filament-solaris.batch_tracking.notify_on_completion', true)) {
+        if (! config('filament-solaris.batch_tracking.completion.notify', true)) {
             return;
         }
 
@@ -86,7 +86,7 @@ final class NotifyOnBatchCompletion implements BatchCompletionHandler
         // Per-action override (->withFailureReport()) is stashed in run.meta at
         // dispatch; fall back to the global config for runs without it.
         return (bool) ($summary->run()?->meta['attach_failure_report']
-            ?? config('filament-solaris.batch_tracking.attach_failure_report', true));
+            ?? config('filament-solaris.batch_tracking.completion.failure_report', true));
     }
 
     protected function sendToRunUser(Notification $notification, BatchSummary $summary): void

@@ -250,12 +250,12 @@ class FilamentSolarisConfig
 
     public function getBatchRunsTable(): string
     {
-        return (string) $this->resolveConfig('batch_tracking.runs_table', 'solaris_batch_runs');
+        return (string) $this->resolveConfig('batch_tracking.database.tables.runs', 'solaris_batch_runs');
     }
 
     public function getBatchProblemsTable(): string
     {
-        return (string) $this->resolveConfig('batch_tracking.problems_table', 'solaris_batch_problems');
+        return (string) $this->resolveConfig('batch_tracking.database.tables.problems', 'solaris_batch_problems');
     }
 
     /**

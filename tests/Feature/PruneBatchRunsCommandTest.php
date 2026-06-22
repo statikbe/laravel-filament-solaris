@@ -52,7 +52,7 @@ it('fails without a retention window and deletes nothing', function () {
 });
 
 it('uses the configured prune_after_days when --days is omitted', function () {
-    config()->set('filament-solaris.batch_tracking.prune_after_days', 30);
+    config()->set('filament-solaris.batch_tracking.database.pruning.after_days', 30);
     $old = makeRun(BatchRunStatus::Completed, now()->subDays(40)->toDateTimeString());
 
     $this->artisan('solaris:prune-batches', ['--force' => true])->assertSuccessful();
@@ -61,7 +61,7 @@ it('uses the configured prune_after_days when --days is omitted', function () {
 });
 
 it('prunes across multiple chunks', function () {
-    config()->set('filament-solaris.batch_tracking.prune_chunk', 5);
+    config()->set('filament-solaris.batch_tracking.database.pruning.chunk', 5);
     foreach (range(1, 12) as $i) {
         makeRun(BatchRunStatus::Failed, now()->subDays(40)->toDateTimeString());
     }

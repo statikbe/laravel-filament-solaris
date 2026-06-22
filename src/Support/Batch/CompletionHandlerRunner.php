@@ -21,7 +21,7 @@ final class CompletionHandlerRunner
     public static function resolve(?array $handlers): array
     {
         return $handlers
-            ?? config('filament-solaris.batch_tracking.completion_handlers', [NotifyOnBatchCompletion::class]);
+            ?? config('filament-solaris.batch_tracking.completion.handlers', [NotifyOnBatchCompletion::class]);
     }
 
     /**

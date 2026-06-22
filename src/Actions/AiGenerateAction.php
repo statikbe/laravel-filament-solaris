@@ -307,7 +307,7 @@ class AiGenerateAction extends SolarisAction
             return (bool) $this->evaluate($this->attachFailureReport);
         }
 
-        return (bool) config('filament-solaris.batch_tracking.attach_failure_report', true);
+        return (bool) config('filament-solaris.batch_tracking.completion.failure_report', true);
     }
 
     /**

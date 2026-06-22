@@ -44,7 +44,7 @@ class SolarisBatchRun extends Model
 
     public function getTable(): string
     {
-        return config('filament-solaris.batch_tracking.runs_table', 'solaris_batch_runs');
+        return config('filament-solaris.batch_tracking.database.tables.runs', 'solaris_batch_runs');
     }
 
     /** @return HasMany<SolarisBatchProblem, $this> */

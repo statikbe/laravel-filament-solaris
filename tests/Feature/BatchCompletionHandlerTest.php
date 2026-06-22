@@ -52,7 +52,7 @@ it('accepts and preserves the order of a handler list', function () {
 });
 
 it('falls back to the configured default list', function () {
-    config()->set('filament-solaris.batch_tracking.completion_handlers', [RecordingHandler::class]);
+    config()->set('filament-solaris.batch_tracking.completion.handlers', [RecordingHandler::class]);
     expect(resolveHandlers(AiGenerateAction::make('a')))->toBe([RecordingHandler::class]);
 });
 
@@ -78,11 +78,11 @@ it('resolves attach-failure-report: per-action overrides config, else default tr
     expect($resolve(AiGenerateAction::make('a')))->toBeTrue();
 
     // per-action false wins even when config is on
-    config()->set('filament-solaris.batch_tracking.attach_failure_report', true);
+    config()->set('filament-solaris.batch_tracking.completion.failure_report', true);
     expect($resolve(AiGenerateAction::make('a')->withFailureReport(false)))->toBeFalse();
 
     // per-action true wins even when config is off
-    config()->set('filament-solaris.batch_tracking.attach_failure_report', false);
+    config()->set('filament-solaris.batch_tracking.completion.failure_report', false);
     expect($resolve(AiGenerateAction::make('a')->withFailureReport()))->toBeTrue()
         ->and($resolve(AiGenerateAction::make('a')))->toBeFalse(); // unset → config (off)
 
