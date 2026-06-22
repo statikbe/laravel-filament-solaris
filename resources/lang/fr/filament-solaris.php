@@ -27,6 +27,10 @@ return [
         'download_failures_xlsx' => 'Télécharger les échecs (XLSX)',
     ],
 
+    'actions' => [
+        'batch_progress' => 'Traitement :done / :total — :failed en échec',
+    ],
+
     'preview' => [
         'modal_heading' => 'Vérifier les résultats IA',
         'accept' => 'Accepter',

@@ -101,6 +101,8 @@ class AiGenerateAction extends SolarisAction
 
     protected bool|Closure|null $attachFailureReport = null;
 
+    protected bool|Closure $liveBatchUpdates = false;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -308,6 +310,62 @@ class AiGenerateAction extends SolarisAction
         }
 
         return (bool) config('filament-solaris.batch_tracking.completion.failure_report', true);
+    }
+
+    /**
+     * While the current user has an in-flight run of this action, reflect progress on
+     * the button: disable it (re-run guard), show a progress tooltip, and self-poll
+     * until the run finishes. Pairs with ->queued(). See spec 34.
+     */
+    public function liveBatchUpdates(bool|Closure $enabled = true): static
+    {
+        $this->liveBatchUpdates = $enabled;
+
+        $this->disabled(fn (): bool => $this->liveBatchUpdatesEnabled() && $this->activeLiveRun() !== null);
+
+        $this->tooltip(function (): ?string {
+            if (! $this->liveBatchUpdatesEnabled() || ($run = $this->activeLiveRun()) === null) {
+                return null;
+            }
+
+            return filament_solaris_trans('actions.batch_progress', [
+                'done' => $run->succeeded + $run->failed,
+                'total' => $run->total ?? '?',
+                'failed' => $run->failed,
+            ]);
+        });
+
+        $this->extraAttributes(fn (): array => $this->liveBatchUpdatesEnabled() && $this->activeLiveRun() !== null
+            ? ['wire:poll.'.config('filament-solaris.batch_tracking.live_updates.poll_interval', '3s') => '']
+            : []);
+
+        return $this;
+    }
+
+    protected function liveBatchUpdatesEnabled(): bool
+    {
+        return (bool) ($this->liveBatchUpdates instanceof Closure
+            ? $this->evaluate($this->liveBatchUpdates)
+            : $this->liveBatchUpdates);
+    }
+
+    /**
+     * Latest in-flight run of this action for the current user (null if none / no auth).
+     */
+    protected function activeLiveRun(): ?SolarisBatchRun
+    {
+        $userId = auth()->id();
+
+        if ($userId === null) {
+            return null;
+        }
+
+        return SolarisBatchRun::query()
+            ->where('action_name', $this->getName())
+            ->where('user_id', (string) $userId)
+            ->where('status', BatchRunStatus::Processing)
+            ->latest('started_at')
+            ->first();
     }
 
     /**

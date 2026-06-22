@@ -31,6 +31,10 @@ return [
         'download_failures_xlsx' => 'Download failures (XLSX)',
     ],
 
+    'actions' => [
+        'batch_progress' => 'Processing :done / :total — :failed failed',
+    ],
+
     'preview' => [
         'modal_heading' => 'Review AI Results',
         'accept' => 'Accept',
