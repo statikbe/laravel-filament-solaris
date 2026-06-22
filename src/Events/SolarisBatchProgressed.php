@@ -5,6 +5,7 @@ namespace Statikbe\FilamentSolaris\Events;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
+use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 
 /**
  * Fired by ProcessChunkJob after each chunk persists. Broadcast-ready: emits on a
@@ -49,7 +50,7 @@ final class SolarisBatchProgressed implements ShouldBroadcast
 
     public function broadcastWhen(): bool
     {
-        $flag = config('filament-solaris.batch_tracking.live_updates.broadcast');
+        $flag = FilamentSolaris::config()->shouldBroadcastBatchUpdates();
 
         return $flag ?? (config('broadcasting.default') !== 'null');
     }

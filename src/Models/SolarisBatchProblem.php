@@ -4,6 +4,7 @@ namespace Statikbe\FilamentSolaris\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 
 /**
  * @property string $batch_run_id
@@ -22,7 +23,7 @@ class SolarisBatchProblem extends Model
 
     public function getTable(): string
     {
-        return config('filament-solaris.batch_tracking.database.tables.problems', 'solaris_batch_problems');
+        return FilamentSolaris::config()->getBatchProblemsTable();
     }
 
     public function batchRun(): BelongsTo

@@ -5,6 +5,7 @@ namespace Statikbe\FilamentSolaris\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Console\ConfirmableTrait;
 use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
+use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
 
 /**
@@ -25,7 +26,7 @@ class PruneBatchRunsCommand extends Command
 
     public function handle(): int
     {
-        $days = $this->option('days') ?? config('filament-solaris.batch_tracking.database.pruning.after_days');
+        $days = $this->option('days') ?? FilamentSolaris::config()->getBatchPruneAfterDays();
 
         if (! is_numeric($days) || (int) $days <= 0) {
             $this->error('No retention window: pass --days or set batch_tracking.database.pruning.after_days.');
@@ -40,7 +41,7 @@ class PruneBatchRunsCommand extends Command
         $cutoff = now()->subDays((int) $days);
         $this->comment("Pruning batch runs finished before {$cutoff->toDateTimeString()}…");
 
-        $chunk = (int) config('filament-solaris.batch_tracking.database.pruning.chunk', 500);
+        $chunk = FilamentSolaris::config()->getBatchPruneChunk();
         $pruned = 0;
 
         do {

@@ -309,7 +309,7 @@ class AiGenerateAction extends SolarisAction
             return (bool) $this->evaluate($this->attachFailureReport);
         }
 
-        return (bool) config('filament-solaris.batch_tracking.completion.failure_report', true);
+        return FilamentSolaris::config()->shouldAttachBatchFailureReport();
     }
 
     /**
@@ -337,7 +337,7 @@ class AiGenerateAction extends SolarisAction
 
         // merge: true so we don't clobber a user-set ->extraAttributes() (and vice versa).
         $this->extraAttributes(fn (): array => $this->activeLiveRun() !== null
-            ? ['wire:poll.'.config('filament-solaris.batch_tracking.live_updates.poll_interval', '3s') => '']
+            ? ['wire:poll.'.FilamentSolaris::config()->getBatchLiveUpdatesPollInterval() => '']
             : [], merge: true);
 
         return $this;

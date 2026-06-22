@@ -6,6 +6,7 @@ use Illuminate\Broadcasting\Channel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
+use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 
 /**
  * Dispatched when a tracked AiGenerateAction records-loop run finishes.
@@ -52,7 +53,7 @@ final class SolarisBatchCompleted implements ShouldBroadcast
 
     public function broadcastWhen(): bool
     {
-        $flag = config('filament-solaris.batch_tracking.live_updates.broadcast');
+        $flag = FilamentSolaris::config()->shouldBroadcastBatchUpdates();
 
         return $flag ?? (config('broadcasting.default') !== 'null');
     }
