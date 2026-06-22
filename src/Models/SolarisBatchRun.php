@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
+use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 
 /**
  * @property string $id
@@ -44,7 +45,7 @@ class SolarisBatchRun extends Model
 
     public function getTable(): string
     {
-        return config('filament-solaris.batch_tracking.runs_table', 'solaris_batch_runs');
+        return FilamentSolaris::config()->getBatchRunsTable();
     }
 
     /** @return HasMany<SolarisBatchProblem, $this> */

@@ -492,6 +492,17 @@ class GenerateFormComponent extends FormsComponent
             ->createRecords();
     }
 
+    public function liveImportAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('liveImport')
+            ->forModel(SeedCategory::class)
+            ->prompt(fn (array $rows) => 'Process.')
+            ->sourceRecords([['name' => 'A', 'slug' => 'a']])
+            ->queued()
+            ->liveBatchUpdates()
+            ->createRecords();
+    }
+
     public function render(): string
     {
         return '<div>{{ $this->form }}</div>';

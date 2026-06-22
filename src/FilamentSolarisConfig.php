@@ -6,6 +6,8 @@ use Filament\Support\Icons\Heroicon;
 use Laravel\Ai\Enums\Lab;
 use Locale;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris as FilamentSolarisFacade;
+use Statikbe\FilamentSolaris\Support\Batch\BatchCompletionHandler;
+use Statikbe\FilamentSolaris\Support\Batch\Handlers\NotifyOnBatchCompletion;
 
 class FilamentSolarisConfig
 {
@@ -250,12 +252,61 @@ class FilamentSolarisConfig
 
     public function getBatchRunsTable(): string
     {
-        return (string) $this->resolveConfig('batch_tracking.runs_table', 'solaris_batch_runs');
+        return (string) $this->resolveConfig('batch_tracking.database.tables.runs', 'solaris_batch_runs');
     }
 
     public function getBatchProblemsTable(): string
     {
-        return (string) $this->resolveConfig('batch_tracking.problems_table', 'solaris_batch_problems');
+        return (string) $this->resolveConfig('batch_tracking.database.tables.problems', 'solaris_batch_problems');
+    }
+
+    /**
+     * Get the completion handlers that fire when a batch run finishes.
+     *
+     * @return array<int, class-string<BatchCompletionHandler>>
+     */
+    public function getBatchCompletionHandlers(): array
+    {
+        return (array) $this->resolveConfig('batch_tracking.completion.handlers', [NotifyOnBatchCompletion::class]);
+    }
+
+    public function shouldNotifyOnBatchCompletion(): bool
+    {
+        return (bool) $this->resolveConfig('batch_tracking.completion.notify', true);
+    }
+
+    public function shouldAttachBatchFailureReport(): bool
+    {
+        return (bool) $this->resolveConfig('batch_tracking.completion.failure_report', true);
+    }
+
+    public function getBatchPruneAfterDays(): ?int
+    {
+        $days = $this->resolveConfig('batch_tracking.database.pruning.after_days');
+
+        return $days === null ? null : (int) $days;
+    }
+
+    public function getBatchPruneChunk(): int
+    {
+        return (int) $this->resolveConfig('batch_tracking.database.pruning.chunk', 500);
+    }
+
+    public function getBatchLiveUpdatesPollInterval(): string
+    {
+        return (string) $this->resolveConfig('batch_tracking.live_updates.poll_interval', '3s');
+    }
+
+    /**
+     * Whether batch progress events should broadcast.
+     *
+     * Null means "auto" — the caller decides based on broadcasting.default.
+     */
+    public function shouldBroadcastBatchUpdates(): ?bool
+    {
+        $broadcast = $this->resolveConfig('batch_tracking.live_updates.broadcast');
+
+        return $broadcast === null ? null : (bool) $broadcast;
     }
 
     /**

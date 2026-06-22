@@ -101,6 +101,8 @@ class AiGenerateAction extends SolarisAction
 
     protected bool|Closure|null $attachFailureReport = null;
 
+    protected bool|Closure $liveBatchUpdates = false;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -284,7 +286,7 @@ class AiGenerateAction extends SolarisAction
 
     /**
      * Per-action override for the "Download failures" actions on the completion
-     * notification (default handler). Overrides config `batch_tracking.attach_failure_report`
+     * notification (default handler). Overrides config `batch_tracking.completion.failure_report`
      * for this action; pass `false` to suppress the download links even when the
      * global flag is on. Requires a tracked/queued run (the report reads persisted
      * problems).
@@ -307,7 +309,68 @@ class AiGenerateAction extends SolarisAction
             return (bool) $this->evaluate($this->attachFailureReport);
         }
 
-        return (bool) config('filament-solaris.batch_tracking.attach_failure_report', true);
+        return FilamentSolaris::config()->shouldAttachBatchFailureReport();
+    }
+
+    /**
+     * While the current user has an in-flight run of this action, reflect progress on
+     * the button: disable it (re-run guard), show a progress tooltip, and self-poll
+     * until the run finishes. Pairs with ->queued(). See spec 34.
+     */
+    public function liveBatchUpdates(bool|Closure $enabled = true): static
+    {
+        $this->liveBatchUpdates = $enabled;
+
+        $this->disabled(fn (): bool => $this->activeLiveRun() !== null);
+
+        $this->tooltip(function (): ?string {
+            if (($run = $this->activeLiveRun()) === null) {
+                return null;
+            }
+
+            return filament_solaris_trans('actions.batch_progress', [
+                'done' => $run->succeeded + $run->failed,
+                'total' => $run->total ?? '?',
+                'failed' => $run->failed,
+            ]);
+        });
+
+        // merge: true so we don't clobber a user-set ->extraAttributes() (and vice versa).
+        $this->extraAttributes(fn (): array => $this->activeLiveRun() !== null
+            ? ['wire:poll.'.FilamentSolaris::config()->getBatchLiveUpdatesPollInterval() => '']
+            : [], merge: true);
+
+        return $this;
+    }
+
+    protected function liveBatchUpdatesEnabled(): bool
+    {
+        return (bool) $this->evaluate($this->liveBatchUpdates);
+    }
+
+    /**
+     * Latest in-flight run of this action for the current user, or null when live
+     * updates are disabled / there is no in-flight run / no authenticated user.
+     * Re-queried per render (no memo) so it stays fresh across wire:poll ticks.
+     */
+    protected function activeLiveRun(): ?SolarisBatchRun
+    {
+        if (! $this->liveBatchUpdatesEnabled()) {
+            return null;
+        }
+
+        $userId = auth()->id();
+
+        if ($userId === null) {
+            return null;
+        }
+
+        return SolarisBatchRun::query()
+            ->where('action_name', $this->getName())
+            ->where('user_id', (string) $userId)
+            ->where('status', BatchRunStatus::Processing)
+            ->latest('started_at')
+            ->first();
     }
 
     /**

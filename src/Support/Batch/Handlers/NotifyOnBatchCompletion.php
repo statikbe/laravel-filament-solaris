@@ -6,6 +6,7 @@ use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Log;
 use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
+use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\Support\Batch\BatchCompletionHandler;
 use Statikbe\FilamentSolaris\Support\Batch\BatchFailureReport;
 use Statikbe\FilamentSolaris\Support\Batch\BatchReportFormat;
@@ -21,7 +22,7 @@ final class NotifyOnBatchCompletion implements BatchCompletionHandler
 {
     public function handle(BatchSummary $summary): void
     {
-        if (! config('filament-solaris.batch_tracking.notify_on_completion', true)) {
+        if (! FilamentSolaris::config()->shouldNotifyOnBatchCompletion()) {
             return;
         }
 
@@ -86,7 +87,7 @@ final class NotifyOnBatchCompletion implements BatchCompletionHandler
         // Per-action override (->withFailureReport()) is stashed in run.meta at
         // dispatch; fall back to the global config for runs without it.
         return (bool) ($summary->run()?->meta['attach_failure_report']
-            ?? config('filament-solaris.batch_tracking.attach_failure_report', true));
+            ?? FilamentSolaris::config()->shouldAttachBatchFailureReport());
     }
 
     protected function sendToRunUser(Notification $notification, BatchSummary $summary): void

@@ -2,7 +2,7 @@
 
 namespace Statikbe\FilamentSolaris\Support\Batch;
 
-use Statikbe\FilamentSolaris\Support\Batch\Handlers\NotifyOnBatchCompletion;
+use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 
 /**
  * Runs a resolved list of BatchCompletionHandler class-strings against a summary,
@@ -21,7 +21,7 @@ final class CompletionHandlerRunner
     public static function resolve(?array $handlers): array
     {
         return $handlers
-            ?? config('filament-solaris.batch_tracking.completion_handlers', [NotifyOnBatchCompletion::class]);
+            ?? FilamentSolaris::config()->getBatchCompletionHandlers();
     }
 
     /**

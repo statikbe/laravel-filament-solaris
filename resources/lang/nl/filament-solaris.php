@@ -27,6 +27,10 @@ return [
         'download_failures_xlsx' => 'Fouten downloaden (XLSX)',
     ],
 
+    'actions' => [
+        'batch_progress' => 'Bezig :done / :total — :failed mislukt',
+    ],
+
     'preview' => [
         'modal_heading' => 'AI-resultaten bekijken',
         'accept' => 'Accepteren',

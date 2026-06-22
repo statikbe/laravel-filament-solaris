@@ -5,13 +5,14 @@ namespace Statikbe\FilamentSolaris\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Console\ConfirmableTrait;
 use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
+use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
 
 /**
  * Prune old AiGenerateAction batch runs from the tracking tables. Deletes only
  * terminal runs (Completed/Failed) finished before the retention cutoff, in
  * chunks; their solaris_batch_problems rows cascade via the FK. Retention is
- * opt-in (--days or batch_tracking.prune_after_days) — never deletes without one.
+ * opt-in (--days or batch_tracking.database.pruning.after_days) — never deletes without one.
  */
 class PruneBatchRunsCommand extends Command
 {
@@ -25,10 +26,10 @@ class PruneBatchRunsCommand extends Command
 
     public function handle(): int
     {
-        $days = $this->option('days') ?? config('filament-solaris.batch_tracking.prune_after_days');
+        $days = $this->option('days') ?? FilamentSolaris::config()->getBatchPruneAfterDays();
 
         if (! is_numeric($days) || (int) $days <= 0) {
-            $this->error('No retention window: pass --days or set batch_tracking.prune_after_days.');
+            $this->error('No retention window: pass --days or set batch_tracking.database.pruning.after_days.');
 
             return self::FAILURE;
         }
@@ -40,7 +41,7 @@ class PruneBatchRunsCommand extends Command
         $cutoff = now()->subDays((int) $days);
         $this->comment("Pruning batch runs finished before {$cutoff->toDateTimeString()}…");
 
-        $chunk = (int) config('filament-solaris.batch_tracking.prune_chunk', 500);
+        $chunk = FilamentSolaris::config()->getBatchPruneChunk();
         $pruned = 0;
 
         do {

@@ -3,15 +3,16 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 
 return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create(config('filament-solaris.batch_tracking.problems_table', 'solaris_batch_problems'), function (Blueprint $table) {
+        Schema::create(FilamentSolaris::config()->getBatchProblemsTable(), function (Blueprint $table) {
             $table->bigIncrements('id');
             $table->foreignUuid('batch_run_id')
-                ->constrained(config('filament-solaris.batch_tracking.runs_table', 'solaris_batch_runs'))
+                ->constrained(FilamentSolaris::config()->getBatchRunsTable())
                 ->cascadeOnDelete();
             $table->string('type')->index();
             $table->string('identifier')->nullable();
@@ -24,6 +25,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists(config('filament-solaris.batch_tracking.problems_table', 'solaris_batch_problems'));
+        Schema::dropIfExists(FilamentSolaris::config()->getBatchProblemsTable());
     }
 };

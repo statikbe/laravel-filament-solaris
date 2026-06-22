@@ -240,7 +240,7 @@ AiGenerateAction::make('enrich')
     // or compose: ->onCompletion([NotifyOnBatchCompletion::class, NotifyTeam::class])
 ```
 
-Resolution: per-action `->onCompletion()` → config `batch_tracking.completion_handlers` → the framework default `[NotifyOnBatchCompletion::class]`. **`->onCompletion()` replaces the default**, so include `NotifyOnBatchCompletion::class` in the list to keep the built-in notification alongside your own.
+Resolution: per-action `->onCompletion()` → config `batch_tracking.completion.handlers` → the framework default `[NotifyOnBatchCompletion::class]`. **`->onCompletion()` replaces the default**, so include `NotifyOnBatchCompletion::class` in the list to keep the built-in notification alongside your own.
 
 Key points:
 
@@ -253,7 +253,7 @@ Key points:
 - some rows failed → warning `"Processed N records, M failed."`
 - run failed (cancelled / job-level failure) → danger.
 
-Delivery adapts to the path: **inline** flashes a session toast; **queued** (no session on the worker) sends a Filament **database** notification to the run's initiating user, falling back to a log line if no notifiable resolves. Disable it entirely with `batch_tracking.notify_on_completion => false`.
+Delivery adapts to the path: **inline** flashes a session toast; **queued** (no session on the worker) sends a Filament **database** notification to the run's initiating user, falling back to a log line if no notifiable resolves. Disable it entirely with `batch_tracking.completion.notify => false`.
 
 ### Large imports — `->queued()`
 
@@ -471,11 +471,32 @@ AiGenerateAction::make('enrich-articles')
 - `SolarisBatchRun` exposes `->problems()`, `->failures()`, and `->discards()` relations (the latter two scoped by `type`). `solaris_batch_problems.batch_run_id` has a cascading FK, so deleting a run removes its problems.
 - Events carry ids and counts only (no row data, PII-conscious): `SolarisBatchStarted { runId, actionName, userId, page, total }` and `SolarisBatchCompleted { runId, actionName, succeeded, failed, discarded, status }`.
 
+### Live progress (`->liveBatchUpdates()`)
+
+Pair `->liveBatchUpdates()` with `->queued()` to reflect an in-flight run **on the action button**: while the current user has a `Processing` run of that action, the button is **disabled** (also prevents re-running it before it finishes), shows a **progress tooltip** ("Processing 40 / 100 — 2 failed"), and **self-polls** (`wire:poll`, interval `batch_tracking.live_updates.poll_interval`, default `3s`) so it re-enables when the run completes — at which point the completion notification fires. Infra-free (polling); no extra UI to place.
+
+```php
+AiGenerateAction::make('enrich')
+    ->forModel(Article::class)
+    ->sourceRecords(fn () => Article::needsEnrichment())
+    ->queued()
+    ->liveBatchUpdates()
+    ->updateRecords();
+```
+
+**Broadcasting (optional, no infra required).** `SolarisBatchProgressed` / `SolarisBatchCompleted` are broadcast-ready on a **public** per-run channel `solaris.batch.{runId}` (counts only, no PII). They broadcast when `batch_tracking.live_updates.broadcast` is `true`, or — by default (`null`) — automatically when your app has a real broadcaster (`config('broadcasting.default') !== 'null'`); otherwise nothing is emitted. The v1 button uses polling regardless; apps with Echo can subscribe to the channel from their own component for a snappier, poll-free UI.
+
+> **Limitation:** the active run is scoped by `action_name + user_id`, so a per-record **row** action disables across rows for that user while any of its runs is active. Fine for header/page actions (the common queued case).
+
+### Config
+
+The `batch_tracking` config is grouped: `database.tables.{runs,problems}`, `database.pruning.{after_days,chunk}`, `completion.{handlers,notify,failure_report}`, and `live_updates.{poll_interval,broadcast}` (plus top-level `enabled`).
+
 ### Failure report (download)
 
 When a **tracked or queued** run finishes with failures, its completion notification (in the Filament bell) carries **"Download failures (CSV)"** and **"Download failures (XLSX)"** actions. The file is generated **on click** from `solaris_batch_problems` (via openspout) and streamed through a **signed** download route — nothing is stored on disk, so it stays current until the run is pruned.
 
-Toggle the actions globally with `batch_tracking.attach_failure_report` (default `true`), or per action with `->withFailureReport()` / `->withFailureReport(false)` (a `bool` or `Closure`) — per-action wins over config. The download URL is signed (tamper-proof); the route applies no per-user authorization by default — add your own middleware/gate to the `filament-solaris.batch-failures.download` route if downloads must be restricted beyond holding the signed link. Columns: `identifier`, `type` (failure/discard), `reason`, `input` (the row snapshot).
+Toggle the actions globally with `batch_tracking.completion.failure_report` (default `true`), or per action with `->withFailureReport()` / `->withFailureReport(false)` (a `bool` or `Closure`) — per-action wins over config. The download URL is signed (tamper-proof); the route applies no per-user authorization by default — add your own middleware/gate to the `filament-solaris.batch-failures.download` route if downloads must be restricted beyond holding the signed link. Columns: `identifier`, `type` (failure/discard), `reason`, `input` (the row snapshot).
 
 ### Pruning old runs
 
@@ -485,7 +506,7 @@ Toggle the actions globally with `batch_tracking.attach_failure_report` (default
 php artisan solaris:prune-batches --days=30 --force
 ```
 
-Retention is **opt-in** — pass `--days=N` or set `batch_tracking.prune_after_days` (default `null`); with neither, the command refuses and deletes nothing. It removes only **terminal** runs (`Completed`/`Failed`) finished before the cutoff, in chunks (`batch_tracking.prune_chunk`, default 500); in-flight runs are never touched. `--force` skips the production confirmation (required for unattended runs). Schedule it yourself:
+Retention is **opt-in** — pass `--days=N` or set `batch_tracking.database.pruning.after_days` (default `null`); with neither, the command refuses and deletes nothing. It removes only **terminal** runs (`Completed`/`Failed`) finished before the cutoff, in chunks (`batch_tracking.database.pruning.chunk`, default 500); in-flight runs are never touched. `--force` skips the production confirmation (required for unattended runs). Schedule it yourself:
 
 ```php
 use Illuminate\Support\Facades\Schedule;

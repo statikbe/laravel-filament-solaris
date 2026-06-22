@@ -29,7 +29,7 @@ beforeEach(function () {
         }
     }
     config()->set('auth.providers.users.model', NotifiableUser::class);
-    config()->set('filament-solaris.batch_tracking.notify_on_completion', true);
+    config()->set('filament-solaris.batch_tracking.completion.notify', true);
 });
 
 afterEach(function () {
@@ -75,7 +75,7 @@ it('logs instead of throwing when the queued user is unresolvable', function () 
 });
 
 it('does nothing when notify_on_completion is disabled', function () {
-    config()->set('filament-solaris.batch_tracking.notify_on_completion', false);
+    config()->set('filament-solaris.batch_tracking.completion.notify', false);
 
     app(NotifyOnBatchCompletion::class)->handle(
         new BatchSummary('act', null, 1, 0, 0, BatchRunStatus::Completed, queued: false),
@@ -114,7 +114,7 @@ it('omits download actions when there are no failures', function () {
 });
 
 it('omits download actions when attach_failure_report is off', function () {
-    config()->set('filament-solaris.batch_tracking.attach_failure_report', false);
+    config()->set('filament-solaris.batch_tracking.completion.failure_report', false);
     $user = NotifiableUser::create(['name' => 'C', 'email' => 'c@x.test', 'password' => 'x']);
     $run = SolarisBatchRun::create(['action_name' => 'x', 'user_id' => (string) $user->getKey(), 'status' => BatchRunStatus::Failed, 'succeeded' => 0, 'failed' => 2]);
 
@@ -143,7 +143,7 @@ it('a tracked inline run both persists to the bell and flashes a toast', functio
 
 it('honors the per-action attach_failure_report override from run meta', function () {
     // config ON, but the run opted OUT via ->withFailureReport(false) (stashed in meta) → no actions
-    config()->set('filament-solaris.batch_tracking.attach_failure_report', true);
+    config()->set('filament-solaris.batch_tracking.completion.failure_report', true);
     $user = NotifiableUser::create(['name' => 'E', 'email' => 'e@x.test', 'password' => 'x']);
     $run = SolarisBatchRun::create([
         'action_name' => 'x', 'user_id' => (string) $user->getKey(),
@@ -160,7 +160,7 @@ it('honors the per-action attach_failure_report override from run meta', functio
 });
 
 it('attaches the report when the run opted in via meta even with config off', function () {
-    config()->set('filament-solaris.batch_tracking.attach_failure_report', false);
+    config()->set('filament-solaris.batch_tracking.completion.failure_report', false);
     $user = NotifiableUser::create(['name' => 'F', 'email' => 'f@x.test', 'password' => 'x']);
     $run = SolarisBatchRun::create([
         'action_name' => 'x', 'user_id' => (string) $user->getKey(),
