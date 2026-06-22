@@ -321,10 +321,10 @@ class AiGenerateAction extends SolarisAction
     {
         $this->liveBatchUpdates = $enabled;
 
-        $this->disabled(fn (): bool => $this->liveBatchUpdatesEnabled() && $this->activeLiveRun() !== null);
+        $this->disabled(fn (): bool => $this->activeLiveRun() !== null);
 
         $this->tooltip(function (): ?string {
-            if (! $this->liveBatchUpdatesEnabled() || ($run = $this->activeLiveRun()) === null) {
+            if (($run = $this->activeLiveRun()) === null) {
                 return null;
             }
 
@@ -336,7 +336,7 @@ class AiGenerateAction extends SolarisAction
         });
 
         // merge: true so we don't clobber a user-set ->extraAttributes() (and vice versa).
-        $this->extraAttributes(fn (): array => $this->liveBatchUpdatesEnabled() && $this->activeLiveRun() !== null
+        $this->extraAttributes(fn (): array => $this->activeLiveRun() !== null
             ? ['wire:poll.'.config('filament-solaris.batch_tracking.live_updates.poll_interval', '3s') => '']
             : [], merge: true);
 
@@ -345,16 +345,20 @@ class AiGenerateAction extends SolarisAction
 
     protected function liveBatchUpdatesEnabled(): bool
     {
-        return (bool) ($this->liveBatchUpdates instanceof Closure
-            ? $this->evaluate($this->liveBatchUpdates)
-            : $this->liveBatchUpdates);
+        return (bool) $this->evaluate($this->liveBatchUpdates);
     }
 
     /**
-     * Latest in-flight run of this action for the current user (null if none / no auth).
+     * Latest in-flight run of this action for the current user, or null when live
+     * updates are disabled / there is no in-flight run / no authenticated user.
+     * Re-queried per render (no memo) so it stays fresh across wire:poll ticks.
      */
     protected function activeLiveRun(): ?SolarisBatchRun
     {
+        if (! $this->liveBatchUpdatesEnabled()) {
+            return null;
+        }
+
         $userId = auth()->id();
 
         if ($userId === null) {
