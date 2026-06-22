@@ -335,9 +335,10 @@ class AiGenerateAction extends SolarisAction
             ]);
         });
 
+        // merge: true so we don't clobber a user-set ->extraAttributes() (and vice versa).
         $this->extraAttributes(fn (): array => $this->liveBatchUpdatesEnabled() && $this->activeLiveRun() !== null
             ? ['wire:poll.'.config('filament-solaris.batch_tracking.live_updates.poll_interval', '3s') => '']
-            : []);
+            : [], merge: true);
 
         return $this;
     }

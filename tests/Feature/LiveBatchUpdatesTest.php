@@ -96,3 +96,29 @@ it('is enabled with no poll attr when idle', function () {
     expect($action->isDisabled())->toBeFalse()
         ->and($action->getExtraAttributes())->not->toHaveKey('wire:poll.3s');
 });
+
+it('a closure-false flag keeps the button enabled even with an active run', function () {
+    $user = NotifiableUser::create(['name' => 'E', 'email' => 'e@x.test', 'password' => 'x']);
+    $this->actingAs($user);
+    processingRun('liveImport', (string) $user->getKey());
+
+    $action = AiGenerateAction::make('liveImport')
+        ->forModel(SeedCategory::class)
+        ->prompt('x')
+        ->sourceRecords([['name' => 'A', 'slug' => 'a']])
+        ->queued()
+        ->liveBatchUpdates(fn () => false)
+        ->createRecords();
+
+    expect($action->isDisabled())->toBeFalse()
+        ->and($action->getExtraAttributes())->not->toHaveKey('wire:poll.3s');
+});
+
+it('honors the configured poll interval', function () {
+    config()->set('filament-solaris.batch_tracking.live_updates.poll_interval', '5s');
+    $user = NotifiableUser::create(['name' => 'F', 'email' => 'f@x.test', 'password' => 'x']);
+    $this->actingAs($user);
+    processingRun('liveImport', (string) $user->getKey());
+
+    expect(liveAction()->getExtraAttributes())->toHaveKey('wire:poll.5s');
+});
