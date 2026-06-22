@@ -471,6 +471,27 @@ AiGenerateAction::make('enrich-articles')
 - `SolarisBatchRun` exposes `->problems()`, `->failures()`, and `->discards()` relations (the latter two scoped by `type`). `solaris_batch_problems.batch_run_id` has a cascading FK, so deleting a run removes its problems.
 - Events carry ids and counts only (no row data, PII-conscious): `SolarisBatchStarted { runId, actionName, userId, page, total }` and `SolarisBatchCompleted { runId, actionName, succeeded, failed, discarded, status }`.
 
+### Live progress (`->liveBatchUpdates()`)
+
+Pair `->liveBatchUpdates()` with `->queued()` to reflect an in-flight run **on the action button**: while the current user has a `Processing` run of that action, the button is **disabled** (also prevents re-running it before it finishes), shows a **progress tooltip** ("Processing 40 / 100 — 2 failed"), and **self-polls** (`wire:poll`, interval `batch_tracking.live_updates.poll_interval`, default `3s`) so it re-enables when the run completes — at which point the completion notification fires. Infra-free (polling); no extra UI to place.
+
+```php
+AiGenerateAction::make('enrich')
+    ->forModel(Article::class)
+    ->sourceRecords(fn () => Article::needsEnrichment())
+    ->queued()
+    ->liveBatchUpdates()
+    ->updateRecords();
+```
+
+**Broadcasting (optional, no infra required).** `SolarisBatchProgressed` / `SolarisBatchCompleted` are broadcast-ready on a **public** per-run channel `solaris.batch.{runId}` (counts only, no PII). They broadcast when `batch_tracking.live_updates.broadcast` is `true`, or — by default (`null`) — automatically when your app has a real broadcaster (`config('broadcasting.default') !== 'null'`); otherwise nothing is emitted. The v1 button uses polling regardless; apps with Echo can subscribe to the channel from their own component for a snappier, poll-free UI.
+
+> **Limitation:** the active run is scoped by `action_name + user_id`, so a per-record **row** action disables across rows for that user while any of its runs is active. Fine for header/page actions (the common queued case).
+
+### Config
+
+The `batch_tracking` config is grouped: `database.tables.{runs,problems}`, `database.pruning.{after_days,chunk}`, `completion.{handlers,notify,failure_report}`, and `live_updates.{poll_interval,broadcast}` (plus top-level `enabled`).
+
 ### Failure report (download)
 
 When a **tracked or queued** run finishes with failures, its completion notification (in the Filament bell) carries **"Download failures (CSV)"** and **"Download failures (XLSX)"** actions. The file is generated **on click** from `solaris_batch_problems` (via openspout) and streamed through a **signed** download route — nothing is stored on disk, so it stays current until the run is pruned.
