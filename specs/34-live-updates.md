@@ -1,4 +1,4 @@
-# Spec 34 — Live updates (`->liveUpdates()`)
+# Spec 34 — Live updates (`->liveBatchUpdates()`)
 
 > Piece #5 of the **Queued Batch Execution** roadmap
 > (`docs/superpowers/specs/2026-06-08-queued-batch-execution-design.md`).
@@ -24,9 +24,9 @@ protection. The button can self-inject `wire:poll` (an attribute) but **cannot**
 self-subscribe to Echo (listeners are component-level), so polling is its transport;
 broadcasting is an app/host-level upgrade (§5).
 
-## 3. `->liveUpdates()` — button state
+## 3. `->liveBatchUpdates()` — button state
 
-`AiGenerateAction::liveUpdates(bool|Closure $enabled = true): static`. Pairs with
+`AiGenerateAction::liveBatchUpdates(bool|Closure $enabled = true): static`. Pairs with
 `->queued()` (it reads `SolarisBatchRun` rows, which queued always creates; inline
 runs are synchronous so the button is naturally busy). When enabled, the action's
 render-time closures reflect the user's in-flight run of this action:
@@ -34,7 +34,7 @@ render-time closures reflect the user's in-flight run of this action:
 - **Active run resolution** — `activeLiveRun(): ?SolarisBatchRun` = the latest run
   with `action_name = $this->getName()`, `user_id = (string) auth()->id()`, `status =
   Processing` (indexed lookup; `user_id`/`action_name`/`status` are already indexed).
-- **`->disabled(fn () => liveUpdates enabled && activeLiveRun() !== null)`** — busy +
+- **`->disabled(fn () => liveBatchUpdates enabled && activeLiveRun() !== null)`** — busy +
   re-run guard.
 - **`->tooltip(fn () => …)`** — when active: `filament_solaris_trans('actions.batch_progress',
   ['done' => succeeded+failed, 'total' => total ?? '?', 'failed' => failed])` →
@@ -47,9 +47,9 @@ render-time closures reflect the user's in-flight run of this action:
 - **`->extraAttributes(fn () => active ? ['wire:poll.3s' => ''] : [])`** — the button
   **self-polls only while a run is active**: the dispatch re-render turns polling on,
   and the first poll after the run goes terminal turns it off (no idle polling, no
-  host changes). Poll interval from `batch_tracking.live_poll_interval` (default `3s`).
+  host changes). Poll interval from `batch_tracking.live_updates.poll_interval` (default `3s`).
 
-Register these closures **in `liveUpdates()`** (not `setUp()`), so they're only added
+Register these closures **in `liveBatchUpdates()`** (not `setUp()`), so they're only added
 when opted in and don't fight a user-set `->disabled()`. Each closure also guards on
 the resolved `$enabled` flag so a `Closure`/`false` value short-circuits.
 
@@ -78,7 +78,7 @@ Make `SolarisBatchProgressed` and `SolarisBatchCompleted` implement `ShouldBroad
   The events carry **counts only, no row data** (the package's PII rule), and the runId
   is an unguessable uuid — so a public channel needs no auth route. Keeps "offer
   broadcasting" cheap.
-- **`broadcastWhen(): bool`** → auto-detect: `config('filament-solaris.batch_tracking.broadcast')`
+- **`broadcastWhen(): bool`** → auto-detect: `config('filament-solaris.batch_tracking.live_updates.broadcast')`
   resolved as: `true`/`false` force it; **`null` (default) → broadcast iff
   `config('broadcasting.default') !== 'null'`** (the app actually has a driver). So zero
   broadcast attempts when no driver is configured — infra-free by default.
@@ -92,15 +92,45 @@ to drive a snappier UI / skip polling — documented as the upgrade path. Adding
 broadcast; with `broadcast` unset and the test env's `broadcasting.default = null`,
 `broadcastWhen()` is false → no broadcast attempt).
 
-## 6. Config
+## 6. Config — restructure `batch_tracking` into nested groups
 
-Add to `batch_tracking`:
+`batch_tracking` has grown to ~10 flat keys; nothing is released, so regroup it now
+(no deprecation needed). Final shape:
+
 ```php
-// Live-update poll interval for ->liveUpdates() buttons.
-'live_poll_interval' => '3s',
-// Broadcast SolarisBatch* events: null = auto (on when broadcasting.default !== 'null'), or true/false.
-'broadcast' => null,
+'batch_tracking' => [
+    'enabled' => (bool) env('FILAMENT_SOLARIS_BATCH_TRACKING', false),
+    'database' => [
+        'tables' => [
+            'runs' => 'solaris_batch_runs',       // was batch_tracking.runs_table
+            'problems' => 'solaris_batch_problems', // was batch_tracking.problems_table
+        ],
+        'pruning' => [
+            'after_days' => null,  // was batch_tracking.prune_after_days
+            'chunk' => 500,        // was batch_tracking.prune_chunk
+        ],
+    ],
+    'completion' => [
+        'handlers' => [NotifyOnBatchCompletion::class], // was batch_tracking.completion_handlers
+        'notify' => true,                               // was batch_tracking.notify_on_completion
+        'failure_report' => true,                       // was batch_tracking.attach_failure_report
+    ],
+    'live_updates' => [
+        'poll_interval' => '3s',
+        'broadcast' => null, // null = auto (on when broadcasting.default !== 'null'); or true/false
+    ],
+],
 ```
+
+**This renames existing keys** — every `config('filament-solaris.batch_tracking.*')`
+read must move to the new path. Affected (all merged, all unreleased): the two
+migrations + `SolarisBatchRun`/`SolarisBatchProblem` `getTable()` (→ `database.tables.*`),
+`NotifyOnBatchCompletion` (→ `completion.notify`/`completion.failure_report`),
+`AiGenerateAction::resolveCompletionHandlers`/`resolveAttachFailureReport` +
+`CompletionHandlerRunner::resolve` + `FinalizeRun` (→ `completion.handlers`),
+`PruneBatchRunsCommand` (→ `database.pruning.*`), and the tests that `config()->set(...)`
+those paths. The `run.meta['attach_failure_report']` *stash* key is unaffected (it's a
+meta dict key, not a config path). Done as its own plan task before the feature work.
 
 ## 7. Out of scope
 
@@ -113,14 +143,14 @@ Add to `batch_tracking`:
 
 ## 8. Testing
 
-- **`liveUpdates()` resolution:** with no active run → button not disabled, no tooltip,
+- **`liveBatchUpdates()` resolution:** with no active run → button not disabled, no tooltip,
   no `wire:poll` attr. With an in-flight run (seed a `Processing` `SolarisBatchRun` for
   the action+user) → disabled true, tooltip contains the progress string, extraAttributes
   carries `wire:poll.3s`. After the run is `Completed` → back to enabled/no-poll.
   (Drive via the action's evaluated closures, or a Livewire render of a fixture host.)
 - **Scoping:** an in-flight run for a *different* action or *different* user does not
   disable this action's button.
-- **Disabled-when-off:** without `->liveUpdates()`, none of the live closures apply.
+- **Disabled-when-off:** without `->liveBatchUpdates()`, none of the live closures apply.
 - **Broadcast gating:** `SolarisBatchProgressed`/`Completed` do NOT broadcast when
   `broadcast` is null + `broadcasting.default = 'null'` (assert via `Event::fake` /
   `Broadcast::fake` that no broadcast goes out); they broadcast on
