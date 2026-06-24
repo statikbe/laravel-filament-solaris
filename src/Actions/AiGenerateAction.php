@@ -12,6 +12,7 @@ use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
+use Laravel\Ai\Exceptions\AiException;
 use Laravel\Ai\Files\File;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use LogicException;
@@ -24,6 +25,8 @@ use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
 use Statikbe\FilamentSolaris\Events\SolarisBatchCompleted;
 use Statikbe\FilamentSolaris\Events\SolarisBatchStarted;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
+use Statikbe\FilamentSolaris\Generation\AiGenerator;
+use Statikbe\FilamentSolaris\Generation\GenerationResult;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
 use Statikbe\FilamentSolaris\Support\Batch\BatchGenerationException;
 use Statikbe\FilamentSolaris\Support\Batch\BatchProcessor;
@@ -35,6 +38,7 @@ use Statikbe\FilamentSolaris\Support\Batch\Sinks\CompositeBatchSink;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\DatabaseBatchSink;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\InMemoryBatchSink;
 use Statikbe\FilamentSolaris\Support\ModelSchemaResolver;
+use Statikbe\FilamentSolaris\Support\SolarisNotification;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 
 /**
@@ -411,29 +415,45 @@ class AiGenerateAction extends SolarisAction
             return;
         }
 
-        $instruction = $this->resolveInstruction($userInput);
-        $resolver = $this->resolveSchemaResolver();
+        $result = $this->runSingleCallViaGenerator($userInput);
 
-        ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
-        $timeout = $this->resolveTimeout();
-
-        $agent = (new SolarisAgent)->configure($instruction, [], $resolver);
-        $this->applyGenerationOptions($agent);
-
-        $attachments = $this->resolveAttachments($userInput);
-
-        /** @var StructuredAgentResponse|null $response */
-        $response = $this->executeAiCall(
-            fn () => $agent->prompt($instruction, $attachments, $provider, $model, $timeout),
-            $provider,
-            $model,
-        );
-
-        if ($response === null) {
+        if ($result === null) {
             return;
         }
 
-        $this->handleSingleCallResponse($response->toArray(), $userInput);
+        $this->handleSingleCallResponse($result->data, $userInput);
+    }
+
+    /**
+     * Resolve the single-call configuration and run it through the headless
+     * AiGenerator. Returns null (after sending the error notification) when the
+     * call fails, so the caller can short-circuit — mirroring the previous
+     * executeAiCall() contract.
+     *
+     * @param  array<string, mixed>  $userInput
+     */
+    protected function runSingleCallViaGenerator(array $userInput): ?GenerationResult
+    {
+        ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
+
+        $generator = AiGenerator::make()
+            ->prompt($this->resolveInstruction($userInput))
+            ->schema($this->resolveSchemaResolver())
+            ->provider($provider, $model)
+            ->timeout($this->resolveTimeout())
+            ->options($this->resolveGenerationOptions())
+            ->attachments($this->resolveAttachments($userInput))
+            ->source($this->getName(), static::class)
+            ->forLivewire($this->getLivewire())
+            ->forUser(auth()->user());
+
+        try {
+            return $generator->runInline();
+        } catch (AiException $e) {
+            SolarisNotification::sendAiErrorNotification($e);
+
+            return null;
+        }
     }
 
     /**
