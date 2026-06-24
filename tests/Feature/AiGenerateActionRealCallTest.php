@@ -21,5 +21,5 @@ it('runs the real single-call path through AiGenerator and hands data to the han
     $action->execute();
 
     expect($captured)->toBe(['summary' => 'All good']);
-    SolarisAgent::assertPrompted(fn ($prompt) => true);
+    SolarisAgent::assertPrompted(fn ($prompt) => $prompt->contains('Summarise this.'));
 });
