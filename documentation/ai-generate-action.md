@@ -652,3 +652,68 @@ Simulate a provider failure with `AiGenerateAction::fakeError('...')` — the ha
 The fake dispatches the same `SolarisResponseReceived` event the real action does, so usage-tracking listeners can be exercised in tests without a live provider.
 
 See [Testing](testing.md) for the full testing guide.
+
+---
+
+## AiGenerator service (headless)
+
+`AiGenerateAction` is the Filament wrapper around a reusable, framework-free
+service: `Statikbe\FilamentSolaris\Generation\AiGenerator`. Use it directly from
+jobs, listeners, or commands when you need a structured AI call without an action
+button:
+
+```php
+use Illuminate\JsonSchema\JsonSchemaTypeFactory;
+use Statikbe\FilamentSolaris\Generation\AiGenerator;
+use Statikbe\FilamentSolaris\Support\GenerationOptions;
+
+$result = AiGenerator::make()
+    ->prompt('Summarise this support thread: '.$thread)
+    ->schema(fn (JsonSchemaTypeFactory $s) => [
+        'summary'   => $s->string(),
+        'sentiment' => $s->string()->enum(['positive', 'neutral', 'negative']),
+    ])
+    ->provider('openai', 'gpt-4o-mini')
+    ->options(new GenerationOptions(temperature: 0.2))
+    ->runInline();
+
+$result->data;            // ['summary' => '…', 'sentiment' => 'neutral']
+$result->usage;           // Laravel\Ai\Responses\Data\Usage|null
+```
+
+`runInline()` returns a `GenerationResult` (or throws `Laravel\Ai\Exceptions\AiException`
+on failure — there is no UI notification; presentation is the caller's job). It
+fires the same `SolarisResponseReceived` / `SolarisResponseFailed` events as the
+actions.
+
+### Chaining
+
+Because `runInline()` returns the parsed data, you chain by feeding one result
+into the next call — varying model, prompt, or schema per step:
+
+```php
+$draft = AiGenerator::make()
+    ->prompt('Draft a blurb for: '.$name)
+    ->schema(fn ($s) => ['blurb' => $s->string()])
+    ->runInline();
+
+$polished = AiGenerator::make()
+    ->prompt('Tighten to two sentences: '.$draft->data['blurb'])
+    ->provider('anthropic', 'claude-sonnet-4-5')
+    ->schema(fn ($s) => ['blurb' => $s->string()])
+    ->runInline();
+```
+
+### Testing
+
+Fake the underlying call with laravel/ai's agent fake:
+
+```php
+use Statikbe\FilamentSolaris\Agents\SolarisAgent;
+
+SolarisAgent::fake([
+    ['summary' => 'All good', 'sentiment' => 'positive'],
+]);
+// ... run code that calls AiGenerator ...
+SolarisAgent::assertPrompted(fn ($prompt) => $prompt->contains('support thread'));
+```

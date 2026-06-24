@@ -6,6 +6,10 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
 
 ### Added
 
+- `AiGenerator` headless generation service (`Statikbe\FilamentSolaris\Generation\AiGenerator`)
+  for single structured AI calls outside a Filament action (jobs, listeners,
+  commands, chaining). Returns a `GenerationResult`; throws `AiException` on
+  failure. `AiGenerateAction`'s single-call path now delegates to it.
 - `AiGenerateAction::queued()` — run the records loop on the queue (`Bus::batch` of per-chunk jobs) instead of inline, for imports/enrichment beyond ~50 rows. Pre-renders each chunk's prompt in-request, dispatches `ProcessChunkJob`s that reconcile + write on the worker, and finalizes via `FinalizeRun` (fires `SolarisBatchCompleted`). Requires `->forModel()` + `->createRecords()`/`->updateRecords()`; handler-mode and custom `->outputSchema()` stay inline-only. Queued mode always persists a `SolarisBatchRun`. Jobs run with `tries = 1` (`createRecords` is not idempotent; `updateRecords` is retry-safe). See `documentation/ai-generate-action.md` → "Large imports — `->queued()`".
 - Queued single-call imports: `->queued()` with **no `->sourceRecords()`** dispatches one job that generates from scratch (e.g. extract a product list from an attached PDF). Attachments are first-class on the queue — resolved in-request and serialized into the jobs; they must be disk-backed/base64/remote (a local filesystem path is rejected at dispatch).
 - `SolarisBatchProgressed` event (per-chunk progress substrate). Both `SolarisBatch*` progress/completed events are now broadcast-ready on a public `solaris.batch.{runId}` channel (counts only), gated by `batch_tracking.live_updates.broadcast` (`null` = auto when a broadcaster is configured).
