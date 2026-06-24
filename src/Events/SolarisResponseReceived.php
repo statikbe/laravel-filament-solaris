@@ -6,7 +6,6 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Foundation\Events\Dispatchable;
 use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Responses\Data\Usage;
-use Statikbe\FilamentSolaris\Actions\SolarisAction;
 
 /**
  * Dispatched after a Solaris AI call returns successfully.
@@ -26,7 +25,7 @@ final class SolarisResponseReceived
     use Dispatchable;
 
     /**
-     * @param  class-string<SolarisAction>  $actionClass
+     * @param  class-string  $actionClass  the dispatching action, or the AiGenerator service when headless
      * @param  Lab|array<string, string>|array<int, string>|string|null  $provider
      */
     public function __construct(

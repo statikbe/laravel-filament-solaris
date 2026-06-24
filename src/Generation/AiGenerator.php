@@ -62,7 +62,7 @@ class AiGenerator
 
     public function __construct()
     {
-        $this->options = new GenerationOptions(null, null, null, null);
+        $this->options = new GenerationOptions;
     }
 
     public static function make(): static
@@ -171,6 +171,10 @@ class AiGenerator
         $user = $this->hasUser ? $this->user : auth()->user();
         $startedAt = microtime(true);
 
+        // NOTE: the timing + event-dispatch shape below intentionally mirrors
+        // SolarisAction::executeAiCall(). They differ in error presentation
+        // (this throws; the action notifies), so they stay separate until the
+        // action AI calls migrate onto this service and a shared executor pays off.
         try {
             /** @var StructuredAgentResponse $response */
             $response = $agent->prompt($this->prompt, $this->attachments, $this->provider, $this->model, $this->timeout);
