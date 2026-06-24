@@ -11,6 +11,7 @@ use Filament\Notifications\NotificationsServiceProvider;
 use Filament\Schemas\SchemasServiceProvider;
 use Filament\Support\SupportServiceProvider;
 use Filament\Widgets\WidgetsServiceProvider;
+use Laravel\Ai\AiServiceProvider;
 use Livewire\LivewireServiceProvider;
 use Livewire\Mechanisms\DataStore;
 use Orchestra\Testbench\TestCase as Orchestra;
@@ -47,6 +48,7 @@ class TestCase extends Orchestra
             FilamentServiceProvider::class,
             FilamentSolarisServiceProvider::class,
             FormsServiceProvider::class,
+            AiServiceProvider::class,
             LivewireServiceProvider::class,
             NotificationsServiceProvider::class,
             SchemasServiceProvider::class,
