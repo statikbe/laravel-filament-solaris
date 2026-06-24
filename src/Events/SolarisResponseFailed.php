@@ -7,6 +7,7 @@ use Illuminate\Foundation\Events\Dispatchable;
 use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Exceptions\AiException;
 use Statikbe\FilamentSolaris\Actions\SolarisAction;
+use Statikbe\FilamentSolaris\Generation\AiGenerator;
 
 /**
  * Dispatched when a Solaris AI call raises an AiException.
@@ -15,16 +16,17 @@ use Statikbe\FilamentSolaris\Actions\SolarisAction;
  * Useful for catching rate limits, provider outages, and configuration
  * errors in production without tailing logs.
  *
- * Dispatched from {@see SolarisAction::executeAiCall()} before the
- * action-specific error notification is sent and before the call returns
- * null to its caller.
+ * Dispatched on a failed AI call: from {@see SolarisAction::executeAiCall()}
+ * (which then sends the action-specific error notification and returns null to
+ * its caller), or from {@see AiGenerator::runInline()}
+ * (which then rethrows the exception for the caller to handle).
  */
 final class SolarisResponseFailed
 {
     use Dispatchable;
 
     /**
-     * @param  class-string<SolarisAction>  $actionClass
+     * @param  class-string  $actionClass  the dispatching action, or the AiGenerator service when headless
      * @param  Lab|array<string, string>|array<int, string>|string|null  $provider
      */
     public function __construct(
