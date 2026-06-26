@@ -300,7 +300,7 @@ class GenerateFormComponent extends FormsComponent
 
     public function seedCategoriesCreateAction(): AiGenerateAction
     {
-        // Single-call createRecords (no sourceRecords) — exercises handleSingleCallResponse WRITE_CREATE.
+        // Single-call createRecords (no sourceRecords) — exercises handleSingleCallResponse create path.
         return AiGenerateAction::make('seedCategoriesCreate')
             ->prompt('Parse the input into categories.')
             ->forModel(SeedCategory::class)

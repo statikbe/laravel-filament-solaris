@@ -22,10 +22,11 @@ use Statikbe\FilamentSolaris\Support\Batch\BatchProcessor;
 use Statikbe\FilamentSolaris\Support\Batch\BatchResponse;
 use Statikbe\FilamentSolaris\Support\Batch\BatchRunConfig;
 use Statikbe\FilamentSolaris\Support\Batch\FailedRecord;
+use Statikbe\FilamentSolaris\Support\Batch\RecordsSchemaBuilder;
+use Statikbe\FilamentSolaris\Support\Batch\RecordWriter;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\CompositeBatchSink;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\DatabaseBatchSink;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\InMemoryBatchSink;
-use Statikbe\FilamentSolaris\Support\ModelSchemaResolver;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 
 /**
@@ -86,7 +87,7 @@ class ProcessChunkJob implements ShouldQueue
     /**
      * Single-call / from-scratch (no input rows): generate once and create every
      * returned record. Mirrors AiGenerateAction::handleSingleCallResponse's
-     * WRITE_CREATE loop, but emits the outcome to the sink instead of notifying.
+     * create loop, but emits the outcome to the sink instead of notifying.
      */
     private function processFromScratch(CompositeBatchSink $sink): void
     {
@@ -166,25 +167,13 @@ class ProcessChunkJob implements ShouldQueue
     private function writeRow(mixed $row, array $attrs): void
     {
         $modelClass = $this->config->modelClass;
+        $terminal = $this->config->writeTerminal;
 
-        if ($modelClass === null) {
-            throw new \RuntimeException('ProcessChunkJob requires a model class for write-back.');
+        if ($modelClass === null || $terminal === null) {
+            throw new \RuntimeException('ProcessChunkJob requires a model class + write terminal for write-back.');
         }
 
-        if ($this->config->writeTerminal === AiGenerateAction::WRITE_CREATE) {
-            $modelClass::create($attrs);
-
-            return;
-        }
-
-        $key = is_array($row) ? ($row[$this->config->identifierKey] ?? null) : null;
-        $model = $key === null ? null : $modelClass::find($key);
-
-        if ($model === null) {
-            throw new \RuntimeException('updateRecords target no longer exists for identifier '.json_encode($key));
-        }
-
-        $model->update($attrs);
+        (new RecordWriter($modelClass, $terminal))->write($row, $attrs);
     }
 
     /** @return Closure(JsonSchemaTypeFactory): array<string, mixed> */
@@ -196,26 +185,15 @@ class ProcessChunkJob implements ShouldQueue
             /** @var class-string<Model> $modelClass */
             $modelClass = $config->modelClass;
 
-            $properties = (new ModelSchemaResolver)->resolve(
+            return (new RecordsSchemaBuilder)->build(
                 $schema,
                 $modelClass,
+                $config->identifierKey,
                 $config->onlyColumns,
                 $config->exceptColumns,
                 $config->columnHints,
                 $config->columnEnums,
             );
-
-            $properties[$config->identifierKey] = $config->identifierKey === '_index'
-                ? $schema->integer()->description('The _index field from the input record. Echo unchanged.')
-                : $schema->integer()->description('The primary key. Echo unchanged.');
-
-            return [
-                AiGenerateAction::RECORDS_KEY => $schema->array()->items($schema->object($properties)),
-                AiGenerateAction::FAILED_KEY => $schema->array()->items($schema->object([
-                    'identifier' => $schema->string()->description('Identifier of the failed input row.'),
-                    'reason' => $schema->string()->description('Short reason for the failure (max 200 chars).'),
-                ])),
-            ];
         };
     }
 }

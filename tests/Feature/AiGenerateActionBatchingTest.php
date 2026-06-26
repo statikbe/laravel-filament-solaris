@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;
 use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
+use Statikbe\FilamentSolaris\Support\Batch\RecordWriter;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 use Statikbe\FilamentSolaris\Tests\Fixtures\GenerateFormComponent;
 use Statikbe\FilamentSolaris\Tests\Fixtures\SeedCategory;
@@ -298,13 +299,7 @@ it('throws when ->sourceRecords() yields an unsupported type', function () {
 it('updates by pk when given a plain array descriptor (worker write-back)', function () {
     $row = SeedCategory::create(['name' => 'Old', 'slug' => 'old']);
 
-    $action = (new ReflectionClass(AiGenerateAction::class))->newInstanceWithoutConstructor();
-    $write = (new ReflectionMethod(AiGenerateAction::class, 'writeRow'))->getClosure($action);
-    foreach (['writeTerminal' => 'update', 'modelClass' => SeedCategory::class] as $prop => $val) {
-        (new ReflectionProperty(AiGenerateAction::class, $prop))->setValue($action, $val);
-    }
-
-    $write(['id' => $row->id], ['name' => 'New', 'slug' => 'new']);
+    (new RecordWriter(SeedCategory::class, RecordWriter::UPDATE))->write(['id' => $row->id], ['name' => 'New', 'slug' => 'new']);
 
     expect($row->refresh()->name)->toBe('New');
 });
