@@ -19,7 +19,6 @@ use RuntimeException;
 use Statikbe\FilamentSolaris\Agents\SolarisAgent;
 use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
 use Statikbe\FilamentSolaris\Events\SolarisBatchCompleted;
-use Statikbe\FilamentSolaris\Events\SolarisBatchStarted;
 use Statikbe\FilamentSolaris\Events\SolarisResponseFailed;
 use Statikbe\FilamentSolaris\Events\SolarisResponseReceived;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
@@ -574,23 +573,15 @@ class AiGenerator
     {
         $userId = $this->hasUser ? $this->user?->getAuthIdentifier() : auth()->id();
 
-        $run = SolarisBatchRun::create([
-            'action_name' => $this->sourceName,
-            'user_id' => $userId === null ? null : (string) $userId,
-            'page' => $this->livewire !== null ? $this->livewire::class : null,
-            'status' => BatchRunStatus::Processing,
-            'total' => is_countable($rows) ? count($rows) : null,
-            'meta' => [
-                'userInput' => $this->userInput,
-                'completionHandlers' => $this->completionHandlers,
-                'attach_failure_report' => $this->attachFailureReport,
-            ],
-            'started_at' => now(),
-        ]);
-
-        SolarisBatchStarted::dispatch($run->id, $run->action_name, $run->user_id, $run->page, $run->total);
-
-        return $run;
+        return SolarisBatchRun::start(
+            actionName: $this->sourceName,
+            userId: $userId === null ? null : (string) $userId,
+            page: $this->livewire !== null ? $this->livewire::class : null,
+            total: is_countable($rows) ? count($rows) : null,
+            userInput: $this->userInput,
+            completionHandlers: $this->completionHandlers,
+            attachFailureReport: $this->attachFailureReport,
+        );
     }
 
     protected function runSingleStructuredCall(): GenerationResult

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
+use Statikbe\FilamentSolaris\Events\SolarisBatchStarted;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 
 /**
@@ -46,6 +47,43 @@ class SolarisBatchRun extends Model
     public function getTable(): string
     {
         return FilamentSolaris::config()->getBatchRunsTable();
+    }
+
+    /**
+     * Open a Processing run and announce it via {@see SolarisBatchStarted}. The
+     * single source of truth for run creation, shared by the inline (AiGenerator)
+     * and queued (HasQueuedExecution) paths — each resolves the scalars itself
+     * (total is null when the count is unknown until the model answers).
+     *
+     * @param  array<string, mixed>  $userInput
+     * @param  array<int, class-string>  $completionHandlers
+     */
+    public static function start(
+        string $actionName,
+        ?string $userId,
+        ?string $page,
+        ?int $total,
+        array $userInput,
+        array $completionHandlers,
+        bool $attachFailureReport,
+    ): self {
+        $run = self::create([
+            'action_name' => $actionName,
+            'user_id' => $userId,
+            'page' => $page,
+            'status' => BatchRunStatus::Processing,
+            'total' => $total,
+            'meta' => [
+                'userInput' => $userInput,
+                'completionHandlers' => $completionHandlers,
+                'attach_failure_report' => $attachFailureReport,
+            ],
+            'started_at' => now(),
+        ]);
+
+        SolarisBatchStarted::dispatch($run->id, $run->action_name, $run->user_id, $run->page, $run->total);
+
+        return $run;
     }
 
     /** @return HasMany<SolarisBatchProblem, $this> */

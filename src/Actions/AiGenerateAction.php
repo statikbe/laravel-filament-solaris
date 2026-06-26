@@ -935,24 +935,16 @@ class AiGenerateAction extends SolarisAction
     {
         $livewire = $this->getLivewire();
 
-        $run = SolarisBatchRun::create([
-            'action_name' => $this->getName(),
-            'user_id' => ($userId = auth()->id()) === null ? null : (string) $userId,
-            'page' => $livewire !== null ? $livewire::class : null,
-            'status' => BatchRunStatus::Processing,
+        return SolarisBatchRun::start(
+            actionName: $this->getName(),
+            userId: ($userId = auth()->id()) === null ? null : (string) $userId,
+            page: $livewire !== null ? $livewire::class : null,
             // null for the single-call path: the row count is unknown until the model answers.
-            'total' => $rows !== null && is_countable($rows) ? count($rows) : null,
-            'meta' => [
-                'userInput' => $userInput,
-                'completionHandlers' => $this->resolveCompletionHandlers(),
-                'attach_failure_report' => $this->resolveAttachFailureReport(),
-            ],
-            'started_at' => now(),
-        ]);
-
-        SolarisBatchStarted::dispatch($run->id, $run->action_name, $run->user_id, $run->page, $run->total);
-
-        return $run;
+            total: $rows !== null && is_countable($rows) ? count($rows) : null,
+            userInput: $userInput,
+            completionHandlers: $this->resolveCompletionHandlers(),
+            attachFailureReport: $this->resolveAttachFailureReport(),
+        );
     }
 
     /**
