@@ -387,15 +387,9 @@ class AiGenerateAction extends SolarisAction
             return;
         }
 
-        if ($this->isQueued($userInput) && $this->writeTerminal !== null) {
-            $this->dispatchQueuedSingleCall($userInput);
-
-            return;
-        }
-
         // From-scratch create (no ->sourceRecords()): a write terminal → the
-        // service seeds + writes + finalizes. Reached only for createRecords;
-        // updateRecords always has a source (validated upstream).
+        // service seeds + writes + finalizes (inline or queued). Reached only for
+        // createRecords; updateRecords always has a source (validated upstream).
         if ($this->writeTerminal !== null) {
             $this->executeFromScratchCreate($userInput);
 
@@ -427,8 +421,17 @@ class AiGenerateAction extends SolarisAction
      */
     protected function executeFromScratchCreate(array $userInput): void
     {
+        $generator = $this->makeFromScratchGenerator($userInput);
+
+        if ($this->isQueued($userInput)) {
+            $generator->runQueued();
+            $this->sendQueuedStartedNotification();
+
+            return;
+        }
+
         try {
-            $this->makeFromScratchGenerator($userInput)->runInline();
+            $generator->runInline();
         } catch (BatchGenerationException $e) {
             $previous = $e->getPrevious();
 
@@ -842,13 +845,16 @@ class AiGenerateAction extends SolarisAction
      */
     protected function executeRecordsLoop(array $userInput = []): void
     {
+        $generator = $this->makeBatchGenerator($userInput);
+
         if ($this->isQueued($userInput)) {
-            $this->dispatchQueuedRun($userInput);
+            $generator->runQueued();
+            $this->sendQueuedStartedNotification();
 
             return;
         }
 
-        $this->makeBatchGenerator($userInput)->runInline();
+        $generator->runInline();
     }
 
     /**
@@ -925,26 +931,6 @@ class AiGenerateAction extends SolarisAction
     protected function resolveCompletionHandlers(): array
     {
         return CompletionHandlerRunner::resolve($this->completionHandlers);
-    }
-
-    /**
-     * @param  iterable<int, array<string, mixed>|Model>|null  $rows
-     * @param  array<string, mixed>  $userInput
-     */
-    protected function startBatchRun(?iterable $rows, array $userInput = []): SolarisBatchRun
-    {
-        $livewire = $this->getLivewire();
-
-        return SolarisBatchRun::start(
-            actionName: $this->getName(),
-            userId: ($userId = auth()->id()) === null ? null : (string) $userId,
-            page: $livewire !== null ? $livewire::class : null,
-            // null for the single-call path: the row count is unknown until the model answers.
-            total: $rows !== null && is_countable($rows) ? count($rows) : null,
-            userInput: $userInput,
-            completionHandlers: $this->resolveCompletionHandlers(),
-            attachFailureReport: $this->resolveAttachFailureReport(),
-        );
     }
 
     /**

@@ -6,6 +6,7 @@ use Laravel\Ai\Files\Document;
 use Livewire\Livewire;
 use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
 use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
+use Statikbe\FilamentSolaris\Generation\AiGenerator;
 use Statikbe\FilamentSolaris\Jobs\ProcessChunkJob;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
 use Statikbe\FilamentSolaris\Support\Batch\BatchRunConfig;
@@ -41,8 +42,8 @@ it('round-trips attachments through File::toArray()/fromArray()', function () {
 });
 
 it('rejects a local-path attachment when queued (worker cannot reach it)', function () {
-    $action = (new ReflectionClass(AiGenerateAction::class))->newInstanceWithoutConstructor();
-    $serialize = (new ReflectionMethod(AiGenerateAction::class, 'serializeAttachments'))->getClosure($action);
+    $generator = AiGenerator::make();
+    $serialize = (new ReflectionMethod(AiGenerator::class, 'serializeAttachments'))->getClosure($generator);
 
     expect(fn () => $serialize([Document::fromPath('/tmp/x.pdf')]))
         ->toThrow(RuntimeException::class, 'disk-backed');

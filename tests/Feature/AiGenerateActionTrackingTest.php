@@ -70,11 +70,16 @@ it('persists a tracked run with failure + discard problems and fires events', fu
 });
 
 it('stashes userInput + resolved completion handlers in run meta', function () {
+    // The action wires onCompletion + userInput into the AiGenerator it builds;
+    // the generator's createTrackedRun persists them into the run meta.
     $action = AiGenerateAction::make('metaCheck')
         ->forModel(SeedCategory::class)
+        ->sourceRecords([['x' => 1]])
+        ->createRecords()
         ->onCompletion(RecordingHandler::class);
 
-    $run = (new ReflectionMethod($action, 'startBatchRun'))->invoke($action, [['x' => 1]], ['focus' => 'seo']);
+    $generator = (new ReflectionMethod($action, 'makeBatchGenerator'))->invoke($action, ['focus' => 'seo']);
+    $run = (new ReflectionMethod($generator, 'createTrackedRun'))->invoke($generator, 1);
 
     expect($run->meta['userInput'])->toBe(['focus' => 'seo'])
         ->and($run->meta['completionHandlers'])->toBe([RecordingHandler::class]);

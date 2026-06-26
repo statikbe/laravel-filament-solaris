@@ -6,7 +6,6 @@ use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
 use Statikbe\FilamentSolaris\Generation\AiGenerator;
 use Statikbe\FilamentSolaris\Jobs\ProcessChunkJob;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
-use Statikbe\FilamentSolaris\Support\Batch\BatchResponse;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 use Statikbe\FilamentSolaris\Tests\Fixtures\SeedCategory;
 
