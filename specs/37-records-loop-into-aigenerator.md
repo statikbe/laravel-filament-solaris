@@ -1,10 +1,35 @@
 # 37 — Records-loop + write-back into AiGenerator (piece 2)
 
-> **Status:** Design doc. Piece 2 of the AiGenerator arc (umbrella: `36-ai-generator-service.md`).
-> Awaiting user review before an implementation plan.
+> **Status:** In progress on `feature/records-loop-into-aigenerator`.
+> Piece 2 of the AiGenerator arc (umbrella: `36-ai-generator-service.md`).
 > **Date:** 2026-06-25.
 > **Depends on:** piece 1 (single-call `AiGenerator::runInline()`, merged).
 > **Followed by:** piece 3 (queued dispatch into the service — `runQueued`).
+
+## Implementation status (2026-06-26)
+
+**Done (committed, suite 662 green, PHPStan clean):**
+1. Collaborators extracted + action delegates: `RecordsSchemaBuilder`,
+   `BatchPromptBuilder`, `RecordWriter`, `Runners/InlineRunner`.
+2. `AiGenerator` records-loop batch API (`forModel`/`only`/`except`/
+   `columnHints`/`columnEnums`/`sourceRecords`/`createRecords`/`updateRecords`/
+   `batchSize`/`promptContextColumns`/`userInput`/`trackBatchRuns`/`onCompletion`/
+   `withFailureReport`); `runInline(): GenerationResult|BatchSummary`; owns prompt
+   assembly, schema, write-back, run creation/tracking, the real per-batch agent
+   call + events, InlineRunner orchestration. `source()` → `eventSource()`.
+3. `AiGenerateAction::executeRecordsLoop` translates config → `AiGenerator` →
+   `runInline()`; fake plugs in via `->responseGenerator()` (Option 1 seam),
+   `AiGenerateActionFake` surface unchanged.
+
+**Remaining for piece 2:**
+- **From-scratch `count()` create relocation.** `forModel + createRecords + count`
+  (no `sourceRecords`) still does write-back + finalize **action-side** in
+  `handleSingleCallResponse` (works, tested) — not yet callable headlessly via
+  `AiGenerator`. Delicate because it shares the single-call dispatch with handler /
+  custom-schema modes. Next focused task; the records-loop path above is the
+  template (single structured call → write records → `InlineRunner::finalize`).
+- Extend the headless `documentation/` for the batch surface; memory note.
+- The action's `startBatchRun` now serves only the queued path (piece 3 absorbs it).
 
 ---
 
