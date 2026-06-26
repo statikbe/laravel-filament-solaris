@@ -4,6 +4,7 @@ namespace Statikbe\FilamentSolaris\Generation;
 
 use Closure;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -23,13 +24,16 @@ use Statikbe\FilamentSolaris\Events\SolarisResponseFailed;
 use Statikbe\FilamentSolaris\Events\SolarisResponseReceived;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
 use Statikbe\FilamentSolaris\Support\Batch\BatchGenerationException;
+use Statikbe\FilamentSolaris\Support\Batch\BatchProcessor;
 use Statikbe\FilamentSolaris\Support\Batch\BatchPromptBuilder;
 use Statikbe\FilamentSolaris\Support\Batch\BatchResponse;
+use Statikbe\FilamentSolaris\Support\Batch\BatchRunConfig;
 use Statikbe\FilamentSolaris\Support\Batch\BatchSummary;
 use Statikbe\FilamentSolaris\Support\Batch\FailedRecord;
 use Statikbe\FilamentSolaris\Support\Batch\RecordsSchemaBuilder;
 use Statikbe\FilamentSolaris\Support\Batch\RecordWriter;
 use Statikbe\FilamentSolaris\Support\Batch\Runners\InlineRunner;
+use Statikbe\FilamentSolaris\Support\Batch\Runners\QueuedRunner;
 use Statikbe\FilamentSolaris\Support\GenerationOptions;
 use Statikbe\FilamentSolaris\Support\SolarisPromptLogger;
 
@@ -387,6 +391,128 @@ class AiGenerator
         return $this->runSingleStructuredCall();
     }
 
+    /**
+     * Dispatch the run to the queue (a Bus::batch of per-chunk jobs) and return the
+     * persisted {@see SolarisBatchRun} handle — the outcome arrives later via events
+     * + completion handlers. Always tracks (the run row aggregates per-chunk
+     * outcomes). Records-loop vs from-scratch is inferred from ->sourceRecords().
+     */
+    public function runQueued(): SolarisBatchRun
+    {
+        if ($this->writeTerminal === null) {
+            throw new RuntimeException('AiGenerator ->runQueued() requires a write terminal (->createRecords()/->updateRecords()); a closure/handler cannot be queued.');
+        }
+
+        if ($this->modelClass === null) {
+            throw new RuntimeException('AiGenerator ->runQueued() requires ->forModel().');
+        }
+
+        return $this->sourceRecords === null
+            ? $this->dispatchQueuedFromScratch()
+            : $this->dispatchQueuedRecordsLoop($this->sourceRecords);
+    }
+
+    /**
+     * @param  iterable<int, array<string, mixed>|Model>  $rows
+     */
+    protected function dispatchQueuedRecordsLoop(iterable $rows): SolarisBatchRun
+    {
+        $run = $this->createTrackedRun(is_countable($rows) ? count($rows) : null);
+        $config = $this->buildRunConfig($run);
+        $attachments = $this->serializeAttachments($this->attachments);
+        $promptBuilder = new BatchPromptBuilder($this->resolveIdentifierKey(), $this->promptContextColumns);
+
+        (new QueuedRunner)->dispatch(
+            run: $run,
+            config: $config,
+            chunks: BatchProcessor::chunkRows($rows, $this->batchSize),
+            renderPrompt: fn (array $chunk): string => $promptBuilder->build($this->prompt, $chunk, $this->userInput),
+            buildDescriptors: fn (array $chunk): array => $this->buildChunkDescriptors($chunk),
+            attachments: $attachments,
+        );
+
+        return $run;
+    }
+
+    protected function dispatchQueuedFromScratch(): SolarisBatchRun
+    {
+        $instruction = BatchPromptBuilder::fromScratch($this->prompt, $this->recordCount, $this->userInput);
+
+        $run = $this->createTrackedRun(null);   // total unknown until the model answers
+        $config = $this->buildRunConfig($run);
+        $attachments = $this->serializeAttachments($this->attachments);
+
+        (new QueuedRunner)->dispatchSingleCall($run, $config, $instruction, $attachments);
+
+        return $run;
+    }
+
+    protected function buildRunConfig(SolarisBatchRun $run): BatchRunConfig
+    {
+        return new BatchRunConfig(
+            actionName: $this->sourceName,
+            modelClass: $this->modelClass,
+            onlyColumns: $this->onlyColumns,
+            exceptColumns: $this->exceptColumns,
+            columnHints: $this->columnHints,
+            columnEnums: $this->columnEnums,
+            identifierKey: $this->resolveIdentifierKey(),
+            writeTerminal: $this->writeTerminal,
+            provider: $this->provider,
+            model: $this->model,
+            timeout: $this->timeout,
+            runId: $run->id,
+            temperature: $this->options->temperature,
+            maxTokens: $this->options->maxTokens,
+            maxSteps: $this->options->maxSteps,
+            topP: $this->options->topP,
+        );
+    }
+
+    /**
+     * Serialize resolved attachments for the queue. File::toArray() ⇄ fromArray() is
+     * symmetric, so disk-backed / base64 / remote files travel fine. A `local-*`
+     * file is a transient local path a worker can't read — reject it at dispatch.
+     *
+     * @param  array<int, File>  $files
+     * @return array<int, array<string, mixed>>
+     */
+    protected function serializeAttachments(array $files): array
+    {
+        return array_map(static function (File $file): array {
+            if (! $file instanceof Arrayable) {
+                throw new RuntimeException('AiGenerator ->runQueued() attachments must be serializable (Arrayable). Got: '.$file::class);
+            }
+
+            /** @var array<string, mixed> $data */
+            $data = $file->toArray();
+
+            if (str_starts_with((string) ($data['type'] ?? ''), 'local-')) {
+                throw new RuntimeException('AiGenerator ->runQueued() attachments must be disk-backed (Storage) or base64; a local filesystem path is not reachable from a worker. Got: '.$data['type']);
+            }
+
+            return $data;
+        }, $files);
+    }
+
+    /**
+     * Minimal per-row descriptor the worker needs to match + write back:
+     * updateRecords carries just the pk; create/from-source carries the snapshot.
+     *
+     * @param  array<int, array<string, mixed>|Model>  $chunk
+     * @return array<int, array<string, mixed>>
+     */
+    protected function buildChunkDescriptors(array $chunk): array
+    {
+        $identifierKey = $this->resolveIdentifierKey();
+
+        if ($identifierKey !== '_index') {
+            return array_map(static fn ($row): array => [$identifierKey => $row->getKey()], $chunk);
+        }
+
+        return array_map(static fn ($row): array => $row instanceof Model ? $row->toArray() : $row, array_values($chunk));
+    }
+
     protected function runBatch(): BatchSummary
     {
         if ($this->modelClass === null) {
@@ -401,7 +527,9 @@ class AiGenerator
         $modelClass = $this->modelClass;
         $writeTerminal = $this->writeTerminal;
 
-        $run = $this->tracked ? $this->createTrackedRun($rows) : null;
+        $run = $this->tracked
+            ? $this->createTrackedRun(is_countable($rows) ? count($rows) : null)
+            : null;
 
         return (new InlineRunner)->run(
             actionName: $this->sourceName,
@@ -427,7 +555,8 @@ class AiGenerator
         $identifierKey = $this->resolveIdentifierKey();
         $writer = new RecordWriter($modelClass, $this->writeTerminal);
 
-        $run = $this->tracked ? $this->createTrackedRun([]) : null;
+        // total is unknown until the model answers (no input rows to count).
+        $run = $this->tracked ? $this->createTrackedRun(null) : null;
 
         $generate = $this->responseGeneratorOverride ?? $this->buildFromScratchResponseGenerator();
         $response = $generate([]);
@@ -566,10 +695,7 @@ class AiGenerator
         return '_index';
     }
 
-    /**
-     * @param  iterable<int, array<string, mixed>|Model>  $rows
-     */
-    protected function createTrackedRun(iterable $rows): SolarisBatchRun
+    protected function createTrackedRun(?int $total): SolarisBatchRun
     {
         $userId = $this->hasUser ? $this->user?->getAuthIdentifier() : auth()->id();
 
@@ -577,7 +703,7 @@ class AiGenerator
             actionName: $this->sourceName,
             userId: $userId === null ? null : (string) $userId,
             page: $this->livewire !== null ? $this->livewire::class : null,
-            total: is_countable($rows) ? count($rows) : null,
+            total: $total,
             userInput: $this->userInput,
             completionHandlers: $this->completionHandlers,
             attachFailureReport: $this->attachFailureReport,
