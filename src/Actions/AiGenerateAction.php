@@ -11,7 +11,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Exceptions\AiException;
 use Laravel\Ai\Files\File;
 use Laravel\Ai\Responses\StructuredAgentResponse;
@@ -22,24 +21,19 @@ use Statikbe\FilamentSolaris\Concerns\HasGenerationOptions;
 use Statikbe\FilamentSolaris\Concerns\HasQueuedExecution;
 use Statikbe\FilamentSolaris\Concerns\HasUserInput;
 use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
-use Statikbe\FilamentSolaris\Events\SolarisBatchCompleted;
 use Statikbe\FilamentSolaris\Events\SolarisBatchStarted;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\Generation\AiGenerator;
 use Statikbe\FilamentSolaris\Generation\GenerationResult;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
 use Statikbe\FilamentSolaris\Support\Batch\BatchGenerationException;
-use Statikbe\FilamentSolaris\Support\Batch\BatchProcessor;
 use Statikbe\FilamentSolaris\Support\Batch\BatchPromptBuilder;
 use Statikbe\FilamentSolaris\Support\Batch\BatchResponse;
-use Statikbe\FilamentSolaris\Support\Batch\BatchSummary;
 use Statikbe\FilamentSolaris\Support\Batch\CompletionHandlerRunner;
 use Statikbe\FilamentSolaris\Support\Batch\FailedRecord;
 use Statikbe\FilamentSolaris\Support\Batch\RecordsSchemaBuilder;
 use Statikbe\FilamentSolaris\Support\Batch\RecordWriter;
-use Statikbe\FilamentSolaris\Support\Batch\Sinks\CompositeBatchSink;
-use Statikbe\FilamentSolaris\Support\Batch\Sinks\DatabaseBatchSink;
-use Statikbe\FilamentSolaris\Support\Batch\Sinks\InMemoryBatchSink;
+use Statikbe\FilamentSolaris\Support\Batch\Runners\InlineRunner;
 use Statikbe\FilamentSolaris\Support\SolarisNotification;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 
@@ -784,46 +778,19 @@ class AiGenerateAction extends SolarisAction
         $resolver = $this->resolveSchemaResolver();
         $attachments = $this->resolveAttachments($userInput);
 
-        $collector = new InMemoryBatchSink;
-
         $run = $this->isTracked($userInput) ? $this->startBatchRun($rows, $userInput) : null;
-        $sink = $run === null
-            ? $collector
-            : new CompositeBatchSink([$collector, new DatabaseBatchSink($run->id)]);
 
-        $processor = new BatchProcessor(
-            $this->resolveIdentifierKey(),
-            $this->makeResponseGenerator($userInput, $attachments, $provider, $model, $timeout, $resolver),
-            fn (mixed $source, array $attributes) => $this->writeRow($source, $attributes),
-            $sink,
+        (new InlineRunner)->run(
+            actionName: $this->getName(),
+            rows: $rows,
+            batchSize: $batchSize,
+            identifierKey: $this->resolveIdentifierKey(),
+            generateResponse: $this->makeResponseGenerator($userInput, $attachments, $provider, $model, $timeout, $resolver),
+            persistRecord: fn (mixed $source, array $attributes) => $this->writeRow($source, $attributes),
+            run: $run,
+            completionHandlers: $this->resolveCompletionHandlers(),
+            userInput: $userInput,
         );
-
-        $processor->process($rows, $batchSize);
-
-        foreach ($collector->discarded() as $drop) {
-            $this->logToFailureChannel($drop->reason);
-        }
-
-        $succeeded = $collector->succeeded();
-        $failures = $collector->failures();
-        $discarded = count($collector->discarded());
-
-        // Mirror the queued FinalizeRun ordering: complete the run + fire the event
-        // (the substrate) before running completion handlers (the strategy), so a
-        // tracked run's summary reflects the final Completed status.
-        if ($run !== null) {
-            $run->markCompleted();
-            SolarisBatchCompleted::dispatch(
-                $run->id,
-                $this->getName(),
-                $succeeded,
-                count($failures),
-                $discarded,
-                BatchRunStatus::Completed,
-            );
-        }
-
-        $this->finishBatchRun($succeeded, $failures, $discarded, $userInput, $run);
     }
 
     /**
@@ -920,79 +887,23 @@ class AiGenerateAction extends SolarisAction
     }
 
     /**
-     * Close out a batched run: log any failures, then run the resolved
-     * completion handlers against a path-agnostic summary.
+     * Close out a non-loop run (single-call create): delegate the failure
+     * manifest + completion handlers to the shared {@see InlineRunner} finalize.
      *
      * @param  array<int, FailedRecord>  $failures
      * @param  array<string, mixed>  $userInput
      */
     protected function finishBatchRun(int $succeeded, array $failures, int $discarded, array $userInput, ?SolarisBatchRun $run = null): void
     {
-        if ($failures !== []) {
-            $this->reportFailures($failures);
-        }
-
-        $summary = new BatchSummary(
-            actionName: $this->getName(),
-            runId: $run?->id,
-            succeeded: $succeeded,
-            failed: count($failures),
-            discarded: $discarded,
-            status: $run === null ? BatchRunStatus::Completed : $run->status,
-            queued: false,
-            userInput: $userInput,
+        (new InlineRunner)->finalize(
+            $this->getName(),
+            $succeeded,
+            $failures,
+            $discarded,
+            $userInput,
+            $run,
+            $this->resolveCompletionHandlers(),
         );
-
-        (new CompletionHandlerRunner)->run($this->resolveCompletionHandlers(), $summary);
-    }
-
-    /**
-     * Log the failure manifest so failures are never silently dropped, regardless
-     * of which completion handlers are registered. Models are reduced to their
-     * key to keep the log readable.
-     *
-     * @param  array<int, FailedRecord>  $failures
-     */
-    protected function reportFailures(array $failures): void
-    {
-        $this->logToFailureChannel(
-            'AiGenerateAction: '.count($failures).' record(s) failed during a batched run.',
-            [
-                'action' => $this->getName(),
-                'failures' => array_map(fn (FailedRecord $f): array => [
-                    'identifier' => $f->identifier,
-                    'reason' => $f->reason,
-                    'input' => $f->input instanceof Model ? $f->input->getKey() : $f->input,
-                ], $failures),
-            ],
-        );
-    }
-
-    /**
-     * Log a batch diagnostic on the failure-logging channel (gated by
-     * `failure_logging.enabled`). Used for the aggregated manifest and for
-     * reconcile anomalies (unmatched / duplicate identifiers) — none of which
-     * are bugs, so they go here rather than to `report()`.
-     *
-     * @param  array<string, mixed>  $context
-     */
-    protected function logToFailureChannel(string $message, array $context = []): void
-    {
-        $config = FilamentSolaris::config();
-
-        if (! $config->isFailureLoggingEnabled()) {
-            return;
-        }
-
-        $channel = $config->getFailureLoggingChannel();
-
-        if ($channel !== null) {
-            Log::channel($channel)->warning($message, $context);
-
-            return;
-        }
-
-        Log::warning($message, $context);
     }
 
     /**
