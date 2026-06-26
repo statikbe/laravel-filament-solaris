@@ -49,10 +49,6 @@ class AiGenerateAction extends SolarisAction
     use HasQueuedExecution;
     use HasUserInput;
 
-    public const RECORDS_KEY = BatchResponse::RECORDS;
-
-    public const FAILED_KEY = BatchResponse::FAILED;
-
     protected string|View|Closure|null $instruction = null;
 
     protected ?Closure $schemaResolver = null;

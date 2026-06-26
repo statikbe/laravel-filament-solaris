@@ -211,8 +211,8 @@ class ProcessChunkJob implements ShouldQueue
                 : $schema->integer()->description('The primary key. Echo unchanged.');
 
             return [
-                AiGenerateAction::RECORDS_KEY => $schema->array()->items($schema->object($properties)),
-                AiGenerateAction::FAILED_KEY => $schema->array()->items($schema->object([
+                BatchResponse::RECORDS => $schema->array()->items($schema->object($properties)),
+                BatchResponse::FAILED => $schema->array()->items($schema->object([
                     'identifier' => $schema->string()->description('Identifier of the failed input row.'),
                     'reason' => $schema->string()->description('Short reason for the failure (max 200 chars).'),
                 ])),
