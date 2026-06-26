@@ -22,6 +22,7 @@ use Statikbe\FilamentSolaris\Support\Batch\BatchProcessor;
 use Statikbe\FilamentSolaris\Support\Batch\BatchResponse;
 use Statikbe\FilamentSolaris\Support\Batch\BatchRunConfig;
 use Statikbe\FilamentSolaris\Support\Batch\FailedRecord;
+use Statikbe\FilamentSolaris\Support\Batch\RecordWriter;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\CompositeBatchSink;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\DatabaseBatchSink;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\InMemoryBatchSink;
@@ -86,7 +87,7 @@ class ProcessChunkJob implements ShouldQueue
     /**
      * Single-call / from-scratch (no input rows): generate once and create every
      * returned record. Mirrors AiGenerateAction::handleSingleCallResponse's
-     * WRITE_CREATE loop, but emits the outcome to the sink instead of notifying.
+     * create loop, but emits the outcome to the sink instead of notifying.
      */
     private function processFromScratch(CompositeBatchSink $sink): void
     {
@@ -171,7 +172,7 @@ class ProcessChunkJob implements ShouldQueue
             throw new \RuntimeException('ProcessChunkJob requires a model class for write-back.');
         }
 
-        if ($this->config->writeTerminal === AiGenerateAction::WRITE_CREATE) {
+        if ($this->config->writeTerminal === RecordWriter::CREATE) {
             $modelClass::create($attrs);
 
             return;

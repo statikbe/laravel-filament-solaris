@@ -53,10 +53,6 @@ class AiGenerateAction extends SolarisAction
 
     public const FAILED_KEY = BatchResponse::FAILED;
 
-    public const WRITE_CREATE = RecordWriter::CREATE;
-
-    public const WRITE_UPDATE = RecordWriter::UPDATE;
-
     protected string|View|Closure|null $instruction = null;
 
     protected ?Closure $schemaResolver = null;
@@ -216,7 +212,7 @@ class AiGenerateAction extends SolarisAction
 
     public function createRecords(): static
     {
-        $this->writeTerminal = self::WRITE_CREATE;
+        $this->writeTerminal = RecordWriter::CREATE;
         $this->writeTerminalCount++;
 
         return $this;
@@ -224,7 +220,7 @@ class AiGenerateAction extends SolarisAction
 
     public function updateRecords(): static
     {
-        $this->writeTerminal = self::WRITE_UPDATE;
+        $this->writeTerminal = RecordWriter::UPDATE;
         $this->writeTerminalCount++;
 
         return $this;
@@ -489,7 +485,7 @@ class AiGenerateAction extends SolarisAction
                 $batchResponse = BatchResponse::fromArray($responseData);
                 $identifierKey = $this->resolveIdentifierKey();
 
-                if ($this->writeTerminal === self::WRITE_CREATE) {
+                if ($this->writeTerminal === RecordWriter::CREATE) {
                     $succeeded = 0;
                     $failures = $batchResponse->failed;
 
@@ -645,7 +641,7 @@ class AiGenerateAction extends SolarisAction
      */
     protected function resolveIdentifierKey(): string
     {
-        if ($this->writeTerminal === self::WRITE_UPDATE) {
+        if ($this->writeTerminal === RecordWriter::UPDATE) {
             assert($this->modelClass !== null);
 
             return (new ($this->modelClass)())->getKeyName();
@@ -691,7 +687,7 @@ class AiGenerateAction extends SolarisAction
         }
 
         // updateRecords needs a source — without records() there is nothing to update.
-        if ($this->writeTerminal === self::WRITE_UPDATE && $this->source === null) {
+        if ($this->writeTerminal === RecordWriter::UPDATE && $this->source === null) {
             throw new RuntimeException('AiGenerateAction ->updateRecords() requires ->sourceRecords() — without a source there is nothing to update.');
         }
 
@@ -805,7 +801,7 @@ class AiGenerateAction extends SolarisAction
             ->forLivewire($this->getLivewire())
             ->forUser(auth()->user());
 
-        $this->writeTerminal === self::WRITE_UPDATE
+        $this->writeTerminal === RecordWriter::UPDATE
             ? $generator->updateRecords()
             : $generator->createRecords();
 
