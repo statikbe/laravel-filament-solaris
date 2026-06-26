@@ -52,6 +52,41 @@ it('runs a headless records-loop and creates records, returning a BatchSummary',
         ->and(SeedCategory::query()->pluck('name')->all())->toEqualCanonicalizing(['A', 'B']);
 });
 
+it('seeds records from scratch with count() and no source', function () {
+    $summary = AiGenerator::make()
+        ->forModel(SeedCategory::class)
+        ->count(2)
+        ->createRecords()
+        ->prompt('Generate categories')
+        ->responseGenerator(fn (array $batch): BatchResponse => BatchResponse::fromArray([
+            'records' => [['_index' => 0, 'name' => 'A'], ['_index' => 1, 'name' => 'B']],
+            'failed' => [],
+        ]))
+        ->runInline();
+
+    expect($summary)->toBeInstanceOf(BatchSummary::class)
+        ->and($summary->succeeded)->toBe(2)
+        ->and($summary->failed)->toBe(0)
+        ->and(SeedCategory::query()->pluck('name')->all())->toEqualCanonicalizing(['A', 'B']);
+});
+
+it('captures write failures from scratch as summary failures', function () {
+    $summary = AiGenerator::make()
+        ->forModel(SeedCategory::class)
+        ->count(2)
+        ->createRecords()
+        ->prompt('Generate categories')
+        ->responseGenerator(fn (array $batch): BatchResponse => BatchResponse::fromArray([
+            // second record omits the required name → write error captured, not thrown
+            'records' => [['_index' => 0, 'name' => 'A'], ['_index' => 1, 'name' => null]],
+            'failed' => [],
+        ]))
+        ->runInline();
+
+    expect($summary->succeeded)->toBe(1)
+        ->and($summary->failed)->toBe(1);
+});
+
 it('updates source models on a headless update records-loop', function () {
     $one = SeedCategory::create(['name' => 'old-1']);
     $two = SeedCategory::create(['name' => 'old-2']);

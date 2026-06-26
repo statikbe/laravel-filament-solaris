@@ -18,6 +18,7 @@ use Laravel\Ai\Responses\StructuredAgentResponse;
 use RuntimeException;
 use Statikbe\FilamentSolaris\Agents\SolarisAgent;
 use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
+use Statikbe\FilamentSolaris\Events\SolarisBatchCompleted;
 use Statikbe\FilamentSolaris\Events\SolarisBatchStarted;
 use Statikbe\FilamentSolaris\Events\SolarisResponseFailed;
 use Statikbe\FilamentSolaris\Events\SolarisResponseReceived;
@@ -26,6 +27,7 @@ use Statikbe\FilamentSolaris\Support\Batch\BatchGenerationException;
 use Statikbe\FilamentSolaris\Support\Batch\BatchPromptBuilder;
 use Statikbe\FilamentSolaris\Support\Batch\BatchResponse;
 use Statikbe\FilamentSolaris\Support\Batch\BatchSummary;
+use Statikbe\FilamentSolaris\Support\Batch\FailedRecord;
 use Statikbe\FilamentSolaris\Support\Batch\RecordsSchemaBuilder;
 use Statikbe\FilamentSolaris\Support\Batch\RecordWriter;
 use Statikbe\FilamentSolaris\Support\Batch\Runners\InlineRunner;
@@ -99,6 +101,8 @@ class AiGenerator
     protected ?iterable $sourceRecords = null;
 
     protected ?string $writeTerminal = null;
+
+    protected int $recordCount = 1;
 
     protected int $batchSize = 10;
 
@@ -283,6 +287,17 @@ class AiGenerator
         return $this;
     }
 
+    /**
+     * Number of records to seed when generating from scratch (createRecords with
+     * no ->sourceRecords()).
+     */
+    public function count(int $count): static
+    {
+        $this->recordCount = $count;
+
+        return $this;
+    }
+
     public function createRecords(): static
     {
         $this->writeTerminal = RecordWriter::CREATE;
@@ -375,12 +390,12 @@ class AiGenerator
 
     protected function runBatch(): BatchSummary
     {
-        if ($this->sourceRecords === null) {
-            throw new RuntimeException('AiGenerator batch (createRecords/updateRecords) currently requires ->sourceRecords().');
-        }
-
         if ($this->modelClass === null) {
             throw new RuntimeException('AiGenerator ->createRecords()/->updateRecords() require ->forModel().');
+        }
+
+        if ($this->sourceRecords === null) {
+            return $this->runFromScratch();
         }
 
         $rows = $this->sourceRecords;
@@ -400,6 +415,92 @@ class AiGenerator
             completionHandlers: $this->completionHandlers,
             userInput: $this->userInput,
         );
+    }
+
+    /**
+     * Seed-from-scratch create: one structured call returning records[]/failed[],
+     * write every returned record, capture per-row write errors, and finalize to a
+     * BatchSummary. No reconciliation — there are no input rows to match against.
+     */
+    protected function runFromScratch(): BatchSummary
+    {
+        $modelClass = $this->modelClass;
+        $identifierKey = $this->resolveIdentifierKey();
+        $writer = new RecordWriter($modelClass, $this->writeTerminal);
+
+        $run = $this->tracked ? $this->createTrackedRun([]) : null;
+
+        $generate = $this->responseGeneratorOverride ?? $this->buildFromScratchResponseGenerator();
+        $response = $generate([]);
+
+        $succeeded = 0;
+        $failures = $response->failed;
+
+        foreach ($response->records as $index => $record) {
+            $attrs = $record;
+            unset($attrs[$identifierKey]);
+
+            try {
+                $writer->write($record, $attrs);
+                $succeeded++;
+            } catch (\Throwable $e) {
+                // Expected per-row data failure — captured, not report()ed.
+                $failures[] = new FailedRecord(
+                    identifier: $record[$identifierKey] ?? $index,
+                    reason: 'write error: '.$e->getMessage(),
+                    input: $record,
+                );
+            }
+        }
+
+        if ($run !== null) {
+            $run->markCompleted();
+            SolarisBatchCompleted::dispatch($run->id, $this->sourceName, $succeeded, count($failures), 0, BatchRunStatus::Completed);
+        }
+
+        return (new InlineRunner)->finalize(
+            $this->sourceName,
+            $succeeded,
+            $failures,
+            0,
+            $this->userInput,
+            $run,
+            $this->completionHandlers,
+        );
+    }
+
+    /**
+     * Real from-scratch step: assemble the seed prompt, call the agent once, fire
+     * events. Re-wraps an AiException as BatchGenerationException for symmetry with
+     * the records-loop path.
+     *
+     * @return Closure(array<int, array<string, mixed>|Model>): BatchResponse
+     */
+    protected function buildFromScratchResponseGenerator(): Closure
+    {
+        $schemaResolver = $this->resolveBatchSchemaResolver();
+        $count = $this->recordCount;
+        $userInput = $this->userInput;
+
+        return function (array $batch) use ($schemaResolver, $count, $userInput): BatchResponse {
+            $instruction = BatchPromptBuilder::fromScratch($this->prompt, $count, $userInput);
+
+            $agent = (new SolarisAgent)->configure($instruction, [], $schemaResolver);
+
+            if ($this->tools !== null) {
+                $agent->withTools($this->tools);
+            }
+
+            $this->options->applyTo($agent);
+
+            try {
+                $response = $this->callAgent($agent, $instruction);
+            } catch (AiException $e) {
+                throw new BatchGenerationException($e->getMessage(), (int) $e->getCode(), $e);
+            }
+
+            return BatchResponse::fromArray($response->toArray());
+        };
     }
 
     /**

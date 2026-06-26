@@ -88,6 +88,36 @@ class BatchPromptBuilder
     }
 
     /**
+     * Assemble the from-scratch (seed) prompt for a forModel single call: base
+     * instruction (string, View, or plain closure receiving $userInput) + "Generate
+     * N records" + ## User context + the single-call ## Instructions block.
+     *
+     * @param  string|View|Closure(array<string, mixed>): (string|View)  $instruction
+     * @param  array<string, mixed>  $userInput
+     */
+    public static function fromScratch(string|View|Closure $instruction, int $count, array $userInput): string
+    {
+        if ($instruction instanceof Closure) {
+            $instruction = $instruction($userInput);
+        }
+
+        if ($instruction instanceof View) {
+            $instruction = $instruction->render();
+        }
+
+        $instruction = trim((string) $instruction."\n\nGenerate {$count} records.");
+        $instruction = self::appendUserContext($instruction, $userInput);
+
+        $boilerplate = <<<'TXT'
+## Instructions
+Return generated records in the `records` array.
+For any input you cannot process (e.g., malformed line, ambiguous source data), add an entry to `failed` with an `identifier` describing the failed input (line number, source excerpt) and a short `reason`.
+TXT;
+
+        return trim($instruction)."\n\n".$boilerplate;
+    }
+
+    /**
      * Append a `## User context` JSON block when the user-input modal yielded any
      * filled values. No-op for empty input. Shared with the single-call path.
      *
