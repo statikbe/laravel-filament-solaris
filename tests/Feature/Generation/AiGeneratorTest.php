@@ -34,7 +34,7 @@ it('dispatches SolarisResponseReceived on success', function () {
 
     AiGenerator::make()
         ->prompt('p')
-        ->source('plausibility-check')
+        ->eventSource('plausibility-check')
         ->schema(fn (JsonSchemaTypeFactory $s) => ['title' => $s->string()])
         ->runInline();
 

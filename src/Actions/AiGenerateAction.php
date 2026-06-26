@@ -13,10 +13,8 @@ use Illuminate\JsonSchema\Types\Type;
 use Illuminate\Support\Collection;
 use Laravel\Ai\Exceptions\AiException;
 use Laravel\Ai\Files\File;
-use Laravel\Ai\Responses\StructuredAgentResponse;
 use LogicException;
 use RuntimeException;
-use Statikbe\FilamentSolaris\Agents\SolarisAgent;
 use Statikbe\FilamentSolaris\Concerns\HasGenerationOptions;
 use Statikbe\FilamentSolaris\Concerns\HasQueuedExecution;
 use Statikbe\FilamentSolaris\Concerns\HasUserInput;
@@ -439,7 +437,7 @@ class AiGenerateAction extends SolarisAction
             ->timeout($this->resolveTimeout())
             ->options($this->resolveGenerationOptions())
             ->attachments($this->resolveAttachments($userInput))
-            ->source($this->getName(), static::class)
+            ->eventSource($this->getName(), static::class)
             ->forLivewire($this->getLivewire())
             ->forUser(auth()->user());
 
@@ -770,27 +768,75 @@ class AiGenerateAction extends SolarisAction
             return;
         }
 
-        $rows = $this->resolveRecordsSource($userInput);
-        ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
-        $timeout = $this->resolveTimeout();
-        $batchSize = $this->resolveBatchSize($userInput);
+        $this->makeBatchGenerator($userInput)->runInline();
+    }
 
-        $resolver = $this->resolveSchemaResolver();
+    /**
+     * Translate this action's resolved batch config into a headless
+     * {@see AiGenerator}. Under a fake, inject the canned per-batch response
+     * generator; otherwise the service makes the real agent call itself.
+     *
+     * @param  array<string, mixed>  $userInput
+     */
+    protected function makeBatchGenerator(array $userInput): AiGenerator
+    {
+        ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
         $attachments = $this->resolveAttachments($userInput);
 
-        $run = $this->isTracked($userInput) ? $this->startBatchRun($rows, $userInput) : null;
+        $generator = AiGenerator::make()
+            ->eventSource($this->getName(), static::class)
+            ->forModel($this->modelClass)
+            ->only($this->onlyColumns)
+            ->except($this->exceptColumns)
+            ->columnHints($this->columnHints)
+            ->columnEnums($this->columnEnums)
+            ->sourceRecords($this->resolveRecordsSource($userInput))
+            ->prompt($this->wrapBatchInstruction())
+            ->promptContextColumns($this->promptContextColumns)
+            ->userInput($userInput)
+            ->batchSize($this->resolveBatchSize($userInput))
+            ->provider($provider, $model)
+            ->timeout($this->resolveTimeout())
+            ->options($this->resolveGenerationOptions())
+            ->attachments($attachments)
+            ->trackBatchRuns($this->isTracked($userInput))
+            ->onCompletion($this->resolveCompletionHandlers())
+            ->withFailureReport($this->resolveAttachFailureReport())
+            ->forLivewire($this->getLivewire())
+            ->forUser(auth()->user());
 
-        (new InlineRunner)->run(
-            actionName: $this->getName(),
-            rows: $rows,
-            batchSize: $batchSize,
-            identifierKey: $this->resolveIdentifierKey(),
-            generateResponse: $this->makeResponseGenerator($userInput, $attachments, $provider, $model, $timeout, $resolver),
-            persistRecord: fn (mixed $source, array $attributes) => $this->writeRow($source, $attributes),
-            run: $run,
-            completionHandlers: $this->resolveCompletionHandlers(),
-            userInput: $userInput,
-        );
+        $this->writeTerminal === self::WRITE_UPDATE
+            ? $generator->updateRecords()
+            : $generator->createRecords();
+
+        if (AiGenerateActionFake::isActive()) {
+            $generator->responseGenerator(
+                $this->makeFakeResponseGenerator($userInput, $attachments, $provider, $model),
+            );
+        }
+
+        return $generator;
+    }
+
+    /**
+     * Pre-wrap a Filament-DI instruction closure into the plain
+     * `fn($rows, $userInput)` shape {@see BatchPromptBuilder} expects (string/View
+     * pass through unchanged), so the service stays Filament-free.
+     */
+    protected function wrapBatchInstruction(): string|View|Closure
+    {
+        $instruction = $this->instruction;
+
+        if ($instruction instanceof Closure) {
+            $closure = $instruction;
+
+            return fn (array $rows, array $userInput): mixed => $this->evaluate($closure, [
+                'rows' => $rows,
+                'userInput' => $userInput,
+            ]);
+        }
+
+        return $instruction ?? '';
     }
 
     /**
@@ -830,59 +876,37 @@ class AiGenerateAction extends SolarisAction
     }
 
     /**
-     * Build the per-batch AI-call closure for the processor. Real path calls the
-     * agent synchronously; fake path replays the canned response. Either throws
-     * BatchGenerationException on an AI-call failure so the processor marks the
-     * batch failed. This is where the old processBatch/processFakeBatch split lived.
+     * Fake per-batch response generator injected into the {@see AiGenerator} under
+     * a fake: replay the canned response, record the call, and fire the fake
+     * events — throwing BatchGenerationException so the processor marks the batch
+     * failed. The real path lives in AiGenerator. Still builds the instruction so
+     * prompt-closure errors surface under the fake.
      *
      * @param  array<string, mixed>  $userInput
      * @param  array<int, File>  $attachments
-     * @param  Closure(JsonSchemaTypeFactory): array<string, Type>  $resolver
      * @return Closure(array<int, array<string, mixed>|Model>): BatchResponse
      */
-    protected function makeResponseGenerator(array $userInput, array $attachments, mixed $provider, ?string $model, ?int $timeout, Closure $resolver): Closure
+    protected function makeFakeResponseGenerator(array $userInput, array $attachments, mixed $provider, ?string $model): Closure
     {
-        if (AiGenerateActionFake::isActive()) {
-            return function (array $batch) use ($userInput, $attachments, $provider, $model): BatchResponse {
-                // Resolve the instruction so prompt-closure errors still surface under the fake.
-                $this->buildBatchInstruction($batch, $userInput);
+        return function (array $batch) use ($userInput, $attachments, $provider, $model): BatchResponse {
+            // Resolve the instruction so prompt-closure errors still surface under the fake.
+            $this->buildBatchInstruction($batch, $userInput);
 
-                $fake = AiGenerateActionFake::getInstance();
-                $rawResponse = $fake->getResponse();
+            $fake = AiGenerateActionFake::getInstance();
+            $rawResponse = $fake->getResponse();
 
-                [, $rows] = $this->enrichBatchWithIdentifier($batch);
-                $fake->recordCall($this->getName(), $rawResponse, $userInput, $attachments, $rows);
+            [, $rows] = $this->enrichBatchWithIdentifier($batch);
+            $fake->recordCall($this->getName(), $rawResponse, $userInput, $attachments, $rows);
 
-                if ($fake->shouldSimulateError()) {
-                    $this->dispatchFakeResponseFailed($fake->getErrorMessage(), $provider, $model);
+            if ($fake->shouldSimulateError()) {
+                $this->dispatchFakeResponseFailed($fake->getErrorMessage(), $provider, $model);
 
-                    throw new BatchGenerationException($fake->getErrorMessage());
-                }
-
-                $this->dispatchFakeResponseReceived($provider, $model);
-
-                return BatchResponse::fromArray($rawResponse);
-            };
-        }
-
-        return function (array $batch) use ($userInput, $attachments, $provider, $model, $timeout, $resolver): BatchResponse {
-            $instruction = $this->buildBatchInstruction($batch, $userInput);
-            $agent = (new SolarisAgent)->configure($instruction, [], $resolver);
-            $this->applyGenerationOptions($agent);
-
-            /** @var StructuredAgentResponse|null $response */
-            $response = $this->executeAiCall(
-                fn () => $agent->prompt($instruction, $attachments, $provider, $model, $timeout),
-                $provider,
-                $model,
-                static fn (): null => null,
-            );
-
-            if ($response === null) {
-                throw new BatchGenerationException('AI call error');
+                throw new BatchGenerationException($fake->getErrorMessage());
             }
 
-            return BatchResponse::fromArray($response->toArray());
+            $this->dispatchFakeResponseReceived($provider, $model);
+
+            return BatchResponse::fromArray($rawResponse);
         };
     }
 
