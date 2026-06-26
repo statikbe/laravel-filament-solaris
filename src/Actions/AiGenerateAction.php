@@ -28,10 +28,8 @@ use Statikbe\FilamentSolaris\Support\Batch\BatchGenerationException;
 use Statikbe\FilamentSolaris\Support\Batch\BatchPromptBuilder;
 use Statikbe\FilamentSolaris\Support\Batch\BatchResponse;
 use Statikbe\FilamentSolaris\Support\Batch\CompletionHandlerRunner;
-use Statikbe\FilamentSolaris\Support\Batch\FailedRecord;
 use Statikbe\FilamentSolaris\Support\Batch\RecordsSchemaBuilder;
 use Statikbe\FilamentSolaris\Support\Batch\RecordWriter;
-use Statikbe\FilamentSolaris\Support\Batch\Runners\InlineRunner;
 use Statikbe\FilamentSolaris\Support\SolarisNotification;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 
@@ -395,6 +393,15 @@ class AiGenerateAction extends SolarisAction
             return;
         }
 
+        // From-scratch create (no ->sourceRecords()): a write terminal → the
+        // service seeds + writes + finalizes. Reached only for createRecords;
+        // updateRecords always has a source (validated upstream).
+        if ($this->writeTerminal !== null) {
+            $this->executeFromScratchCreate($userInput);
+
+            return;
+        }
+
         if (AiGenerateActionFake::isActive()) {
             $this->executeFake($userInput);
 
@@ -408,6 +415,114 @@ class AiGenerateAction extends SolarisAction
         }
 
         $this->handleSingleCallResponse($result->data, $userInput);
+    }
+
+    /**
+     * Seed-from-scratch create via the headless service. The service throws on an
+     * AI failure (wrapped as BatchGenerationException); convert it back to the
+     * action's user-facing notification — translated for a real AiException, the
+     * raw message for a fake-simulated error (matching the old executeFake UX).
+     *
+     * @param  array<string, mixed>  $userInput
+     */
+    protected function executeFromScratchCreate(array $userInput): void
+    {
+        try {
+            $this->makeFromScratchGenerator($userInput)->runInline();
+        } catch (BatchGenerationException $e) {
+            $previous = $e->getPrevious();
+
+            $previous instanceof AiException
+                ? SolarisNotification::sendAiErrorNotification($previous)
+                : Notification::make()->title($e->getMessage())->danger()->send();
+        }
+    }
+
+    /**
+     * Translate this action's resolved from-scratch config into a headless
+     * {@see AiGenerator} (createRecords, no source). Under a fake, inject the
+     * canned single-call response generator.
+     *
+     * @param  array<string, mixed>  $userInput
+     */
+    protected function makeFromScratchGenerator(array $userInput): AiGenerator
+    {
+        ['provider' => $provider, 'model' => $model] = $this->resolveProviderAndModel();
+        $attachments = $this->resolveAttachments($userInput);
+
+        $generator = AiGenerator::make()
+            ->eventSource($this->getName(), static::class)
+            ->forModel($this->modelClass)
+            ->only($this->onlyColumns)
+            ->except($this->exceptColumns)
+            ->columnHints($this->columnHints)
+            ->columnEnums($this->columnEnums)
+            ->count((int) $this->evaluate($this->recordCount, ['userInput' => $userInput]))
+            ->createRecords()
+            ->prompt($this->wrapFromScratchInstruction())
+            ->userInput($userInput)
+            ->provider($provider, $model)
+            ->timeout($this->resolveTimeout())
+            ->options($this->resolveGenerationOptions())
+            ->attachments($attachments)
+            ->onCompletion($this->resolveCompletionHandlers())
+            ->withFailureReport($this->resolveAttachFailureReport())
+            ->forLivewire($this->getLivewire())
+            ->forUser(auth()->user());
+
+        if (AiGenerateActionFake::isActive()) {
+            $generator->responseGenerator(
+                $this->makeFromScratchFakeResponseGenerator($userInput, $attachments, $provider, $model),
+            );
+        }
+
+        return $generator;
+    }
+
+    /**
+     * Pre-wrap a Filament-DI instruction closure into the plain `fn($userInput)`
+     * shape {@see BatchPromptBuilder::fromScratch()} expects (string/View pass
+     * through), so the service stays Filament-free.
+     */
+    protected function wrapFromScratchInstruction(): string|View|Closure
+    {
+        $instruction = $this->instruction;
+
+        if ($instruction instanceof Closure) {
+            $closure = $instruction;
+
+            return fn (array $userInput): mixed => $this->evaluate($closure, ['userInput' => $userInput]);
+        }
+
+        return $instruction ?? '';
+    }
+
+    /**
+     * Fake single-call response generator injected into the from-scratch
+     * {@see AiGenerator} under a fake: replay the canned response, record the call,
+     * fire the fake events — throwing BatchGenerationException on a simulated error.
+     *
+     * @param  array<string, mixed>  $userInput
+     * @param  array<int, File>  $attachments
+     * @return Closure(array<int, array<string, mixed>|Model>): BatchResponse
+     */
+    protected function makeFromScratchFakeResponseGenerator(array $userInput, array $attachments, mixed $provider, ?string $model): Closure
+    {
+        return function (array $batch) use ($userInput, $attachments, $provider, $model): BatchResponse {
+            $fake = AiGenerateActionFake::getInstance();
+            $rawResponse = $fake->getResponse();
+            $fake->recordCall($this->getName(), $rawResponse, $userInput, $attachments);
+
+            if ($fake->shouldSimulateError()) {
+                $this->dispatchFakeResponseFailed($fake->getErrorMessage(), $provider, $model);
+
+                throw new BatchGenerationException($fake->getErrorMessage());
+            }
+
+            $this->dispatchFakeResponseReceived($provider, $model);
+
+            return BatchResponse::fromArray($rawResponse);
+        };
     }
 
     /**
@@ -478,39 +593,12 @@ class AiGenerateAction extends SolarisAction
     {
         try {
             if ($this->modelClass !== null) {
-                $batchResponse = BatchResponse::fromArray($responseData);
-                $identifierKey = $this->resolveIdentifierKey();
-
-                if ($this->writeTerminal === RecordWriter::CREATE) {
-                    $succeeded = 0;
-                    $failures = $batchResponse->failed;
-
-                    foreach ($batchResponse->records as $index => $record) {
-                        $attrs = $record;
-                        unset($attrs[$identifierKey]);
-
-                        try {
-                            $this->writeRow($record, $attrs);
-                            $succeeded++;
-                        } catch (\Throwable $e) {
-                            // Expected per-row data failure — captured below, not report()ed.
-                            $failures[] = new FailedRecord(
-                                identifier: $record[$identifierKey] ?? $index,
-                                reason: 'write error: '.$e->getMessage(),
-                                input: $record,
-                            );
-                        }
-                    }
-
-                    $this->finishBatchRun($succeeded, $failures, 0, $userInput, null);
-
-                    return;
-                }
-
-                // handler mode in forModel: hand over a BatchResponse with the
+                // forModel handler mode: hand over a BatchResponse with the
                 // synthetic identifier key stripped from each record, so handlers
-                // never see the echoed _index / primary key.
-                $this->runHandler($this->stripIdentifierKey($batchResponse, $identifierKey), $userInput);
+                // never see the echoed _index / primary key. (Write terminals never
+                // reach here — createRecords routes through the service.)
+                $batchResponse = BatchResponse::fromArray($responseData);
+                $this->runHandler($this->stripIdentifierKey($batchResponse, $this->resolveIdentifierKey()), $userInput);
 
                 return;
             }
@@ -903,26 +991,6 @@ class AiGenerateAction extends SolarisAction
     }
 
     /**
-     * Close out a non-loop run (single-call create): delegate the failure
-     * manifest + completion handlers to the shared {@see InlineRunner} finalize.
-     *
-     * @param  array<int, FailedRecord>  $failures
-     * @param  array<string, mixed>  $userInput
-     */
-    protected function finishBatchRun(int $succeeded, array $failures, int $discarded, array $userInput, ?SolarisBatchRun $run = null): void
-    {
-        (new InlineRunner)->finalize(
-            $this->getName(),
-            $succeeded,
-            $failures,
-            $discarded,
-            $userInput,
-            $run,
-            $this->resolveCompletionHandlers(),
-        );
-    }
-
-    /**
      * @param  array<string, mixed>  $userInput
      * @return iterable<int, array<string, mixed>|Model>
      */
@@ -945,17 +1013,6 @@ class AiGenerateAction extends SolarisAction
         }
 
         throw new RuntimeException('AiGenerateAction ->sourceRecords() must yield a Builder, Collection, or array; got '.get_debug_type($source));
-    }
-
-    /**
-     * @param  array<string, mixed>|Model  $row
-     * @param  array<string, mixed>  $attrs
-     */
-    protected function writeRow(array|Model $row, array $attrs): void
-    {
-        assert($this->modelClass !== null && $this->writeTerminal !== null);
-
-        (new RecordWriter($this->modelClass, $this->writeTerminal))->write($row, $attrs);
     }
 
     /**
