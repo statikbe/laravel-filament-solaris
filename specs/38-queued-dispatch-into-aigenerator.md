@@ -1,9 +1,27 @@
 # 38 — Queued dispatch into AiGenerator (piece 3)
 
-> **Status:** Design doc. Piece 3 of the AiGenerator arc (umbrella: `36-ai-generator-service.md`).
+> **Status:** ✅ Implemented on `feature/records-loop-into-aigenerator` (suite 669, PHPStan + Pint clean).
+> Piece 3 of the AiGenerator arc (umbrella: `36-ai-generator-service.md`).
 > **Date:** 2026-06-26.
-> **Depends on:** piece 2 (records-loop + from-scratch in `AiGenerator`, merged on branch).
+> **Depends on:** piece 2 (records-loop + from-scratch in `AiGenerator`).
 > **Closes:** the arc's core — `AiGenerator` owns single + batch, inline + queued.
+
+## Implementation (2026-06-26)
+
+- **Step 1** — `ProcessChunkJob` writeRow/schemaResolver → `RecordWriter` +
+  `RecordsSchemaBuilder` (last schema/write-back dup gone).
+- **Step 2** — `AiGenerator::runQueued(): SolarisBatchRun`; moved `buildRunConfig`,
+  `serializeAttachments` (protected), `buildChunkDescriptors`, renderPrompt into the
+  service; dispatch via `QueuedRunner`. `createTrackedRun(?int $total)`.
+- **Step 3** — `executeRecordsLoop`/`executeFromScratchCreate` choose the terminal
+  (`runQueued()` + started notice vs `runInline()`); `HasQueuedExecution` down to
+  `queued`/`isQueued`/`sendQueuedStartedNotification`; action `startBatchRun` deleted
+  (service creates runs via `SolarisBatchRun::start`). Two reflection tests repointed.
+
+**Follow-ups:** headless `documentation/` for the batch + queued surface (deferred to
+arc end); Option 2 service-native `AiGenerator::fake()` (deferred). Then the arc's
+*next* phase: `AiFormAction` routes its AI call through the service + parity ports
+(spec 35 Part A: `sanitize`, presets, `tools`), then knxcou.
 
 ---
 
