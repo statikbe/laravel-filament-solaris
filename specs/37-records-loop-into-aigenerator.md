@@ -6,30 +6,34 @@
 > **Depends on:** piece 1 (single-call `AiGenerator::runInline()`, merged).
 > **Followed by:** piece 3 (queued dispatch into the service — `runQueued`).
 
-## Implementation status (2026-06-26)
+## Implementation status (2026-06-26) — functionally complete
 
-**Done (committed, suite 662 green, PHPStan clean):**
+**Done (committed, suite 664 green, PHPStan + Pint clean):**
 1. Collaborators extracted + action delegates: `RecordsSchemaBuilder`,
    `BatchPromptBuilder`, `RecordWriter`, `Runners/InlineRunner`.
-2. `AiGenerator` records-loop batch API (`forModel`/`only`/`except`/
-   `columnHints`/`columnEnums`/`sourceRecords`/`createRecords`/`updateRecords`/
+2. `AiGenerator` batch API (`forModel`/`only`/`except`/`columnHints`/
+   `columnEnums`/`sourceRecords`/`count`/`createRecords`/`updateRecords`/
    `batchSize`/`promptContextColumns`/`userInput`/`trackBatchRuns`/`onCompletion`/
-   `withFailureReport`); `runInline(): GenerationResult|BatchSummary`; owns prompt
+   `withFailureReport`); `runInline(): GenerationResult|BatchSummary`. Owns prompt
    assembly, schema, write-back, run creation/tracking, the real per-batch agent
    call + events, InlineRunner orchestration. `source()` → `eventSource()`.
-3. `AiGenerateAction::executeRecordsLoop` translates config → `AiGenerator` →
-   `runInline()`; fake plugs in via `->responseGenerator()` (Option 1 seam),
+3. **Records-loop:** `executeRecordsLoop` → `makeBatchGenerator()->runInline()`.
+4. **From-scratch `count()`:** headless `forModel + count + createRecords`
+   (`runFromScratch`); from-scratch seed prompt → `BatchPromptBuilder::fromScratch`.
+   Action's path → `executeFromScratchCreate` → `makeFromScratchGenerator()`.
+   Deleted the dead write loop in `handleSingleCallResponse` (handler/custom-schema
+   only remain) + orphaned `writeRow()`/`finishBatchRun()`.
+5. Fake plugs in via `->responseGenerator()` (Option 1 seam) for both paths;
    `AiGenerateActionFake` surface unchanged.
+6. Const-alias cleanup: dropped `WRITE_CREATE`/`WRITE_UPDATE` (→ `RecordWriter::`)
+   and `RECORDS_KEY`/`FAILED_KEY` (→ `BatchResponse::`).
 
-**Remaining for piece 2:**
-- **From-scratch `count()` create relocation.** `forModel + createRecords + count`
-  (no `sourceRecords`) still does write-back + finalize **action-side** in
-  `handleSingleCallResponse` (works, tested) — not yet callable headlessly via
-  `AiGenerator`. Delicate because it shares the single-call dispatch with handler /
-  custom-schema modes. Next focused task; the records-loop path above is the
-  template (single structured call → write records → `InlineRunner::finalize`).
-- Extend the headless `documentation/` for the batch surface; memory note.
-- The action's `startBatchRun` now serves only the queued path (piece 3 absorbs it).
+**Follow-ups (not blocking piece 2):**
+- Extend the headless `documentation/` for the batch surface.
+- The action's `startBatchRun` now serves only the queued path → piece 3 absorbs
+  it (queued dispatch into the service, `runQueued`). The queued worker still has
+  its own schema/write-back; piece 3 points it at these collaborators.
+- Option 2 service-native `AiGenerator::fake()` (deferred; see fake section).
 
 ---
 
