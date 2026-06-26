@@ -291,10 +291,10 @@ it('filters the row context to ->promptContextColumns() in the records block', f
         ->createRecords();
 
     $ref = new ReflectionClass($action);
-    $method = $ref->getMethod('appendRecordsBlock');
+    $method = $ref->getMethod('buildBatchInstruction');
     $method->setAccessible(true);
 
-    $instruction = $method->invoke($action, 'Do it.', [['visible' => 'v', 'secret' => 's']]);
+    $instruction = $method->invoke($action, [['visible' => 'v', 'secret' => 's']], []);
 
     expect($instruction)->toContain('"visible": "v"')
         ->and($instruction)->not->toContain('"secret"');

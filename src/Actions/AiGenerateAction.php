@@ -30,14 +30,16 @@ use Statikbe\FilamentSolaris\Generation\GenerationResult;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
 use Statikbe\FilamentSolaris\Support\Batch\BatchGenerationException;
 use Statikbe\FilamentSolaris\Support\Batch\BatchProcessor;
+use Statikbe\FilamentSolaris\Support\Batch\BatchPromptBuilder;
 use Statikbe\FilamentSolaris\Support\Batch\BatchResponse;
 use Statikbe\FilamentSolaris\Support\Batch\BatchSummary;
 use Statikbe\FilamentSolaris\Support\Batch\CompletionHandlerRunner;
 use Statikbe\FilamentSolaris\Support\Batch\FailedRecord;
+use Statikbe\FilamentSolaris\Support\Batch\RecordsSchemaBuilder;
+use Statikbe\FilamentSolaris\Support\Batch\RecordWriter;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\CompositeBatchSink;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\DatabaseBatchSink;
 use Statikbe\FilamentSolaris\Support\Batch\Sinks\InMemoryBatchSink;
-use Statikbe\FilamentSolaris\Support\ModelSchemaResolver;
 use Statikbe\FilamentSolaris\Support\SolarisNotification;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 
@@ -59,9 +61,9 @@ class AiGenerateAction extends SolarisAction
 
     public const FAILED_KEY = BatchResponse::FAILED;
 
-    public const WRITE_CREATE = 'create';
+    public const WRITE_CREATE = RecordWriter::CREATE;
 
-    public const WRITE_UPDATE = 'update';
+    public const WRITE_UPDATE = RecordWriter::UPDATE;
 
     protected string|View|Closure|null $instruction = null;
 
@@ -597,15 +599,7 @@ class AiGenerateAction extends SolarisAction
      */
     protected function appendUserContext(string $instruction, array $userInput): string
     {
-        $filtered = array_filter($userInput, static fn ($v): bool => filled($v));
-
-        if ($filtered === []) {
-            return $instruction;
-        }
-
-        $json = json_encode($filtered, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-
-        return trim($instruction)."\n\n## User context\n```json\n{$json}\n```";
+        return BatchPromptBuilder::appendUserContext($instruction, $userInput);
     }
 
     /**
@@ -639,29 +633,17 @@ class AiGenerateAction extends SolarisAction
         assert($this->modelClass !== null);
 
         $identifierKey = $this->resolveIdentifierKey();
+        $modelClass = $this->modelClass;
 
-        return function (JsonSchemaTypeFactory $schema) use ($identifierKey): array {
-            $properties = (new ModelSchemaResolver)->resolve(
-                $schema,
-                $this->modelClass,
-                $this->onlyColumns,
-                $this->exceptColumns,
-                $this->columnHints,
-                $this->columnEnums,
-            );
-
-            $properties[$identifierKey] = $identifierKey === '_index'
-                ? $schema->integer()->description('The _index field from the input record. Echo unchanged.')
-                : $schema->integer()->description('The primary key. Echo unchanged.');
-
-            return [
-                self::RECORDS_KEY => $schema->array()->items($schema->object($properties)),
-                self::FAILED_KEY => $schema->array()->items($schema->object([
-                    'identifier' => $schema->string()->description('Identifier of the failed input row (or freeform description in single-call mode).'),
-                    'reason' => $schema->string()->description('Short reason for the failure (max 200 chars).'),
-                ])),
-            ];
-        };
+        return fn (JsonSchemaTypeFactory $schema): array => (new RecordsSchemaBuilder)->build(
+            $schema,
+            $modelClass,
+            $identifierKey,
+            $this->onlyColumns,
+            $this->exceptColumns,
+            $this->columnHints,
+            $this->columnEnums,
+        );
     }
 
     /**
@@ -1044,29 +1026,9 @@ class AiGenerateAction extends SolarisAction
      */
     protected function writeRow(array|Model $row, array $attrs): void
     {
-        if ($this->writeTerminal === self::WRITE_CREATE) {
-            $this->modelClass::create($attrs);
+        assert($this->modelClass !== null && $this->writeTerminal !== null);
 
-            return;
-        }
-
-        // WRITE_UPDATE
-        if ($row instanceof Model) {
-            $row->update($attrs);
-
-            return;
-        }
-
-        // Worker path: descriptor is a plain array carrying the pk. Re-fetch fresh so we
-        // write to current DB state; a row deleted mid-run becomes a recorded failure.
-        $key = $row[(new ($this->modelClass)())->getKeyName()] ?? null;
-        $model = $key === null ? null : $this->modelClass::find($key);
-
-        if ($model === null) {
-            throw new RuntimeException('updateRecords target no longer exists for identifier '.json_encode($key));
-        }
-
-        $model->update($attrs);
+        (new RecordWriter($this->modelClass, $this->writeTerminal))->write($row, $attrs);
     }
 
     /**
@@ -1085,24 +1047,9 @@ class AiGenerateAction extends SolarisAction
         return new BatchResponse($records, $response->failed);
     }
 
-    /**
-     * @param  array<string, mixed>|Model  $row
-     * @return array<string, mixed>
-     */
-    protected function buildContextForRow(array|Model $row): array
+    protected function makeBatchPromptBuilder(): BatchPromptBuilder
     {
-        $attrs = $row instanceof Model ? $row->getAttributes() : $row;
-
-        if ($row instanceof Model) {
-            $excluded = (new ModelSchemaResolver)->autoExcludedColumns($row);
-            $attrs = array_diff_key($attrs, array_flip($excluded));
-        }
-
-        if ($this->promptContextColumns !== []) {
-            $attrs = array_intersect_key($attrs, array_flip($this->promptContextColumns));
-        }
-
-        return $attrs;
+        return new BatchPromptBuilder($this->resolveIdentifierKey(), $this->promptContextColumns);
     }
 
     /**
@@ -1111,58 +1058,14 @@ class AiGenerateAction extends SolarisAction
      */
     protected function enrichBatchWithIdentifier(array $batch): array
     {
-        $identifierKey = $this->resolveIdentifierKey();
-
-        if ($identifierKey !== '_index') {
-            // updateRecords: PK echo. Source rows are always Models (validated upstream).
-            $rows = array_map(function ($row) use ($identifierKey): array {
-                assert($row instanceof Model);
-                $attrs = $this->buildContextForRow($row);
-                $attrs[$identifierKey] = $row->getKey();
-
-                return $attrs;
-            }, $batch);
-
-            return [$identifierKey, $rows];
-        }
-
-        $rows = [];
-        foreach ($batch as $index => $row) {
-            $attrs = $this->buildContextForRow($row);
-            $attrs[$identifierKey] = $index;
-            $rows[] = $attrs;
-        }
-
-        return [$identifierKey, $rows];
+        return $this->makeBatchPromptBuilder()->enrich($batch);
     }
 
     /**
-     * @param  array<int, array<string, mixed>|Model>  $batch
-     */
-    protected function appendRecordsBlock(string $instruction, array $batch): string
-    {
-        [, $rows] = $this->enrichBatchWithIdentifier($batch);
-
-        $json = json_encode($rows, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-
-        return trim($instruction)."\n\n## Records\n```json\n{$json}\n```";
-    }
-
-    protected function appendBatchInstructions(string $instruction): string
-    {
-        $identifierKey = $this->resolveIdentifierKey();
-
-        $boilerplate = <<<TXT
-## Instructions
-For each record above, return an entry in `records` echoing the `{$identifierKey}` field unchanged with the processed fields.
-For any record you cannot process, add an entry to `failed` with the `identifier` set to the `{$identifierKey}` value and a short `reason` (max 200 chars).
-Preserve input order in the `records` array.
-TXT;
-
-        return trim($instruction)."\n\n".$boilerplate;
-    }
-
-    /**
+     * Pre-wrap a Filament-DI instruction closure into the plain
+     * `fn($rows, $userInput)` shape {@see BatchPromptBuilder} expects, so prompt
+     * assembly stays Filament-free while the action keeps closure DI.
+     *
      * @param  array<int, array<string, mixed>|Model>  $batch
      * @param  array<string, mixed>  $userInput
      */
@@ -1171,27 +1074,14 @@ TXT;
         $instruction = $this->instruction;
 
         if ($instruction instanceof Closure) {
-            // Same filtered view the AI gets in the ## Records block
-            // (promptContextColumns + auto-exclusions), without the synthetic
-            // identifier key — so a closure echoing $rows can't leak columns the
-            // dev deliberately withheld via ->promptContextColumns().
-            $rows = array_map(fn ($row): array => $this->buildContextForRow($row), $batch);
-            $instruction = $this->evaluate($instruction, [
+            $closure = $instruction;
+            $instruction = fn (array $rows, array $userInput): mixed => $this->evaluate($closure, [
                 'rows' => $rows,
                 'userInput' => $userInput,
             ]);
         }
 
-        if ($instruction instanceof View) {
-            $instruction = $instruction->render();
-        }
-
-        $instruction = (string) $instruction;
-        $instruction = $this->appendUserContext($instruction, $userInput);
-        $instruction = $this->appendRecordsBlock($instruction, $batch);
-        $instruction = $this->appendBatchInstructions($instruction);
-
-        return $instruction;
+        return $this->makeBatchPromptBuilder()->build($instruction, $batch, $userInput);
     }
 
     protected function appendSingleCallInstructions(string $instruction): string
