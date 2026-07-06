@@ -449,6 +449,10 @@ class AiGenerator
             throw new RuntimeException('AiGenerator ->runQueued() requires ->forModel().');
         }
 
+        if ($this->resolveSanitizers()?->isSerializable() === false) {
+            throw new RuntimeException('AiGenerator ->runQueued() cannot serialise a closure sanitizer to the worker — use a Sanitizer class (e.g. StripTagsSanitizer) instead of a closure, or run inline.');
+        }
+
         return $this->sourceRecords === null
             ? $this->dispatchQueuedFromScratch()
             : $this->dispatchQueuedRecordsLoop($this->sourceRecords);
@@ -508,6 +512,7 @@ class AiGenerator
             maxTokens: $this->options->maxTokens,
             maxSteps: $this->options->maxSteps,
             topP: $this->options->topP,
+            sanitizers: $this->resolveSanitizers(),
         );
     }
 
