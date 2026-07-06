@@ -1,6 +1,8 @@
 <?php
 
 use Illuminate\Support\Facades\Schema;
+use Statikbe\FilamentSolaris\Sanitizers\SanitizerExecutor;
+use Statikbe\FilamentSolaris\Sanitizers\StripTagsSanitizer;
 use Statikbe\FilamentSolaris\Support\Batch\RecordWriter;
 use Statikbe\FilamentSolaris\Tests\Fixtures\SeedCategory;
 
@@ -32,6 +34,22 @@ it('updates the given model on the update terminal', function () {
     $model = SeedCategory::create(['name' => 'Old']);
 
     (new RecordWriter(SeedCategory::class, RecordWriter::UPDATE))->write($model, ['name' => 'New']);
+
+    expect($model->fresh()->name)->toBe('New');
+});
+
+it('runs the SanitizerExecutor over attributes before creating', function () {
+    (new RecordWriter(SeedCategory::class, RecordWriter::CREATE, SanitizerExecutor::make(new StripTagsSanitizer)))
+        ->write(['_index' => 0], ['name' => 'Hello <script>alert(1)</script>']);
+
+    expect(SeedCategory::query()->value('name'))->toBe('Hello alert(1)');
+});
+
+it('sanitizes before updating too', function () {
+    $model = SeedCategory::create(['name' => 'Old']);
+
+    (new RecordWriter(SeedCategory::class, RecordWriter::UPDATE, SanitizerExecutor::make(new StripTagsSanitizer)))
+        ->write($model, ['name' => '<b>New</b>']);
 
     expect($model->fresh()->name)->toBe('New');
 });

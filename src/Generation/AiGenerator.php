@@ -23,6 +23,8 @@ use Statikbe\FilamentSolaris\Events\SolarisBatchCompleted;
 use Statikbe\FilamentSolaris\Events\SolarisResponseFailed;
 use Statikbe\FilamentSolaris\Events\SolarisResponseReceived;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
+use Statikbe\FilamentSolaris\Sanitizers\Sanitizer;
+use Statikbe\FilamentSolaris\Sanitizers\SanitizerExecutor;
 use Statikbe\FilamentSolaris\Support\Batch\BatchGenerationException;
 use Statikbe\FilamentSolaris\Support\Batch\BatchProcessor;
 use Statikbe\FilamentSolaris\Support\Batch\BatchPromptBuilder;
@@ -114,6 +116,12 @@ class AiGenerator
 
     /** @var array<string, mixed> */
     protected array $userInput = [];
+
+    /** @var Closure|Sanitizer|array<int, Closure|Sanitizer>|null */
+    protected Closure|Sanitizer|array|null $sanitizer = null;
+
+    /** @var array<string, Closure|Sanitizer|array<int, Closure|Sanitizer>> */
+    protected array $fieldSanitizers = [];
 
     protected bool $tracked = false;
 
@@ -342,6 +350,40 @@ class AiGenerator
         return $this;
     }
 
+    /**
+     * Default sanitizer applied to every generated string value before write-back.
+     * A closure wraps in CallableSanitizer, an array in CompositeSanitizer (pipeline).
+     *
+     * @param  Closure|Sanitizer|array<int, Closure|Sanitizer>  $sanitizer
+     */
+    public function sanitize(Closure|Sanitizer|array $sanitizer): static
+    {
+        $this->sanitizer = $sanitizer;
+
+        return $this;
+    }
+
+    /**
+     * Per-field sanitizer override (by column name); wins over the ->sanitize() default.
+     *
+     * @param  Closure|Sanitizer|array<int, Closure|Sanitizer>  $sanitizer
+     */
+    public function sanitizeField(string $field, Closure|Sanitizer|array $sanitizer): static
+    {
+        $this->fieldSanitizers[$field] = $sanitizer;
+
+        return $this;
+    }
+
+    protected function resolveSanitizers(): ?SanitizerExecutor
+    {
+        if ($this->sanitizer === null && $this->fieldSanitizers === []) {
+            return null;
+        }
+
+        return SanitizerExecutor::make($this->sanitizer, $this->fieldSanitizers);
+    }
+
     public function trackBatchRuns(bool $tracked = true): static
     {
         $this->tracked = $tracked;
@@ -537,7 +579,7 @@ class AiGenerator
             batchSize: $this->batchSize,
             identifierKey: $this->resolveIdentifierKey(),
             generateResponse: $this->responseGeneratorOverride ?? $this->buildBatchResponseGenerator(),
-            persistRecord: fn (mixed $source, array $attrs) => (new RecordWriter($modelClass, $writeTerminal))->write($source, $attrs),
+            persistRecord: fn (mixed $source, array $attrs) => (new RecordWriter($modelClass, $writeTerminal, $this->resolveSanitizers()))->write($source, $attrs),
             run: $run,
             completionHandlers: $this->completionHandlers,
             userInput: $this->userInput,
@@ -553,7 +595,7 @@ class AiGenerator
     {
         $modelClass = $this->modelClass;
         $identifierKey = $this->resolveIdentifierKey();
-        $writer = new RecordWriter($modelClass, $this->writeTerminal);
+        $writer = new RecordWriter($modelClass, $this->writeTerminal, $this->resolveSanitizers());
 
         // total is unknown until the model answers (no input rows to count).
         $run = $this->tracked ? $this->createTrackedRun(null) : null;

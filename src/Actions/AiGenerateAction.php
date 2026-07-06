@@ -24,6 +24,7 @@ use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\Generation\AiGenerator;
 use Statikbe\FilamentSolaris\Generation\GenerationResult;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
+use Statikbe\FilamentSolaris\Sanitizers\Sanitizer;
 use Statikbe\FilamentSolaris\Support\Batch\BatchGenerationException;
 use Statikbe\FilamentSolaris\Support\Batch\BatchPromptBuilder;
 use Statikbe\FilamentSolaris\Support\Batch\BatchResponse;
@@ -90,6 +91,12 @@ class AiGenerateAction extends SolarisAction
     protected bool|Closure|null $attachFailureReport = null;
 
     protected bool|Closure $liveBatchUpdates = false;
+
+    /** @var Closure|Sanitizer|array<int, Closure|Sanitizer>|null */
+    protected Closure|Sanitizer|array|null $sanitizer = null;
+
+    /** @var array<string, Closure|Sanitizer|array<int, Closure|Sanitizer>> */
+    protected array $fieldSanitizers = [];
 
     protected function setUp(): void
     {
@@ -231,6 +238,42 @@ class AiGenerateAction extends SolarisAction
         $this->promptContextColumns = $columns;
 
         return $this;
+    }
+
+    /**
+     * Sanitize every generated string value before write-back (stored-XSS guard).
+     * A closure wraps in CallableSanitizer, an array in CompositeSanitizer.
+     *
+     * @param  Closure|Sanitizer|array<int, Closure|Sanitizer>  $sanitizer
+     */
+    public function sanitize(Closure|Sanitizer|array $sanitizer): static
+    {
+        $this->sanitizer = $sanitizer;
+
+        return $this;
+    }
+
+    /**
+     * Per-field sanitizer override (by column name); wins over the ->sanitize() default.
+     *
+     * @param  Closure|Sanitizer|array<int, Closure|Sanitizer>  $sanitizer
+     */
+    public function sanitizeField(string $field, Closure|Sanitizer|array $sanitizer): static
+    {
+        $this->fieldSanitizers[$field] = $sanitizer;
+
+        return $this;
+    }
+
+    protected function applySanitizersTo(AiGenerator $generator): void
+    {
+        if ($this->sanitizer !== null) {
+            $generator->sanitize($this->sanitizer);
+        }
+
+        foreach ($this->fieldSanitizers as $field => $sanitizer) {
+            $generator->sanitizeField($field, $sanitizer);
+        }
     }
 
     /**
@@ -472,6 +515,8 @@ class AiGenerateAction extends SolarisAction
             ->withFailureReport($this->resolveAttachFailureReport())
             ->forLivewire($this->getLivewire())
             ->forUser(auth()->user());
+
+        $this->applySanitizersTo($generator);
 
         if (AiGenerateActionFake::isActive()) {
             $generator->responseGenerator(
@@ -894,6 +939,8 @@ class AiGenerateAction extends SolarisAction
         $this->writeTerminal === RecordWriter::UPDATE
             ? $generator->updateRecords()
             : $generator->createRecords();
+
+        $this->applySanitizersTo($generator);
 
         if (AiGenerateActionFake::isActive()) {
             $generator->responseGenerator(

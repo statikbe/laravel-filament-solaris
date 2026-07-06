@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Laravel\Ai\Files\Document;
 use Laravel\Ai\Files\Image;
 use Statikbe\FilamentSolaris\Actions\AiGenerateAction;
+use Statikbe\FilamentSolaris\Sanitizers\StripTagsSanitizer;
 use Statikbe\FilamentSolaris\Support\Batch\Handlers\NotifyOnBatchCompletion;
 use Statikbe\FilamentSolaris\Support\UserInput;
 
@@ -115,6 +116,16 @@ class GenerateFormComponent extends FormsComponent
                 ['raw_name' => 'science'],
                 ['raw_name' => 'art'],
             ])
+            ->createRecords();
+    }
+
+    public function sanitizedImportAction(): AiGenerateAction
+    {
+        return AiGenerateAction::make('sanitizedImport')
+            ->prompt('Transform this row into a SeedCategory.')
+            ->forModel(SeedCategory::class)
+            ->sourceRecords([['raw' => 1]])
+            ->sanitize(new StripTagsSanitizer)
             ->createRecords();
     }
 
