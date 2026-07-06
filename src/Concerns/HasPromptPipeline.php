@@ -19,6 +19,8 @@ use Statikbe\FilamentSolaris\Factories\ComponentFactory;
 use Statikbe\FilamentSolaris\Prompts\InlinePromptBuilder;
 use Statikbe\FilamentSolaris\Prompts\Presets\Preset;
 use Statikbe\FilamentSolaris\Prompts\ViewPromptBuilder;
+use Statikbe\FilamentSolaris\Sanitizers\Sanitizer;
+use Statikbe\FilamentSolaris\Sanitizers\SanitizerExecutor;
 use Statikbe\FilamentSolaris\Support\GenerationOptions;
 use Statikbe\FilamentSolaris\Support\SolarisNotification;
 use Statikbe\FilamentSolaris\Support\SolarisPromptLogger;
@@ -59,13 +61,14 @@ trait HasPromptPipeline
      * {@see ComponentFactory::toFormValue()}; whatever it returns replaces
      * that value. Default: not set (identity).
      */
-    protected ?Closure $sanitizer = null;
+    /** @var Closure|Sanitizer|array<int, Closure|Sanitizer>|null */
+    protected Closure|Sanitizer|array|null $sanitizer = null;
 
     /**
      * Per-field sanitizers, keyed by field name. Override the per-action
      * {@see $sanitizer} for that specific field.
      *
-     * @var array<string, Closure>
+     * @var array<string, Closure|Sanitizer|array<int, Closure|Sanitizer>>
      */
     protected array $fieldSanitizers = [];
 
@@ -166,11 +169,11 @@ trait HasPromptPipeline
      *     ->sanitize(fn (string $value) => \Mews\Purifier\Facades\Purifier::clean($value));
      * ```
      *
-     * @param  Closure(mixed): mixed  $closure
+     * @param  Closure(string): string|Sanitizer|array<int, Closure|Sanitizer>  $sanitizer
      */
-    public function sanitize(Closure $closure): static
+    public function sanitize(Closure|Sanitizer|array $sanitizer): static
     {
-        $this->sanitizer = $closure;
+        $this->sanitizer = $sanitizer;
 
         return $this;
     }
@@ -183,11 +186,11 @@ trait HasPromptPipeline
      * (e.g. `summary` stripped to plain text, `body_html` passed through
      * an HTML purifier).
      *
-     * @param  Closure(mixed): mixed  $closure
+     * @param  Closure(string): string|Sanitizer|array<int, Closure|Sanitizer>  $sanitizer
      */
-    public function sanitizeField(string $field, Closure $closure): static
+    public function sanitizeField(string $field, Closure|Sanitizer|array $sanitizer): static
     {
-        $this->fieldSanitizers[$field] = $closure;
+        $this->fieldSanitizers[$field] = $sanitizer;
 
         return $this;
     }
@@ -584,15 +587,8 @@ trait HasPromptPipeline
      */
     protected function applySanitizer(string $fieldName, mixed $formValue): mixed
     {
-        if (isset($this->fieldSanitizers[$fieldName])) {
-            return ($this->fieldSanitizers[$fieldName])($formValue);
-        }
-
-        if ($this->sanitizer !== null) {
-            return ($this->sanitizer)($formValue);
-        }
-
-        return $formValue;
+        return SanitizerExecutor::make($this->sanitizer, $this->fieldSanitizers)
+            ->execute([$fieldName => $formValue])[$fieldName];
     }
 
     /**
