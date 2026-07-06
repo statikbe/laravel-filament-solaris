@@ -3,11 +3,15 @@
 namespace Statikbe\FilamentSolaris\Support\Batch;
 
 use Laravel\Ai\Enums\Lab;
+use Statikbe\FilamentSolaris\Sanitizers\SanitizerExecutor;
 
 /**
  * Pure-scalar snapshot of an AiGenerateAction's records-loop configuration —
  * everything a worker needs to rebuild the agent + schema + write-back WITHOUT
  * any closure or live model. Serializes cleanly into ProcessChunkJob.
+ *
+ * The optional SanitizerExecutor carries class-based sanitizers to the worker; a
+ * closure sanitizer is rejected at dispatch (it cannot serialise).
  */
 final readonly class BatchRunConfig
 {
@@ -35,5 +39,6 @@ final readonly class BatchRunConfig
         public ?int $maxTokens,
         public ?int $maxSteps,
         public ?float $topP,
+        public ?SanitizerExecutor $sanitizers = null,
     ) {}
 }

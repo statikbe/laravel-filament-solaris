@@ -138,6 +138,25 @@ it('runs per-row createRecords via ->sourceRecords() (import path)', function ()
     Schema::dropIfExists('seed_categories');
 });
 
+it('sanitizes AI values before writing records (->sanitize())', function () {
+    Schema::create('seed_categories', function ($table) {
+        $table->id();
+        $table->string('name');
+        $table->string('slug')->nullable();
+        $table->timestamps();
+    });
+
+    AiGenerateAction::fakeEach([
+        ['records' => [['_index' => 0, 'name' => 'Hi <script>alert(1)</script>']], 'failed' => []],
+    ]);
+
+    Livewire::test(GenerateFormComponent::class)->callAction('sanitizedImport');
+
+    expect(SeedCategory::query()->value('name'))->toBe('Hi alert(1)');
+
+    Schema::dropIfExists('seed_categories');
+});
+
 it('continues past per-row failures and reports a partial-failure summary', function () {
     Schema::create('seed_categories', function ($table) {
         $table->id();

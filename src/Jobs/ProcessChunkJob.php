@@ -173,7 +173,7 @@ class ProcessChunkJob implements ShouldQueue
             throw new \RuntimeException('ProcessChunkJob requires a model class + write terminal for write-back.');
         }
 
-        (new RecordWriter($modelClass, $terminal))->write($row, $attrs);
+        (new RecordWriter($modelClass, $terminal, $this->config->sanitizers))->write($row, $attrs);
     }
 
     /** @return Closure(JsonSchemaTypeFactory): array<string, mixed> */

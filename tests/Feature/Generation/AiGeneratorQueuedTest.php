@@ -6,6 +6,7 @@ use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
 use Statikbe\FilamentSolaris\Generation\AiGenerator;
 use Statikbe\FilamentSolaris\Jobs\ProcessChunkJob;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
+use Statikbe\FilamentSolaris\Sanitizers\StripTagsSanitizer;
 use Statikbe\FilamentSolaris\Testing\AiGenerateActionFake;
 use Statikbe\FilamentSolaris\Tests\Fixtures\SeedCategory;
 
@@ -79,6 +80,35 @@ it('end-to-end: runQueued() processes the batch and completes the run (sync queu
     expect(SeedCategory::count())->toBe(3)
         ->and($run->refresh()->status)->toBe(BatchRunStatus::Completed)
         ->and($run->succeeded)->toBe(3);
+});
+
+it('sanitizes records on the queued worker (class sanitizer travels in the config)', function () {
+    config()->set('queue.default', 'sync');
+
+    AiGenerateActionFake::fakeEach([
+        ['records' => [['_index' => 0, 'name' => 'Hi <script>x</script>', 'slug' => 'a']], 'failed' => []],
+    ]);
+
+    AiGenerator::make()
+        ->eventSource('q-sanitize')
+        ->forModel(SeedCategory::class)
+        ->sourceRecords([['name' => 'a']])
+        ->createRecords()
+        ->sanitize(new StripTagsSanitizer)
+        ->runQueued();
+
+    expect(SeedCategory::query()->value('name'))->toBe('Hi x');
+});
+
+it('rejects a closure sanitizer on runQueued() — it cannot serialise to the worker', function () {
+    expect(fn () => AiGenerator::make()
+        ->eventSource('q-bad')
+        ->forModel(SeedCategory::class)
+        ->sourceRecords([['name' => 'a']])
+        ->createRecords()
+        ->sanitize(fn (string $v): string => $v)
+        ->runQueued())
+        ->toThrow(RuntimeException::class, 'serialis');
 });
 
 it('dispatches a from-scratch queued single call (no source)', function () {

@@ -4,6 +4,8 @@ use Illuminate\Support\Facades\Schema;
 use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
 use Statikbe\FilamentSolaris\Generation\AiGenerator;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
+use Statikbe\FilamentSolaris\Sanitizers\StripTagsSanitizer;
+use Statikbe\FilamentSolaris\Sanitizers\TrimSanitizer;
 use Statikbe\FilamentSolaris\Support\Batch\BatchResponse;
 use Statikbe\FilamentSolaris\Support\Batch\BatchSummary;
 use Statikbe\FilamentSolaris\Tests\Fixtures\SeedCategory;
@@ -50,6 +52,55 @@ it('runs a headless records-loop and creates records, returning a BatchSummary',
         ->and($summary->succeeded)->toBe(2)
         ->and($summary->failed)->toBe(0)
         ->and(SeedCategory::query()->pluck('name')->all())->toEqualCanonicalizing(['A', 'B']);
+});
+
+it('sanitizes generated values before writing records (records loop)', function () {
+    AiGenerator::make()
+        ->forModel(SeedCategory::class)
+        ->sourceRecords([['name' => 'x']])
+        ->createRecords()
+        ->sanitize(new StripTagsSanitizer)
+        ->responseGenerator(fn (array $batch): BatchResponse => BatchResponse::fromArray([
+            'records' => [['_index' => 0, 'name' => 'Clean <script>bad</script>']],
+            'failed' => [],
+        ]))
+        ->runInline();
+
+    expect(SeedCategory::query()->value('name'))->toBe('Clean bad');
+});
+
+it('applies a per-field sanitizer, default elsewhere', function () {
+    AiGenerator::make()
+        ->forModel(SeedCategory::class)
+        ->sourceRecords([['name' => 'x']])
+        ->createRecords()
+        ->sanitize(new StripTagsSanitizer)
+        ->sanitizeField('slug', new TrimSanitizer)
+        ->responseGenerator(fn (array $batch): BatchResponse => BatchResponse::fromArray([
+            'records' => [['_index' => 0, 'name' => '<b>N</b>', 'slug' => '  <b>keep</b> ']],
+            'failed' => [],
+        ]))
+        ->runInline();
+
+    $row = SeedCategory::query()->first();
+    expect($row->name)->toBe('N')            // default strip
+        ->and($row->slug)->toBe('<b>keep</b>');  // per-field trim only
+});
+
+it('sanitizes from-scratch generated values', function () {
+    AiGenerator::make()
+        ->forModel(SeedCategory::class)
+        ->count(1)
+        ->createRecords()
+        ->prompt('seed')
+        ->sanitize(new StripTagsSanitizer)
+        ->responseGenerator(fn (array $batch): BatchResponse => BatchResponse::fromArray([
+            'records' => [['_index' => 0, 'name' => 'Seed <i>x</i>']],
+            'failed' => [],
+        ]))
+        ->runInline();
+
+    expect(SeedCategory::query()->value('name'))->toBe('Seed x');
 });
 
 it('seeds records from scratch with count() and no source', function () {

@@ -4,6 +4,7 @@ namespace Statikbe\FilamentSolaris\Support\Batch;
 
 use Illuminate\Database\Eloquent\Model;
 use RuntimeException;
+use Statikbe\FilamentSolaris\Sanitizers\SanitizerExecutor;
 
 /**
  * Filament-free record write-back for the records loop: creates a new model on
@@ -26,6 +27,7 @@ class RecordWriter
     public function __construct(
         private string $modelClass,
         private string $terminal,
+        private ?SanitizerExecutor $sanitizers = null,
     ) {}
 
     /**
@@ -34,6 +36,8 @@ class RecordWriter
      */
     public function write(array|Model $row, array $attrs): void
     {
+        $attrs = $this->sanitizers?->execute($attrs) ?? $attrs;
+
         if ($this->terminal === self::CREATE) {
             $this->modelClass::create($attrs);
 

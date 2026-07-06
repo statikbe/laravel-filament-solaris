@@ -9,6 +9,7 @@ use Filament\Forms\Components\Toggle;
 use Filament\Forms\FormsComponent;
 use Filament\Schemas\Schema;
 use Statikbe\FilamentSolaris\Actions\AiFormAction;
+use Statikbe\FilamentSolaris\Sanitizers\StripTagsSanitizer;
 use Statikbe\FilamentSolaris\Support\UserInput;
 
 class AiFormComponent extends FormsComponent
@@ -139,6 +140,18 @@ class AiFormComponent extends FormsComponent
             ->prompt('Fill the fields.')
             ->sanitize(fn (mixed $value) => is_string($value) ? strip_tags($value) : $value)
             ->sanitizeField('summary', fn (mixed $value) => is_string($value) ? mb_strtoupper($value) : $value);
+    }
+
+    /**
+     * AI action with a Sanitizer *object* (not a closure) — verifies the widened union.
+     */
+    public function generateWithSanitizerObjectAction(): AiFormAction
+    {
+        return AiFormAction::make('generateWithSanitizerObject')
+            ->sourceFields(['title', 'body'])
+            ->targetFields(['summary', 'category'])
+            ->prompt('Fill the fields.')
+            ->sanitize(new StripTagsSanitizer);
     }
 
     /**

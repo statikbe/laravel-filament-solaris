@@ -30,6 +30,21 @@ it('runs the per-action sanitizer on every target field', function () {
         ]);
 });
 
+it('accepts a Sanitizer object (not just a closure)', function () {
+    AiFormAction::fake([
+        'summary' => '<p>Hello <b>world</b></p>',
+        'category' => 'tech',
+    ]);
+
+    Livewire::test(AiFormComponent::class)
+        ->fillForm(['title' => 'X', 'body' => 'Y'])
+        ->callAction('generateWithSanitizerObject')
+        ->assertFormSet([
+            'summary' => 'Hello world',
+            'category' => 'tech',
+        ]);
+});
+
 it('lets sanitizeField override the per-action sanitizer for that field', function () {
     AiFormAction::fake([
         'summary' => 'lowercase summary',
