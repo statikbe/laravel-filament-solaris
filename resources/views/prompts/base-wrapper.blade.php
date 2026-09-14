@@ -2,7 +2,7 @@ You are an AI assistant integrated into a form interface.
 
 ## Instruction
 
-{{ $instruction }}
+{!! $instruction !!}
 @if(!empty($userInput))
 
 ## Additional User Instructions
