@@ -2,6 +2,20 @@
 
 All notable changes to `laravel-filament-solaris` will be documented in this file.
 
+## v0.4.0 - 2026-09-14
+
+### What's Changed
+
+* major refactor the package to support async processing, ai actions beyond forms, etc. This is work in progress.
+* chore(deps): update laravel/ai requirement from ^0.7 to ^0.8 by @dependabot[bot] in https://github.com/statikbe/laravel-filament-solaris/pull/12
+* chore(deps): update laravel/ai requirement from ^0.8 to ^0.9 by @dependabot[bot] in https://github.com/statikbe/laravel-filament-solaris/pull/14
+* chore(deps): bump actions/checkout from 6 to 7 by @dependabot[bot] in https://github.com/statikbe/laravel-filament-solaris/pull/13
+* chore(deps): bump actions/setup-node from 6 to 7 by @dependabot[bot] in https://github.com/statikbe/laravel-filament-solaris/pull/15
+* chore(deps): update laravel/ai requirement from ^0.9 to ^0.10 by @dependabot[bot] in https://github.com/statikbe/laravel-filament-solaris/pull/16
+* chore(deps): update laravel/ai requirement from ^0.10 to ^0.11 by @dependabot[bot] in https://github.com/statikbe/laravel-filament-solaris/pull/17
+
+**Full Changelog**: https://github.com/statikbe/laravel-filament-solaris/compare/0.3.0...0.4.0
+
 ## Unreleased
 
 ### Fixed
@@ -57,8 +71,10 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
   was extracted into a standalone, unit-tested `Support\Batch\BatchProcessor` with
   `generateResponse` / `persistRecord` / `BatchSink` seams. Behaviour is unchanged;
   this is the foundation for upcoming queued execution + failure reporting.
+  
 - **`AiGenerateAction` records-loop API breaking changes** (the action was not
   yet feature-complete enough for production use; this is a clean break):
+  
   - `->prompt()` / `->handleUsing()` / `->sourceRecords()` closures receive
     `$rows` (array of batch rows) instead of `$row` (singular). Declaring `$row`
     throws `LogicException` at execute time.
@@ -70,11 +86,12 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
   - `AiGenerateActionFake::fakeEach()` expects BatchResponse-shaped entries
     (`{records, failed}`) in `forModel` mode instead of raw per-row dicts.
   - The deprecated `'records' => ...` closure named arg on `handleUsing` is removed.
-
+  
 - **Renamed `AiAction` → `AiFormAction`** (and `AiActionFake` → `AiFormActionFake`,
   `WithAiActionFake` → `WithAiFormActionFake`) to distinguish the form-filling
   action from the upcoming form-agnostic generation action. Breaking change;
   update imports and `AiFormAction::` calls accordingly.
+  
 
 ### Added
 
@@ -172,6 +189,7 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
   - The `$row`-vs-`$rows` guard also runs on the single-call path.
   - Duplicate AI-echoed identifiers are distinguished from hallucinated ones.
   - Attachment-free actions can run `->execute()` headless (no Livewire host).
+  
 
 ## v0.1.0 - 2026-05-21
 
