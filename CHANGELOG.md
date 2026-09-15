@@ -4,6 +4,10 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
 
 ## Unreleased
 
+### Fixed
+
+- `AiGenerator` falls back to the configured `ai.default_provider`, `ai.default_model` and `ai.default_timeout` when none is set, like the actions do. Headless callers (jobs, listeners) no longer hit the laravel/ai default provider.
+
 ### Added
 
 - `AiGenerator` headless generation service (`Statikbe\FilamentSolaris\Generation\AiGenerator`)

@@ -41,6 +41,41 @@ it('dispatches SolarisResponseReceived on success', function () {
     Event::assertDispatched(SolarisResponseReceived::class, fn ($e) => $e->actionName === 'plausibility-check');
 });
 
+it('falls back to the configured default provider and model', function () {
+    config()->set('filament-solaris.ai.default_provider', 'openrouter');
+    config()->set('filament-solaris.ai.default_model', 'default-model');
+    Event::fake([SolarisResponseReceived::class]);
+    SolarisAgent::fake([['title' => 'X']]);
+
+    AiGenerator::make()
+        ->prompt('p')
+        ->schema(fn (JsonSchemaTypeFactory $s) => ['title' => $s->string()])
+        ->runInline();
+
+    Event::assertDispatched(
+        SolarisResponseReceived::class,
+        fn (SolarisResponseReceived $e) => $e->provider === 'openrouter' && $e->model === 'default-model',
+    );
+});
+
+it('keeps an explicit provider without mixing in the configured default model', function () {
+    config()->set('filament-solaris.ai.default_provider', 'openrouter');
+    config()->set('filament-solaris.ai.default_model', 'default-model');
+    Event::fake([SolarisResponseReceived::class]);
+    SolarisAgent::fake([['title' => 'X']]);
+
+    AiGenerator::make()
+        ->prompt('p')
+        ->provider('anthropic')
+        ->schema(fn (JsonSchemaTypeFactory $s) => ['title' => $s->string()])
+        ->runInline();
+
+    Event::assertDispatched(
+        SolarisResponseReceived::class,
+        fn (SolarisResponseReceived $e) => $e->provider === 'anthropic' && $e->model === null,
+    );
+});
+
 it('dispatches SolarisResponseFailed and throws AiException on failure', function () {
     Event::fake([SolarisResponseFailed::class]);
     SolarisAgent::fake(fn () => throw new AiException('boom'));

@@ -22,6 +22,7 @@ use Statikbe\FilamentSolaris\Enums\BatchRunStatus;
 use Statikbe\FilamentSolaris\Events\SolarisBatchCompleted;
 use Statikbe\FilamentSolaris\Events\SolarisResponseFailed;
 use Statikbe\FilamentSolaris\Events\SolarisResponseReceived;
+use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\Models\SolarisBatchRun;
 use Statikbe\FilamentSolaris\Sanitizers\Sanitizer;
 use Statikbe\FilamentSolaris\Sanitizers\SanitizerExecutor;
@@ -504,9 +505,9 @@ class AiGenerator
             columnEnums: $this->columnEnums,
             identifierKey: $this->resolveIdentifierKey(),
             writeTerminal: $this->writeTerminal,
-            provider: $this->provider,
-            model: $this->model,
-            timeout: $this->timeout,
+            provider: $this->resolveProvider(),
+            model: $this->resolveModel(),
+            timeout: $this->resolveTimeout(),
             runId: $run->id,
             temperature: $this->options->temperature,
             maxTokens: $this->options->maxTokens,
@@ -787,11 +788,13 @@ class AiGenerator
     protected function callAgent(SolarisAgent $agent, string $prompt): StructuredAgentResponse
     {
         $user = $this->hasUser ? $this->user : auth()->user();
+        $provider = $this->resolveProvider();
+        $model = $this->resolveModel();
         $startedAt = microtime(true);
 
         try {
             /** @var StructuredAgentResponse $response */
-            $response = $agent->prompt($prompt, $this->attachments, $this->provider, $this->model, $this->timeout);
+            $response = $agent->prompt($prompt, $this->attachments, $provider, $model, $this->resolveTimeout());
         } catch (\Throwable $original) {
             $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
 
@@ -803,8 +806,8 @@ class AiGenerator
                 $this->sourceName,
                 $this->sourceClass,
                 $e,
-                $this->provider,
-                $this->model,
+                $provider,
+                $model,
                 $durationMs,
                 $user,
                 $this->livewire,
@@ -820,15 +823,45 @@ class AiGenerator
             $this->sourceName,
             $this->sourceClass,
             $usage,
-            $this->provider,
-            $this->model,
+            $provider,
+            $model,
             $durationMs,
             $user,
             $this->livewire,
         );
 
-        SolarisPromptLogger::logUsage($this->sourceName, $usage, $this->provider, $this->model, $durationMs);
+        SolarisPromptLogger::logUsage($this->sourceName, $usage, $provider, $model, $durationMs);
 
         return $response;
+    }
+
+    /**
+     * Headless callers get the same defaults as the actions: an unset provider
+     * falls back to the configured `ai.default_provider` instead of the
+     * laravel/ai default.
+     *
+     * @return Lab|array<int|string, string>|string|null
+     */
+    protected function resolveProvider(): Lab|array|string|null
+    {
+        return $this->provider ?? FilamentSolaris::config()->getDefaultProvider();
+    }
+
+    /**
+     * The configured default model only applies with the configured default
+     * provider; a model for an explicitly set provider is never mixed in.
+     */
+    protected function resolveModel(): ?string
+    {
+        if ($this->provider !== null) {
+            return $this->model;
+        }
+
+        return $this->model ?? FilamentSolaris::config()->getDefaultModel();
+    }
+
+    protected function resolveTimeout(): ?int
+    {
+        return $this->timeout ?? FilamentSolaris::config()->getDefaultTimeout();
     }
 }
