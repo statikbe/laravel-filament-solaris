@@ -171,7 +171,7 @@ enum Evidence: string implements MetadataVocabulary
     case Verbatim = 'verbatim';
     case Derived = 'derived';
 
-    public function description(): string { … }   // → prompt language
+    public function promptDescription(): string { … }   // → prompt language
 }
 ```
 
@@ -301,11 +301,15 @@ independent of the action.
 1. Names: `fieldMetadata()`, `annotateFields()`, `afterRecordsWritten()`, `selectableFields()`
    are all provisional.
 2. §7 sequencing against the `AiFormAction` → service routing step.
-3. Does `AiGenerateAction`'s `handleUsing()` receive metadata as a separate argument, or
-   simply as part of the raw output it already gets? (Leaning: it already has it — do
-   nothing.)
+3. ~~Does `AiGenerateAction`'s `handleUsing()` receive metadata as a separate argument, or
+   simply as part of the raw output it already gets?~~ **Resolved (2026-09-18):** do
+   nothing. The handler already receives the raw output, envelopes included; adding a second
+   channel for the same data would only invite the two to disagree.
 4. ~~Should the confidence preset's thresholds be config-level, per-action, or both?~~
    **Resolved (2026-09-18):** neither — the cutoffs live on the level enum, and swapping the
    enum class is how you move them. See §4.2.
-5. The vocabulary interface name (`MetadataVocabulary`) and whether `description()` is the
-   right shape for generating prompt language.
+5. ~~The vocabulary interface name (`MetadataVocabulary`) and whether `description()` is the
+   right shape for generating prompt language.~~ **Resolved (2026-09-18):**
+   `MetadataVocabulary` with `promptDescription(): string` — the `prompt*` prefix matches
+   the existing `toPromptContext()` / `promptContextColumns()` idiom and keeps it distinct
+   from the schema's own `->description()` and from any UI label.
