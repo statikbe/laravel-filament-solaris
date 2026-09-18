@@ -228,10 +228,43 @@ using declarative write-back can never see the metadata. Rather than forbidding 
 combination, write-back gains a per-chunk hook:
 
 ```php
-->afterRecordsWritten(function (array $written) {
-    // $written: [['row' => …, 'metadata' => […], 'model' => Model], …]
-})
+/** @param  array<int, WrittenRecord>  $written */
+->afterRecordsWritten(function (array $written) { … })
 ```
+
+The payload is a DTO, not an array shape — that namespace is already DTO-typed
+(`BatchResponse`, `BatchOutcome`, `FailedRecord`, `DiscardedOutput`, `BatchSummary`,
+`BatchRunConfig`), and it mirrors `FailedRecord` deliberately:
+
+```php
+final readonly class WrittenRecord
+{
+    public function __construct(
+        public mixed $identifier,
+        public Model $model,
+        public mixed $input = null,
+        public array $metadata = [],
+    ) {}
+}
+```
+
+`identifier` and `input` keep exactly the meanings `FailedRecord` documents (PK for
+`updateRecords`, injected `_index` for `createRecords` + `sourceRecords`, freeform for a
+single call, `null` when unmatched). The two become the success and failure outcomes of a
+row, correlatable on the same key without inventing a second identity scheme.
+
+**Two constraints on the type:**
+
+- **Never serialize it.** Unlike `FailedRecord`, it holds a live Eloquent model. It is
+  constructed on the worker and consumed in the same tick; it must not go into a job
+  payload or reach a queued listener.
+- **`WrittenRecord`, not `ProcessedRecord`.** The name is honest only for a terminal that
+  writes. When [41](41-handler-terminal-and-agent-reuse.md) settles the handler terminal it
+  is expected to add a sibling with its own payload — the handler's return value is
+  arbitrary and its shape is still §3.1's open question, so a shared `mixed` payload would
+  cost the common case its `Model` type guarantee to serve a design that does not exist yet.
+  What the two terminals share is the **collection step** in `BatchProcessor` — capture what
+  each row produced instead of only incrementing `$succeeded` — which is payload-agnostic.
 
 **Per chunk, where the write happened** — in-request for `runInline()`, on the worker for
 `runQueued()`. Bounded by construction, needs no accumulation, and matches the grain a
