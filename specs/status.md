@@ -14,7 +14,7 @@
 | Suite | 703 Pest tests, PHPStan level 5 |
 | Numbered specs | 41 in `specs/` |
 | Release | everything sits under CHANGELOG *Unreleased* |
-| Unpushed | `main` is far ahead of `origin/main` (last push 2026-06-12) — the whole AiGenerator arc plus sanitizers |
+| Unpushed | 4 commits ahead of `origin/main` (last push 2026-09-15) — this documentation set |
 
 ---
 
@@ -96,8 +96,9 @@ throttle (§4.2).
 
 ## Track C — backlog and housekeeping
 
-- **Unpushed `main`.** Everything since 2026-06-12. Three remote branches are fully merged
-  and can be pruned.
+- **Stale remote branches.** `origin/feature/batch-completion-handlers`,
+  `origin/fix-openrouter-voice-transcription` and `origin/pre-1.0-cleanup` are still on the
+  remote; check whether they are fully merged and prune the ones that are.
 - **Streaming / broadcast responses** (MF #3, P1). Open question is whether streaming
   structured output is feasible at all under a JSON-schema constraint.
 - **Cross-session conversation persistence** (MF #11). Blocked: needs a
