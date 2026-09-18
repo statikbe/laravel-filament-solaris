@@ -278,10 +278,21 @@ values + metadata". Building it inside `HasPromptPipeline` would deepen exactly 
 split-brain that the outstanding `AiFormAction` → service routing step exists to remove
 ([status.md](status.md), Track A).
 
-**Sequencing question, open:** does this land before or after that routing step? Building it
-after means writing it once. Building it before means writing it in the shared collaborator
-and wiring the second caller later — acceptable, but only if the collaborator is genuinely
-independent of the action.
+**Sequencing — resolved (2026-09-18): this lands *before* the routing step**, and is built
+standalone.
+
+The reason is not impatience. The routing step's own missing piece is the same object:
+`AiGenerator::runSingleStructuredCall()` hardcodes `configure($prompt, [], $schemaResolver)`,
+so the service cannot accept a factory map at all, and spec 39 leaves it undecided whether
+that arrives as a `factories()` setter or as an action-side conversion of factories into a
+`schema()` closure. This collaborator has to do that conversion anyway — it wraps a
+factory-derived schema in envelopes and unwraps the response back into values plus metadata.
+
+So it is built once, action-side, with **no dependency on `AiFormAction`**: factories and a
+response array in, a schema closure and a `{values, metadata}` pair out. When the routing
+step happens it consumes the same collaborator rather than growing a second implementation.
+That constraint — no action state, no Livewire, no Filament — is the acceptance criterion
+for the piece.
 
 ---
 
@@ -298,9 +309,12 @@ independent of the action.
 
 ## 9. Open questions
 
-1. Names: `fieldMetadata()`, `annotateFields()`, `afterRecordsWritten()`, `selectableFields()`
-   are all provisional.
-2. §7 sequencing against the `AiFormAction` → service routing step.
+1. ~~Names: `fieldMetadata()`, `annotateFields()`, `afterRecordsWritten()`,
+   `selectableFields()` are all provisional.~~ **Resolved (2026-09-18):** accepted as
+   written — general enough to survive later uses.
+2. ~~§7 sequencing against the `AiFormAction` → service routing step.~~ **Resolved
+   (2026-09-18):** before it, built standalone, and shaped so the routing step can reuse it.
+   See §7.
 3. ~~Does `AiGenerateAction`'s `handleUsing()` receive metadata as a separate argument, or
    simply as part of the raw output it already gets?~~ **Resolved (2026-09-18):** do
    nothing. The handler already receives the raw output, envelopes included; adding a second

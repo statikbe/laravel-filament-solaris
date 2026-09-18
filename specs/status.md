@@ -37,6 +37,28 @@ generation is callable from a controller, a listener, a command or a queue worke
 | Headless docs for the batch + queued surface | deferred | Deferred twice (pieces 2 and 3). `documentation/` has no `ai-generator.md` |
 | Service-native `AiGenerator::fake()` | deferred | Option 2 from spec 37. Today the fake plugs in through the `responseGenerator()` seam |
 
+### Known gaps in the routing step (no spec covers these yet)
+
+Found while sequencing [spec 42](42-field-metadata-and-selection.md) §7, 2026-09-18:
+
+- **The form fake would be silently bypassed.** `AiGenerator::responseGenerator()` is typed
+  as a *batch* seam (`Closure(array): BatchResponse`) and is only consulted by
+  `InlineRunner`; the form path records its own calls inside `HasPromptPipeline`. Routing
+  `AiFormAction` through `runSingleStructuredCall()` would leave `AiActionFake` seeing
+  nothing. **This is the one that has to be solved before routing, not after** — it is how
+  every form-action test asserts.
+- **The service cannot accept factories.** `runSingleStructuredCall()` hardcodes
+  `configure($prompt, [], $schemaResolver)`. Spec 39 names "factory-schema support on the
+  service" as in-scope but leaves the shape undecided (service setter vs. action-side
+  closure conversion). Spec 42 §7 resolves to build that conversion first, standalone.
+- **`runPipeline()` serves both arms**, so routing only the non-conversational one forks it
+  into two call paths — temporarily *more* split-brain, not less.
+- Smaller deltas: the service throws where `executeAiCall()` returns `null`, and it skips
+  `SolarisPromptLogger::log()` / `logAgentSchema()` / `logResponse()`.
+- **Docs contradict each other on ordering:** spec 39 §"recommendation" puts the preset
+  parity port *before* routing; the table above puts it after. Spec 41 §6.7 lists its own
+  position relative to routing as decision-critical and unanswered.
+
 ---
 
 ## Track B — consumer-driven API gaps
