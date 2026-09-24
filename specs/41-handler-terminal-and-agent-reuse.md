@@ -1,11 +1,10 @@
-# 41 — Handler terminal, agent reuse & per-row attachments (provisional)
+# 41 — Handler terminal, agent reuse & per-row attachments
 
-> **Status:** PROVISIONAL — an assessment to refine, not a design to implement. It
-> records what a second real consumer (Pacioli) demands of the generation engine, which
-> capabilities we have agreed we want, and which design choices are still open. Expected
-> to be rewritten in place as we work through §3 and §6, and only then to spawn numbered
-> implementation specs.
-> **Date:** 2026-09-10. **Author context:** Sten + Claude.
+> **Status:** DECISIONS TAKEN (2026-09-24) — all §6 open questions are resolved; see §6.
+> Still an assessment, not an implementation spec: it records what a second real consumer
+> (Pacioli) demands of the generation engine and the design choices we made in response.
+> Next step is spawning numbered implementation specs in the §7 order.
+> **Date:** 2026-09-10 (decisions 2026-09-24). **Author context:** Sten + Claude.
 > **Relates to:** `35-…-plausibility-review.md` (validation case #1, knxcou),
 > `36-ai-generator-service.md` (the arc this extends), `39-conversational-preview-exploration.md`
 > (staging + chat — see §5).
@@ -100,21 +99,30 @@ that is what this section is for.
 *Agreed:* `handleUsing()` becomes a terminal on the records loop, on the service as well
 as the action, and works queued.
 
-**Open — what does a per-row handler receive?** Today handler-mode gets a raw `array`
-(custom schema) or a `BatchResponse` (forModel). Neither fits per-row. It wants this
-row's parsed output, the source row it came from, and the attachment that was sent.
-Reusing `BatchResponse` would be a category error — that is a batch shape.
+**Decided — a per-row handler receives a dedicated per-row DTO.** Today handler-mode gets
+a raw `array` (custom schema) or a `BatchResponse` (forModel). Neither fits per-row.
+Reusing `BatchResponse` would be a category error — that is a batch shape. New shape,
+provisionally `RowResult`: `output` (raw parsed array, see §4.5), `source` (the row or
+Model it came from), `attachments` (`File[]` sent with this row), `index`, plus the
+idempotency key (below). Delivered via Filament-style DI — `fn (RowResult $result)` or
+named args `$output` / `$source` / `$attachments`. The DTO is the serialisation and
+test-assertion unit; DI keeps the handler terse. **No custom-DTO hook for now**
+(e.g. `->rowResultClass()`): Solaris constructs the DTO, so an app wanting richer data
+wraps/maps it inside its handler. Add the hook only on demonstrated need.
 
-**Open — is fan-out a distinct terminal, or `batchSize(1)`?** Leaning **distinct**. "N
-rows in one prompt, reconcile by identifier" and "one call per row" are different
-machines: different failure semantics, different retry semantics, and fan-out needs none
-of the `## Records` identifier-echo contract. Expressing it as `batchSize(1)` hides that.
-Cost of a distinct terminal: another concept on an already-wide API.
+**Decided — fan-out is a distinct terminal, not `batchSize(1)`.** "N rows in one prompt,
+reconcile by identifier" and "one call per row" are different machines: different failure
+semantics, different retry semantics, and fan-out needs none of the `## Records`
+identifier-echo contract. `batchSize(1)` would hide that and silently change retry
+behaviour for someone tuning cost. The extra API concept is the accepted cost; name TBD in
+the implementation spec (`->eachRow()` / `->perRecord()`).
 
-**Open — retry semantics.** Write terminals run `tries = 1` because `createRecords` is not
-idempotent. A handler's idempotency is the app's business (Pacioli's `StagedDocument` is
-content-addressed with a `used_at` marker, so it can be made safe). Do we let the caller
-choose `tries`, or keep 1 and let the app dedupe?
+**Decided — retries: caller-settable on handler terminals, plus an idempotency key.**
+Write terminals stay locked at `tries = 1` (`createRecords` is not idempotent). Handler /
+fan-out terminals get `->tries(n)` (+ backoff) — transient LLM failures are common enough
+that 1 is harsh when the handler is retry-safe. Solaris passes each handler a stable
+per-row key (run id + row index) so "the app owns idempotency" is cheap to honour
+(Pacioli's content-addressed `StagedDocument` with `used_at` already fits).
 
 ### 3.2 Reusable agent
 
@@ -125,15 +133,32 @@ single-upload action, a dropzone, an intake listener and a re-propose action.
 instance across call sites is a footgun, not a feature — the second caller mutates the
 first's config.
 
-**Open — immutability or a definition/runner split?** Leaning **split**: a definition
-object (prompt + schema + tools + provider + options) that *produces* runs, so "same
-agent, several terminals" is structural rather than conventional. Clone-on-set is the
-smaller change but leaves one class doing both jobs. This is probably the highest-leverage
-decision in the whole document: it is also the natural anchor for the chat work (§3.4)
-and for a single testing seam.
+**Decided — full definition/run split, now (option A).** An immutable `AgentDefinition`
+(prompt, schema, provider, model, timeout, options, tools, `forModel` column hints/enums,
+sanitizers, `promptContextColumns`) *produces* runs; a transient run object carries the
+per-run data and context (`sourceRecords`, `recordCount`, `userInput`, livewire, user,
+terminal, completion handlers, `tracked`; run-level attachments sit on the run). "Same
+agent, several terminals" becomes structural rather than conventional. It is also the
+anchor for the chat work (§3.4) and a single testing seam.
 
-**Open — registration.** Is a definition an injectable service the app registers once, a
-value object it constructs where needed, or both?
+Rejected alternatives: *clone-on-set on `AiGenerator`* (one class doing both jobs; a
+forgotten `clone` reintroduces the footgun) and *hybrid `->define()` snapshot* (the
+definition/run property split is the same design work either way; the hybrid keeps the
+shareable-mutable hazard and two ways to do one thing, and defers a larger break).
+
+Consequences accepted:
+- **Breaking change in 0.5.** `AiGenerator` shipped in 0.4.0; its fluent flow changes
+  (it becomes the run, or is renamed). Pre-1.0, few consumers — the break is cheapest now.
+  Needs an upgrade note.
+- A fluent definition must itself be clone-on-set internally. That is fine: the
+  fragility of clone-on-set is a large mixed-state class, not a small pure-config one.
+- The `AiGenerateAction` translator and the four `AiGenerator` test files are rewritten;
+  the queued path's `BatchRunConfig` likely becomes (or derives from) a definition
+  snapshot — to be confirmed in the implementation spec.
+
+**Decided — registration: a value object; app-level binding optional.** A definition is a
+value object constructed where needed. An app that wants one shared instance binds it in
+a service provider itself. Solaris ships no registry.
 
 ### 3.3 Per-row attachments
 
@@ -147,9 +172,9 @@ descriptor**, not in run-level config. Note the existing queue-serialisation gua
 `StagedDocument` stores via `Storage::disk('local')` and serialises fine; the guard only
 rejects raw filesystem paths.
 
-**Open — resolution timing.** Resolved in-request at dispatch (current behaviour for
-run-level attachments) or lazily on the worker from a reference? In-request is safer and
-matches today; lazy is cheaper for large fan-outs.
+**Decided — resolution timing: in-request at dispatch, not lazy.** Matches current
+behaviour for run-level attachments and is the safer choice. Lazy worker-side resolution
+is not built.
 
 ### 3.4 Chat — postponed, but keep the seam
 
@@ -180,9 +205,14 @@ the failure rows"), which is correct for write-back — the records are *in the 
 identity is recoverable. For a **handler** terminal it is not. A dropzone that finishes
 with "8 succeeded" and no proposal ids cannot link the user to what it just made.
 
-Something must collect what the handlers produced. **Open:** a bounded collection on the
-summary, a column on the run row, or an explicit opt-in so large runs don't accumulate?
-Without this the dropzone is correct but unusable.
+Something must collect what the handlers produced. Without this the dropzone is correct
+but unusable.
+
+**Decided — opt-in, per-row storage, bounded on the summary.** Collection is opt-in
+(`->collectResults()`); nothing accumulates unless asked. The handler's return value is
+what gets collected and must be serialisable (ids, not models) so it survives the queued
+path. It is stored per row, and the summary exposes a capped list plus a `truncated` flag.
+Storage details are the implementation spec's call (and overlap spec 42 §4.1 references).
 
 ### 4.2 No queue targeting anywhere — high conviction, small change
 
@@ -192,7 +222,9 @@ default connection. For calls this expensive, one dropzone of twenty invoices st
 every other job in the application. This is a precondition for "one job per invoice"
 being sane, not a nice-to-have.
 
-**Open:** does a concurrency limit belong here too, or is that the app's queue config?
+**Decided:** `onQueue` / `onConnection` go in. Concurrency: an optional `->throttle()`
+backed by Laravel's `RateLimited` job middleware, off by default; per-queue worker counts
+in the app's queue config remain the primary lever.
 
 ### 4.3 Solaris should not own staging — see §5
 
@@ -202,11 +234,12 @@ Pacioli's `needs_relation` and `needs_correction` are **successes that need atte
 the proposal exists, is visible, and cannot be approved as it stands. Solaris's outcome
 model is binary (succeeded / failed, plus discarded).
 
-**Recommendation: do not add a state.** It is domain semantics and the handler owns it.
+**Decided: do not add a state.** It is domain semantics and the handler owns it.
 But it leaks in exactly one place — a completion notification reading "8 succeeded" when
 three need relations is untrue in a way the user will notice. The cheap honest fix is
-letting the handler contribute its own notification text, not a new core state. Recorded
-here so it is a decision rather than an oversight.
+letting the app contribute its own notification text, not a new core state:
+`->completionMessage(fn (BatchSummary $summary, array $results) => …)`, fed by the §4.1
+result collection. Recorded here so it is a decision rather than an oversight.
 
 ### 4.5 Do not own provenance — a constraint, not a feature
 
@@ -240,31 +273,63 @@ leaning that way) and **against** the table (provisional call #2, currently lean
 for apps with no staging of their own, and should not be built until something actually
 lacks one.
 
----
-
-## 6. Open questions
-
-Decision-critical, unanswered as of writing.
-
-1. **Fan-out as a distinct terminal, or `batchSize(1)`?** (§3.1) — shapes the whole API.
-2. **What payload does a per-row handler receive?** (§3.1)
-3. **Definition/runner split, or clone-on-set immutability?** (§3.2) — highest leverage.
-4. **Who owns handler idempotency, and can callers set `tries`?** (§3.1)
-5. **How do handler results surface in the run outcome, and bounded how?** (§4.1)
-6. **Does spec 39's staging table survive §5?**
-7. **Sequencing:** does this land before or after the outstanding `AiFormAction` →
-   service routing, which is currently the next step of the arc (spec 38 follow-ups)?
+**Decided (2026-09-24): the persist-callback swap is the mechanism; no staging store for
+the handler terminal.** Apps with their own staging (Pacioli) swap the callback and never
+touch a Solaris store. But Solaris's *own* generate-side preview (spec 39: full-screen
+table + chat, `@row-id` lookups, pagination, surviving a refresh, approve-replays via
+`RecordWriter`) is itself a consumer that lacks staging — so a Solaris staging store
+**does** ship, as part of implementing spec 39, not before. Its form (table, JSON column
+on the `Staged` run, or cache) is spec 39's call. Constraint: the `StagingWriter`
+callback receives the same per-row DTO as the handler, so a generic store and an app's
+own staging implement the same contract.
 
 ---
 
-## 7. Provisional sequencing sketch
+## 6. Decisions
 
-Not agreed — a starting point for §6.7.
+All resolved 2026-09-24 (Sten + Claude). Detail lives in the referenced sections.
 
-1. Handler terminal on `AiGenerator` (single call first — closes the arc omission).
-2. Fan-out execution with per-row attachments, inline.
-3. Queue targeting (§4.2) — small, unblocks the next step being usable.
-4. Fan-out queued + result collection (§4.1).
-5. Agent definition / reuse (§3.2) — could also lead, if the split changes the shape of
-   1–4. **Open.**
-6. Guidance re-run seam (§3.4).
+1. **Fan-out: distinct terminal**, not `batchSize(1)`. (§3.1)
+2. **Per-row handler payload: a dedicated per-row DTO** (`RowResult`: raw output, source,
+   attachments, index, idempotency key), delivered via Filament-style DI. No custom-DTO
+   hook for now. (§3.1)
+3. **Full definition/run split now** — immutable `AgentDefinition` + transient run.
+   Breaking change in 0.5. Definition is a value object; no Solaris registry. (§3.2)
+4. **Idempotency is the app's; Solaris helps.** Write terminals stay `tries = 1`;
+   handler/fan-out terminals get `->tries(n)` + backoff and a stable per-row key. (§3.1)
+5. **Handler results: opt-in `->collectResults()`**, serialisable return values stored
+   per row, summary exposes a capped list + `truncated` flag. (§4.1)
+6. **Persist-callback swap is the mechanism; no staging store for the handler
+   terminal.** Solaris's own staging store ships with spec 39's generate-side preview
+   (table / JSON column / cache — decided there). (§5)
+7. **Sequencing: definition split first**, then the `AiFormAction` → service routing
+   (so it targets the new shape and is not redone), then handler + fan-out. (§7)
+
+Also decided: per-row attachments resolve in-request, not lazily (§3.3); `onQueue` /
+`onConnection` + optional off-by-default `->throttle()` (§4.2); no third outcome state,
+`->completionMessage()` hook instead (§4.4).
+
+---
+
+## 7. Sequencing
+
+Follows from §6.7. Each step is expected to become its own numbered implementation spec.
+
+1. Agent definition / run split (§3.2) — the 0.5 breaking change, with upgrade note.
+2. `AiFormAction` → service routing (spec 38 follow-ups), built on the new shape.
+3. Handler terminal on the run (single call first — closes the arc omission).
+4. Fan-out execution with per-row attachments + `RowResult`, inline.
+5. Queue targeting + optional throttle (§4.2) — small, unblocks the next step.
+6. Fan-out queued: `tries`/idempotency key, result collection (§4.1),
+   `->completionMessage()` (§4.4).
+7. Guidance re-run seam (§3.4).
+
+**Interleaving with spec 42 and spec 39** (agreed 2026-09-24):
+
+1. Step 1 above **and** spec 42 §8 steps 1–4 — independent (42's steps do not touch
+   `AiGenerator`), any order or in parallel.
+2. Step 2 above (`AiFormAction` routing) — consumes spec 42's wrap/unwrap collaborator and
+   targets the definition shape.
+3. The per-row collection step in `BatchProcessor`, built **once** — then spec 42 step 5
+   (write-back hook) and steps 3–6 above both use it.
+4. Spec 39's preview, including its staging store (§5).

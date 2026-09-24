@@ -7,6 +7,11 @@
 > **Supersedes** the direction sketched in `35-aigenerateaction-parity-and-plausibility-review.md`
 > (which proposed a return-only single-call service). Decision since: the service
 > owns the **full** engine (single + batch, sync + queued), to avoid a split-brain.
+> **Superseded in part (2026-09-24)** by [41](41-handler-terminal-and-agent-reuse.md) §3.2:
+> the single mutable fluent builder splits into an immutable `AgentDefinition` + a
+> transient run (0.5 breaking change). The `AiGenerator::make()->…` examples, the
+> config/terminal list under "I/O contract" and the entry-style open question below
+> describe the pre-split shape. Handler/fan-out terminals: 41 §3.1.
 
 ---
 

@@ -259,10 +259,10 @@ row, correlatable on the same key without inventing a second identity scheme.
   constructed on the worker and consumed in the same tick; it must not go into a job
   payload or reach a queued listener.
 - **`WrittenRecord`, not `ProcessedRecord`.** The name is honest only for a terminal that
-  writes. When [41](41-handler-terminal-and-agent-reuse.md) settles the handler terminal it
-  is expected to add a sibling with its own payload — the handler's return value is
-  arbitrary and its shape is still §3.1's open question, so a shared `mixed` payload would
-  cost the common case its `Model` type guarantee to serve a design that does not exist yet.
+  writes. [41](41-handler-terminal-and-agent-reuse.md) §3.1 (decided 2026-09-24) gives the
+  handler terminal its own shapes — a `RowResult` input DTO, and the handler's return value
+  as the collected output — so it adds a sibling rather than sharing a `mixed` payload,
+  which would cost the common case its `Model` type guarantee.
   What the two terminals share is the **collection step** in `BatchProcessor` — capture what
   each row produced instead of only incrementing `$succeeded` — which is payload-agnostic.
 
@@ -270,8 +270,8 @@ row, correlatable on the same key without inventing a second identity scheme.
 `runQueued()`. Bounded by construction, needs no accumulation, and matches the grain a
 consumer wants (Pacioli writes its `proposal_field_decisions` rows right beside the proposal
 it just created). A run-level rollup of everything a run produced is explicitly **out of
-scope** here; it is [41](41-handler-terminal-and-agent-reuse.md) §4.1 and drags the storage
-question back in.
+scope** here; it is [41](41-handler-terminal-and-agent-reuse.md) §4.1 (decided 2026-09-24:
+opt-in `->collectResults()`, stored per row, capped list on the summary).
 
 **What it costs.** Identity is currently discarded at the moment of writing:
 
@@ -338,7 +338,10 @@ for the piece.
 3. **The two presets** — `withEvidence()`, `withConfidence()` + `ConfidenceLevel`.
 4. **Field annotation** (`annotateFields()`) — the second surface, for the no-preview path.
 5. **The write-back hook** — depends on the `RecordWriter` / `BatchProcessor` change, and
-   overlaps [41](41-handler-terminal-and-agent-reuse.md) §4.1; sequence against spec 41.
+   overlaps [41](41-handler-terminal-and-agent-reuse.md) §4.1. **Sequenced (2026-09-24):**
+   steps 1–4 run independently of spec 41's definition split; the `BatchProcessor`
+   per-row collection step is built once, *after* that split and the `AiFormAction`
+   routing, and serves both this hook and 41's handler terminal. See 41 §7.
 
 ## 9. Open questions
 

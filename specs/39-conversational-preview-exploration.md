@@ -326,8 +326,20 @@ flagged); the user can refine **any** record, failed or not.
   inside both shells.
 
 ## Staging store (open — to settle at spec time)
-- A **dedicated staging table**, or a **JSON column** on an existing row (e.g. the
-  `Staged` `SolarisBatchRun`). Both viable.
+
+**Scoped by [41](41-handler-terminal-and-agent-reuse.md) §5 (2026-09-24):** this store is
+the built-in generate-side preview's own store, built when this spec is implemented — not
+before, and not a general staging concept. Apps with their own staging (Pacioli's
+`InvoiceProposal`) swap the persist callback and never use it. The `StagingWriter`
+callback receives the same per-row DTO as 41's handler terminal.
+
+Candidate forms, still open:
+- A **dedicated staging table** — real key for `@row-id`, query/pagination, durable.
+- A **JSON column** on an existing row (e.g. the `Staged` `SolarisBatchRun`) — no new
+  table, but pagination/sorting happen in PHP over the whole set.
+- The **cache** — no migration at all; but TTL/eviction can drop a review mid-way,
+  there is no querying (whole set loaded to paginate), and it only survives a refresh
+  while the entry lives. Weigh against how long reviews realistically stay open.
 
 ## Parked for a future session — form-action data + conversation + files
 Persisting the **form action's** data *and its conversation* so that **files /
@@ -426,6 +438,11 @@ re-processing goes stateless.**
 ## Proposed class + trait structure (Approach A)
 
 Two views. **NEW** = introduced by this arc; everything else exists today.
+
+> **Note (2026-09-24):** these diagrams predate [41](41-handler-terminal-and-agent-reuse.md)
+> §3.2's `AgentDefinition` / run split. Where they show `AiGenerator` as the fluent builder
+> hosting `stage()`, read "the run"; `stage()` becomes a run terminal on that shape. Not
+> redrawn until this spec is implemented.
 
 ### View 1 — call engine + staging store
 
@@ -555,10 +572,11 @@ classDiagram
   previews vs. generate full-screen table + chat) — deliberately *not* in the trait.
 
 ### Provisional calls baked into this diagram (each independently up for grabs)
-1. `StagingWriter` as a persist-callback swap (vs. a `BatchProcessor` "reconcile
-   only" mode). *Leaning swap — zero change to `BatchProcessor`.*
+1. ~~`StagingWriter` as a persist-callback swap~~ — **resolved (2026-09-24, spec 41
+   §5): swap.** Zero change to `BatchProcessor`; apps can swap in their own staging.
 2. `SolarisStagedRecord` as a **new table** with a run-wide id (vs. a JSON column on
-   the run). *Leaning table — the `@row-id` wants a real key + query/pagination.*
+   the run, or the cache — see "Staging store"). *Leaning table — the `@row-id` wants a
+   real key + query/pagination.* Built with this spec, not earlier.
 3. ~~`StagedBatch` DTO~~ — **resolved: dropped.** `stage*()` returns
    `SolarisBatchRun` (a `Staged` run); its `stagedRecords()` are the rows.
 4. `continue()` serves the **form** (real laravel/ai conversation); **batch** refine

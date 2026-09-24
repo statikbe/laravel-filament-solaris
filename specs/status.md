@@ -30,10 +30,10 @@ generation is callable from a controller, a listener, a command or a queue worke
 |---|---|---|
 | `AiGenerator` owns single + batch, inline + queued (specs 36–38) | ✅ merged | The action is a thin translator; `ProcessChunkJob` shares `RecordWriter` / `RecordsSchemaBuilder` with the inline path |
 | Sanitizers — parity port 1 ([spec 40](40-sanitizers.md)) | ✅ merged | Closed the stored-XSS gap on record write-back; `AiFormAction` moved onto the same `Sanitizer` abstraction |
-| Route `AiFormAction`'s AI call through the service | ⏭️ **next** | `HasPromptPipeline` still builds its own `SolarisAgent` — the last split-brain in the engine. Non-conversational routing first. No numbered spec yet |
+| Route `AiFormAction`'s AI call through the service | queued (after the spec 41 definition split) | `HasPromptPipeline` still builds its own `SolarisAgent` — the last split-brain in the engine. Non-conversational routing first. Moved behind the `AgentDefinition` split (spec 41 §6.7) so it targets the new shape. No numbered spec yet |
 | Presets on the generate side — parity port 2 | queued | Spec 35 Part A, postponed out of spec 40. `tools()` already exists on the service |
 | Conversational + preview as shared capabilities ([spec 39](39-conversational-preview-exploration.md)) | 🎨 designing | Approach A + staged-write-on-approve settled; run reuse, guidance distillation and the attachment round-trip still open |
-| Handler terminal, agent reuse, per-row attachments ([spec 41](41-handler-terminal-and-agent-reuse.md)) | 🎨 designing | Provisional. Driven by Pacioli as validation case #2; sequencing against the `AiFormAction` routing above is open question §6.7 |
+| Handler terminal, agent reuse, per-row attachments ([spec 41](41-handler-terminal-and-agent-reuse.md)) | ✅ decided, ⏭️ **next** | Decisions taken 2026-09-24 (§6). Step 1 of its §7 sequencing — the `AgentDefinition` / run split, a 0.5 breaking change — lands *before* the `AiFormAction` routing. No implementation spec yet |
 | Headless docs for the batch + queued surface | deferred | Deferred twice (pieces 2 and 3). `documentation/` has no `ai-generator.md` |
 | Service-native `AiGenerator::fake()` | deferred | Option 2 from spec 37. Today the fake plugs in through the `responseGenerator()` seam |
 
@@ -56,8 +56,13 @@ Found while sequencing [spec 42](42-field-metadata-and-selection.md) §7, 2026-0
 - Smaller deltas: the service throws where `executeAiCall()` returns `null`, and it skips
   `SolarisPromptLogger::log()` / `logAgentSchema()` / `logResponse()`.
 - **Docs contradict each other on ordering:** spec 39 §"recommendation" puts the preset
-  parity port *before* routing; the table above puts it after. Spec 41 §6.7 lists its own
-  position relative to routing as decision-critical and unanswered.
+  parity port *before* routing; the table above puts it after. (Spec 41 §6.7 is now resolved:
+  its definition split goes before routing; handler + fan-out after.)
+- **Combined order across specs 41 / 42 / 39** (agreed 2026-09-24, detail in spec 41 §7):
+  (1) 41's `AgentDefinition` split ∥ spec 42 steps 1–4; (2) `AiFormAction` routing, on the
+  new shape, consuming 42's wrap/unwrap collaborator; (3) the `BatchProcessor` per-row
+  collection step, built once, then 42's write-back hook + 41's handler/fan-out terminals;
+  (4) spec 39's preview, including its own staging store (table / JSON column / cache).
 
 ---
 
