@@ -5,16 +5,16 @@
 > numbered specs in this directory. Architecture diagrams live in
 > [`../documentation/architecture.md`](../documentation/architecture.md).
 >
-> **Last reviewed:** 2026-09-18.
+> **Last reviewed:** 2026-10-14.
 
 ## Repo state
 
 | | |
 |---|---|
 | Suite | 703 Pest tests, PHPStan level 5 |
-| Numbered specs | 41 in `specs/` |
+| Numbered specs | 43 in `specs/` |
 | Release | everything sits under CHANGELOG *Unreleased* |
-| Unpushed | 4 commits ahead of `origin/main` (last push 2026-09-15) — this documentation set |
+| Unpushed | nothing (all pushed as of 2026-10-14) |
 
 ---
 
@@ -30,10 +30,11 @@ generation is callable from a controller, a listener, a command or a queue worke
 |---|---|---|
 | `AiGenerator` owns single + batch, inline + queued (specs 36–38) | ✅ merged | The action is a thin translator; `ProcessChunkJob` shares `RecordWriter` / `RecordsSchemaBuilder` with the inline path |
 | Sanitizers — parity port 1 ([spec 40](40-sanitizers.md)) | ✅ merged | Closed the stored-XSS gap on record write-back; `AiFormAction` moved onto the same `Sanitizer` abstraction |
-| Route `AiFormAction`'s AI call through the service | queued (after the spec 41 definition split) | `HasPromptPipeline` still builds its own `SolarisAgent` — the last split-brain in the engine. Non-conversational routing first. Moved behind the `AgentDefinition` split (spec 41 §6.7) so it targets the new shape. No numbered spec yet |
+| Route `AiFormAction`'s AI call through the service | queued (after spec 43) | `HasPromptPipeline` still builds its own `SolarisAgent` — the last split-brain in the engine. Non-conversational routing first. The `AgentDefinition` split it was waiting on was reversed (spec 41 §3.2), so no new shape to target. No numbered spec yet |
 | Presets on the generate side — parity port 2 | queued | Spec 35 Part A, postponed out of spec 40. `tools()` already exists on the service |
 | Conversational + preview as shared capabilities ([spec 39](39-conversational-preview-exploration.md)) | 🎨 designing | Approach A + staged-write-on-approve settled; run reuse, guidance distillation and the attachment round-trip still open |
-| Handler terminal, agent reuse, per-row attachments ([spec 41](41-handler-terminal-and-agent-reuse.md)) | ✅ decided, ⏭️ **next** | Decisions taken 2026-09-24 (§6). Step 1 of its §7 sequencing — the `AgentDefinition` / run split, a 0.5 breaking change — lands *before* the `AiFormAction` routing. No implementation spec yet |
+| Handler terminal, agent reuse, per-row attachments ([spec 41](41-handler-terminal-and-agent-reuse.md)) | ✅ decided | Decisions taken 2026-09-24 (§6); decision 3 (definition/run split) reversed 2026-10-14. Step 1 of its §7 sequencing is now spec 43 |
+| Reusable generators — `setUp()` hook + reuse docs ([spec 43](43-reusable-generators.md)) | 📝 spec, ⏭️ **next** | Replaces the reversed split. No breaking change |
 | Headless docs for the batch + queued surface | deferred | Deferred twice (pieces 2 and 3). `documentation/` has no `ai-generator.md` |
 | Service-native `AiGenerator::fake()` | deferred | Option 2 from spec 37. Today the fake plugs in through the `responseGenerator()` seam |
 
@@ -57,10 +58,10 @@ Found while sequencing [spec 42](42-field-metadata-and-selection.md) §7, 2026-0
   `SolarisPromptLogger::log()` / `logAgentSchema()` / `logResponse()`.
 - **Docs contradict each other on ordering:** spec 39 §"recommendation" puts the preset
   parity port *before* routing; the table above puts it after. (Spec 41 §6.7 is now resolved:
-  its definition split goes before routing; handler + fan-out after.)
+  its reuse step — now spec 43 — goes before routing; handler + fan-out after.)
 - **Combined order across specs 41 / 42 / 39** (agreed 2026-09-24, detail in spec 41 §7):
-  (1) 41's `AgentDefinition` split ∥ spec 42 steps 1–4; (2) `AiFormAction` routing, on the
-  new shape, consuming 42's wrap/unwrap collaborator; (3) the `BatchProcessor` per-row
+  (1) spec 43 (reusable generators, replacing 41's reversed split) ∥ spec 42 steps 1–4;
+  (2) `AiFormAction` routing, consuming 42's wrap/unwrap collaborator; (3) the `BatchProcessor` per-row
   collection step, built once, then 42's write-back hook + 41's handler/fan-out terminals;
   (4) spec 39's preview, including its own staging store (table / JSON column / cache).
 

@@ -1,6 +1,7 @@
 # 41 — Handler terminal, agent reuse & per-row attachments
 
 > **Status:** DECISIONS TAKEN (2026-09-24) — all §6 open questions are resolved; see §6.
+> Decision 3 (definition/run split) reversed 2026-10-14 — see §3.2 and spec 43.
 > Still an assessment, not an implementation spec: it records what a second real consumer
 > (Pacioli) demands of the generation engine and the design choices we made in response.
 > Next step is spawning numbered implementation specs in the §7 order.
@@ -133,32 +134,20 @@ single-upload action, a dropzone, an intake listener and a re-propose action.
 instance across call sites is a footgun, not a feature — the second caller mutates the
 first's config.
 
-**Decided — full definition/run split, now (option A).** An immutable `AgentDefinition`
-(prompt, schema, provider, model, timeout, options, tools, `forModel` column hints/enums,
-sanitizers, `promptContextColumns`) *produces* runs; a transient run object carries the
-per-run data and context (`sourceRecords`, `recordCount`, `userInput`, livewire, user,
-terminal, completion handlers, `tracked`; run-level attachments sit on the run). "Same
-agent, several terminals" becomes structural rather than conventional. It is also the
-anchor for the chat work (§3.4) and a single testing seam.
+**Decided (2026-10-14) — reuse through a subclass with a `setUp()` hook; no
+definition/run split.** This reverses the 2026-09-24 decision for a full immutable
+`AgentDefinition` + transient run. On re-examination the hazard is *sharing one instance*
+(a `singleton()` binding under `queue:work` / Octane, where per-run state such as
+attachments leaks into the next job), not mutability itself. A fresh instance per run
+removes it, and a subclass configured in `setUp()` is the Laravel-like way to get one —
+with no breaking change. A single-use guard was rejected too: it cannot tell safe
+unchanged reuse from the dangerous kind. The rule ("fresh instance per run; `bind()`, not
+`singleton()`") lives in the docs. Implementation spec:
+[43](43-reusable-generators.md).
 
-Rejected alternatives: *clone-on-set on `AiGenerator`* (one class doing both jobs; a
-forgotten `clone` reintroduces the footgun) and *hybrid `->define()` snapshot* (the
-definition/run property split is the same design work either way; the hybrid keeps the
-shareable-mutable hazard and two ways to do one thing, and defers a larger break).
-
-Consequences accepted:
-- **Breaking change in 0.5.** `AiGenerator` shipped in 0.4.0; its fluent flow changes
-  (it becomes the run, or is renamed). Pre-1.0, few consumers — the break is cheapest now.
-  Needs an upgrade note.
-- A fluent definition must itself be clone-on-set internally. That is fine: the
-  fragility of clone-on-set is a large mixed-state class, not a small pure-config one.
-- The `AiGenerateAction` translator and the four `AiGenerator` test files are rewritten;
-  the queued path's `BatchRunConfig` likely becomes (or derives from) a definition
-  snapshot — to be confirmed in the implementation spec.
-
-**Decided — registration: a value object; app-level binding optional.** A definition is a
-value object constructed where needed. An app that wants one shared instance binds it in
-a service provider itself. Solaris ships no registry.
+*Superseded decision (taken 2026-09-24):* full definition/run split in 0.5 — an immutable
+`AgentDefinition` producing transient runs, clone-on-set internally, `BatchRunConfig`
+derived from a definition snapshot, a value object with no Solaris registry.
 
 ### 3.3 Per-row attachments
 
@@ -293,8 +282,10 @@ All resolved 2026-09-24 (Sten + Claude). Detail lives in the referenced sections
 2. **Per-row handler payload: a dedicated per-row DTO** (`RowResult`: raw output, source,
    attachments, index, idempotency key), delivered via Filament-style DI. No custom-DTO
    hook for now. (§3.1)
-3. **Full definition/run split now** — immutable `AgentDefinition` + transient run.
-   Breaking change in 0.5. Definition is a value object; no Solaris registry. (§3.2)
+3. ~~**Full definition/run split now** — immutable `AgentDefinition` + transient run.
+   Breaking change in 0.5.~~ **Reversed (2026-10-14):** reuse through an `AiGenerator`
+   subclass with a `setUp()` hook, fresh instance per run, no breaking change. (§3.2,
+   spec 43)
 4. **Idempotency is the app's; Solaris helps.** Write terminals stay `tries = 1`;
    handler/fan-out terminals get `->tries(n)` + backoff and a stable per-row key. (§3.1)
 5. **Handler results: opt-in `->collectResults()`**, serialisable return values stored
@@ -302,7 +293,7 @@ All resolved 2026-09-24 (Sten + Claude). Detail lives in the referenced sections
 6. **Persist-callback swap is the mechanism; no staging store for the handler
    terminal.** Solaris's own staging store ships with spec 39's generate-side preview
    (table / JSON column / cache — decided there). (§5)
-7. **Sequencing: definition split first**, then the `AiFormAction` → service routing
+7. **Sequencing: reuse step first** (now spec 43, a small change), then the `AiFormAction` → service routing
    (so it targets the new shape and is not redone), then handler + fan-out. (§7)
 
 Also decided: per-row attachments resolve in-request, not lazily (§3.3); `onQueue` /
@@ -315,8 +306,9 @@ Also decided: per-row attachments resolve in-request, not lazily (§3.3); `onQue
 
 Follows from §6.7. Each step is expected to become its own numbered implementation spec.
 
-1. Agent definition / run split (§3.2) — the 0.5 breaking change, with upgrade note.
-2. `AiFormAction` → service routing (spec 38 follow-ups), built on the new shape.
+1. Reusable generators (§3.2) — `setUp()` hook + reuse docs. Spec
+   [43](43-reusable-generators.md); replaces the reversed definition/run split.
+2. `AiFormAction` → service routing (spec 38 follow-ups).
 3. Handler terminal on the run (single call first — closes the arc omission).
 4. Fan-out execution with per-row attachments + `RowResult`, inline.
 5. Queue targeting + optional throttle (§4.2) — small, unblocks the next step.
@@ -328,8 +320,7 @@ Follows from §6.7. Each step is expected to become its own numbered implementat
 
 1. Step 1 above **and** spec 42 §8 steps 1–4 — independent (42's steps do not touch
    `AiGenerator`), any order or in parallel.
-2. Step 2 above (`AiFormAction` routing) — consumes spec 42's wrap/unwrap collaborator and
-   targets the definition shape.
+2. Step 2 above (`AiFormAction` routing) — consumes spec 42's wrap/unwrap collaborator.
 3. The per-row collection step in `BatchProcessor`, built **once** — then spec 42 step 5
    (write-back hook) and steps 3–6 above both use it.
 4. Spec 39's preview, including its staging store (§5).

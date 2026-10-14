@@ -439,10 +439,10 @@ re-processing goes stateless.**
 
 Two views. **NEW** = introduced by this arc; everything else exists today.
 
-> **Note (2026-09-24):** these diagrams predate [41](41-handler-terminal-and-agent-reuse.md)
-> §3.2's `AgentDefinition` / run split. Where they show `AiGenerator` as the fluent builder
-> hosting `stage()`, read "the run"; `stage()` becomes a run terminal on that shape. Not
-> redrawn until this spec is implemented.
+> **Note (2026-10-14):** the `AgentDefinition` / run split from
+> [41](41-handler-terminal-and-agent-reuse.md) §3.2 was reversed (see
+> [43](43-reusable-generators.md)), so `AiGenerator` as the fluent builder hosting `stage()`
+> is the current shape again.
 
 ### View 1 — call engine + staging store
 

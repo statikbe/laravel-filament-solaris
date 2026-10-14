@@ -339,8 +339,8 @@ for the piece.
 4. **Field annotation** (`annotateFields()`) — the second surface, for the no-preview path.
 5. **The write-back hook** — depends on the `RecordWriter` / `BatchProcessor` change, and
    overlaps [41](41-handler-terminal-and-agent-reuse.md) §4.1. **Sequenced (2026-09-24):**
-   steps 1–4 run independently of spec 41's definition split; the `BatchProcessor`
-   per-row collection step is built once, *after* that split and the `AiFormAction`
+   steps 1–4 run independently of spec 41's step 1 (now spec 43, reusable generators);
+   the `BatchProcessor` per-row collection step is built once, *after* the `AiFormAction`
    routing, and serves both this hook and 41's handler terminal. See 41 §7.
 
 ## 9. Open questions
