@@ -2,6 +2,12 @@
 
 All notable changes to `laravel-filament-solaris` will be documented in this file.
 
+## v0.4.1 - 2026-09-15
+
+- Add default ai provider, model and timeout to AiGenerator.
+
+**Full Changelog**: https://github.com/statikbe/laravel-filament-solaris/compare/0.4.0...0.4.1
+
 ## v0.4.0 - 2026-09-14
 
 ### What's Changed
