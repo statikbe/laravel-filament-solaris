@@ -137,12 +137,20 @@ class AiGenerator
     public function __construct()
     {
         $this->options = new GenerationOptions;
+        $this->setUp();
     }
 
     public static function make(): static
     {
         return new static;
     }
+
+    /**
+     * Configure a reusable generator. Override in a subclass; runs for `new`,
+     * `make()` and container resolution alike. Take a fresh instance per run —
+     * see documentation/ai-generator.md.
+     */
+    protected function setUp(): void {}
 
     public function prompt(string|View|Closure $prompt): static
     {
