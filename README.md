@@ -454,6 +454,7 @@ Read the full threat model and field-by-field guidance in [Security Consideratio
 |---|---|
 | [AiFormAction API](documentation/ai-form-action.md) | Source/target fields, prompts, user input, locale, provider, timeout, tools, generation options, attachments, preview, conversational refinement |
 | [AiGenerateAction](documentation/ai-generate-action.md) | Custom/model-derived schema, custom handler, seeding |
+| [AiGenerator](documentation/ai-generator.md) | Headless generation outside an action; reusable generator subclasses |
 | [Component Factories](documentation/factories.md) | Supported components, custom factories, option matching & fuzzy tuning |
 | [Presets Reference](documentation/presets.md) | Summary / Classification / Translation / Generation + custom presets |
 | [Prompt Builders](documentation/prompt-builders.md) | Inline, view, and custom prompt builders |
