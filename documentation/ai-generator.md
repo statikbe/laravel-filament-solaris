@@ -37,12 +37,14 @@ class InvoiceExtractor extends AiGenerator
     {
         $this->prompt(view('prompts.invoice'))
             ->forModel(Invoice::class)
+            ->createRecords()
             ->sanitize(new StripTagsSanitizer);
     }
 }
 ```
 
-Each call site then takes a fresh instance and adds what is specific to that run:
+Each call site then takes a fresh instance and adds what is specific to that run — here, the
+invoice file the model extracts a new `Invoice` record from:
 
 ```php
 InvoiceExtractor::make()->attachments([$file])->runInline();

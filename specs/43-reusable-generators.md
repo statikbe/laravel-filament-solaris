@@ -1,6 +1,6 @@
 # 43 — Reusable generators (`setUp()` hook + reuse docs)
 
-> **Status:** Design — awaiting Sten's review before an implementation plan.
+> **Status:** Implemented (2026-10-14) on branch `feature/reusable-generators`.
 > **Date:** 2026-10-14.
 > **Context:** Step 1 of [41](41-handler-terminal-and-agent-reuse.md) §7. **Replaces** the
 > `AgentDefinition` / run split that 41 §3.2 decided on 2026-09-24 — that decision is
@@ -78,6 +78,7 @@ class InvoiceExtractor extends AiGenerator
     {
         $this->prompt(view('prompts.invoice'))
             ->forModel(Invoice::class)
+            ->createRecords()
             ->sanitize(new StripTagsSanitizer);
     }
 }
