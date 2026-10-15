@@ -288,3 +288,14 @@ it in the app scheduler (`Schedule::command('solaris:prune-batches')->daily()`),
 ship a scheduled registration behind a config flag. Keep only finished runs
 (`Completed`/`Failed`) in scope so an in-flight `Processing` run is never pruned.
 Requested 2026-06-15; independent of pieces #5/#6.
+
+---
+
+### 17. Multiple-image variants in ImageGenerationAction
+
+`ImageGenerationAction` generates one image for one target field. Generating N candidates
+and letting the user keep one (single image field) or a subset (multi-file `FileUpload`) is
+useful but not designed. It is a different choice from per-field selection — which
+candidates to keep, not which fields to write — yet should reuse spec 44's selection
+plumbing by keying preview items `variant_0…n` (pick-one could render as a radio variant of
+the same component). Noted 2026-10-15 while designing spec 44.
