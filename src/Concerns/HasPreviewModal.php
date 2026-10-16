@@ -5,6 +5,7 @@ namespace Statikbe\FilamentSolaris\Concerns;
 use Filament\Actions\Action;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Contracts\View\View;
+use Statikbe\FilamentSolaris\Support\PreviewSelection;
 
 /**
  * Adds the full preview-modal lifecycle to a Solaris action.
@@ -53,6 +54,21 @@ trait HasPreviewModal
     }
 
     /**
+     * Whether Accept needs at least one ticked item — selection is on and
+     * every previewed item is selectable, so an empty tick list writes nothing.
+     *
+     * @param  array<string, mixed>  $previewData
+     */
+    protected function previewRequiresSelection(array $previewData): bool
+    {
+        if (! isset($previewData['selectable'])) {
+            return false;
+        }
+
+        return PreviewSelection::requiresSelection(array_keys($previewData['displays']), $previewData['selectable']);
+    }
+
+    /**
      * Render a Solaris preview view by short name.
      *
      * @param  array<string, mixed>  $data
@@ -77,11 +93,14 @@ trait HasPreviewModal
                 return $this->previewView('preview-conversational', [
                     'displays' => $previewData['displays'],
                     'messages' => $previewData['messages'] ?? [],
+                    'selectable' => $previewData['selectable'] ?? null,
+                    'requiresSelection' => $this->previewRequiresSelection($previewData),
                 ]);
             }
 
             return $this->previewView('preview-modal', [
                 'displays' => $previewData['displays'],
+                'selectable' => $previewData['selectable'] ?? null,
             ]);
         }
 
@@ -105,7 +124,9 @@ trait HasPreviewModal
             return null;
         }
 
-        return $this->previewView('preview-modal-footer');
+        return $this->previewView('preview-modal-footer', [
+            'requiresSelection' => $this->previewRequiresSelection($this->getLivewire()->solarisPreviewData),
+        ]);
     }
 
     /**

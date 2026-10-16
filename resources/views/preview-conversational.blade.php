@@ -20,7 +20,7 @@
     class="space-y-6"
 >
     {{-- Preview field displays --}}
-    <x-filament-solaris::preview-fields :displays="$displays" />
+    <x-filament-solaris::preview-fields :displays="$displays" :selectable="$selectable ?? null" />
 
     {{-- Conversation --}}
     @if (count($messages) > 0)
@@ -105,6 +105,7 @@
 
         <x-filament::button
             wire:click="solarisAcceptPreview"
+            x-bind:disabled="{{ ($requiresSelection ?? false) ? '! ($wire.solarisPreviewData?.selected ?? []).length' : 'false' }}"
         >
             {{ filament_solaris_trans('preview.accept') }}
         </x-filament::button>

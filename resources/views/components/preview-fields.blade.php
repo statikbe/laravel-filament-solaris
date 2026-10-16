@@ -1,10 +1,19 @@
-@props(['displays'])
+@props(['displays', 'selectable' => null])
 
 <div class="space-y-4">
     @foreach ($displays as $fieldName => $field)
         <div>
-            <dt class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                {{ $field['label'] }}
+            <dt class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                @if (is_array($selectable) && in_array($fieldName, $selectable, true))
+                    <x-filament::input.checkbox
+                        wire:model="solarisPreviewData.selected"
+                        value="{{ $fieldName }}"
+                        id="solaris-preview-select-{{ $fieldName }}"
+                    />
+                    <label for="solaris-preview-select-{{ $fieldName }}">{{ $field['label'] }}</label>
+                @else
+                    {{ $field['label'] }}
+                @endif
             </dt>
             <dd class="mt-2 rounded-lg border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-white/5">
                 @if ($field['type'] === 'image')

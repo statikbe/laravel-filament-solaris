@@ -1,1 +1,1 @@
-<x-filament-solaris::preview-fields :displays="$displays" />
+<x-filament-solaris::preview-fields :displays="$displays" :selectable="$selectable ?? null" />

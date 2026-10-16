@@ -1,5 +1,6 @@
 <?php
 
+use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 use Statikbe\FilamentSolaris\Actions\AiFormAction;
 use Statikbe\FilamentSolaris\Support\SolarisNotification;
@@ -15,7 +16,7 @@ afterEach(function () {
     AiFormActionFake::reset();
 });
 
-function selectablePreview(string $action): \Livewire\Features\SupportTesting\Testable
+function selectablePreview(string $action): Testable
 {
     return Livewire::test(PreviewFormComponent::class)
         ->fillForm(['title' => 'T', 'body' => 'B'])

@@ -8,6 +8,7 @@
 
     <x-filament::button
         wire:click="solarisAcceptPreview"
+        x-bind:disabled="{{ ($requiresSelection ?? false) ? '! ($wire.solarisPreviewData?.selected ?? []).length' : 'false' }}"
     >
         {{ filament_solaris_trans('preview.accept') }}
     </x-filament::button>
