@@ -1,6 +1,6 @@
 # 44 — Per-field selection in the preview modal
 
-> **Status:** Design — awaiting Sten's review before an implementation plan.
+> **Status:** Implemented (2026-10-16) on branch `feature/per-field-selection`.
 > **Date:** 2026-10-15.
 > **Context:** Step 1 of [42](42-field-metadata-and-selection.md) §8 (Feature A, §3).
 > Refines 42 §3 — the API name, a field subset, where the selection state lives and where

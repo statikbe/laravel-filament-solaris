@@ -34,7 +34,7 @@ generation is callable from a controller, a listener, a command or a queue worke
 | Presets on the generate side — parity port 2 | queued | Spec 35 Part A, postponed out of spec 40. `tools()` already exists on the service |
 | Conversational + preview as shared capabilities ([spec 39](39-conversational-preview-exploration.md)) | 🎨 designing | Approach A + staged-write-on-approve settled; run reuse, guidance distillation and the attachment round-trip still open |
 | Handler terminal, agent reuse, per-row attachments ([spec 41](41-handler-terminal-and-agent-reuse.md)) | ✅ decided | Decisions taken 2026-09-24 (§6); decision 3 (definition/run split) reversed 2026-10-14. Step 1 of its §7 sequencing is now spec 43 |
-| Per-field selection in the preview — spec 42 step 1 ([spec 44](44-per-field-selection.md)) | 📝 spec, ⏭️ **next** | Plumbing generic (keyed by preview item), enabled on `AiFormAction` only |
+| Per-field selection in the preview — spec 42 step 1 ([spec 44](44-per-field-selection.md)) | ✅ implemented (branch, not merged) | Plumbing generic (keyed by preview item), enabled on `AiFormAction` only |
 | Reusable generators — `setUp()` hook + reuse docs ([spec 43](43-reusable-generators.md)) | ✅ merged (not pushed) | Replaces the reversed split. No breaking change |
 | Headless docs for the batch + queued surface | deferred | Deferred twice (pieces 2 and 3). `documentation/` has no `ai-generator.md` |
 | Service-native `AiGenerator::fake()` | deferred | Option 2 from spec 37. Today the fake plugs in through the `responseGenerator()` seam |

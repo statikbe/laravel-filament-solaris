@@ -343,6 +343,35 @@ class GenerateArticle extends Component
 
 **Fail-loud check.** If `->withPreview()` (or `->conversational()`, which implies it) is configured but the trait is missing, the action throws a `RuntimeException` on first invocation with an actionable message — no silent no-op, no wasted AI tokens. The check fires after configuration validation and before the AI call.
 
+### Selectable fields
+
+Let the user tick which generated fields are written. `withSelectablePreview()` turns the
+preview on by itself — no separate `withPreview()` needed:
+
+```php
+AiFormAction::make('analyze')
+    ->sourceFields(['title', 'body'])
+    ->targetFields(['summary', 'category', 'tags'])
+    ->prompt('Analyze the article.')
+    ->withSelectablePreview();
+```
+
+Every field starts ticked. Accept writes only the ticked ones; an unticked field is simply
+not written, and is not reported as a failure.
+
+Limit selection to some fields by passing them; the others are shown without a checkbox and
+always written — useful for fields that belong together:
+
+```php
+->withSelectablePreview(['summary', 'tags'])   // category is always written
+```
+
+It combines with conversational refinement. A field the user unticked stays unticked when
+the model refines; a field the refinement fills for the first time starts ticked.
+
+`withSelectablePreview(false)` turns selection off and leaves the preview as configured. A
+field name that is not a target field throws a `RuntimeException` before the AI call.
+
 ## Conversational Refinement
 
 Enable a chat interface inside the preview modal so the user can iteratively refine the AI's response with follow-up messages:

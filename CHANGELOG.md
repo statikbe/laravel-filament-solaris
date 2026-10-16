@@ -26,6 +26,7 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
 
 ### Added
 
+- `AiFormAction::withSelectablePreview()`: let the user tick which generated fields the preview writes, optionally limited to a field subset. Implies the preview. See [AiFormAction › Selectable fields](documentation/ai-form-action.md#selectable-fields).
 - Reusable `AiGenerator` subclasses: override the new `setUp()` hook to configure a generator once and use it from any call site. See [AiGenerator](documentation/ai-generator.md).
 
 ### Fixed
