@@ -133,3 +133,15 @@ it('drops a field the refinement fails to fill', function () {
     expect($component->get('solarisPreviewData.selectable'))->toBe(['summary'])
         ->and($component->get('solarisPreviewData.selected'))->toBe(['summary']);
 });
+
+it('still reports the failure when a refinement fills nothing', function () {
+    AiFormAction::fake(['summary' => 'S1', 'category' => 'tech'])
+        ->fakeRefinement(['summary' => null, 'category' => null]);
+
+    Livewire::test(ConversationalFormComponent::class)
+        ->fillForm(['title' => 'T', 'body' => 'B'])
+        ->callAction('generateSelectable')
+        ->call('solarisRefinePreview', 'Try again')
+        ->call('solarisAcceptPreview')
+        ->assertNotified(filament_solaris_trans('notifications.error'));
+});

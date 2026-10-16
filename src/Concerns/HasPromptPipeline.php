@@ -636,7 +636,10 @@ trait HasPromptPipeline
 
         $values = PreviewSelection::filter($data['values'], $data['selectable'], $data['selected'] ?? []);
 
-        if ($values === []) {
+        // The user deselected everything: write nothing, say nothing. An empty
+        // result (a refinement that filled no field) still falls through so the
+        // failure notification is sent, as without selection.
+        if ($values === [] && $data['values'] !== []) {
             return;
         }
 
