@@ -75,6 +75,11 @@ Its own weak spot is worth stealing from: three hard-coded thresholds (0.9 in th
 
 ## 3. Feature A — per-field selection
 
+> **Superseded in detail (2026-10-16)** by [44](44-per-field-selection.md): the API is
+> `->withSelectablePreview(bool|array $fields = true)` (implies the preview, optional field
+> subset), the selection is a `selected` key inside `solarisPreviewData`, and filtering
+> happens in `AiFormAction`'s `acceptPreview()`.
+
 **API.** One toggle on `AiFormAction`, off by default:
 
 ```php
