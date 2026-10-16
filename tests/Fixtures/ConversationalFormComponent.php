@@ -78,6 +78,19 @@ class ConversationalFormComponent extends FormsComponent
     }
 
     /**
+     * Conversational refinement with a selectable preview.
+     */
+    public function generateSelectableAction(): AiFormAction
+    {
+        return AiFormAction::make('generateSelectable')
+            ->sourceFields(['title', 'body'])
+            ->targetFields(['summary', 'category'])
+            ->prompt('Analyze and classify.')
+            ->conversational()
+            ->withSelectablePreview();
+    }
+
+    /**
      * Render the component.
      */
     public function render(): string

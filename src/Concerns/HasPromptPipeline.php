@@ -21,6 +21,7 @@ use Statikbe\FilamentSolaris\Prompts\Presets\Preset;
 use Statikbe\FilamentSolaris\Prompts\ViewPromptBuilder;
 use Statikbe\FilamentSolaris\Sanitizers\Sanitizer;
 use Statikbe\FilamentSolaris\Sanitizers\SanitizerExecutor;
+use Statikbe\FilamentSolaris\Support\PreviewSelection;
 use Statikbe\FilamentSolaris\Support\GenerationOptions;
 use Statikbe\FilamentSolaris\Support\SolarisNotification;
 use Statikbe\FilamentSolaris\Support\SolarisPromptLogger;
@@ -618,7 +619,8 @@ trait HasPromptPipeline
     }
 
     /**
-     * Accept the preview and apply values to the form.
+     * Accept the preview and apply values to the form — only the ticked fields
+     * (plus fixed ones) when selection is on.
      *
      * Called by InteractsWithSolarisPreview when the user clicks "Accept".
      *
@@ -626,7 +628,26 @@ trait HasPromptPipeline
      */
     public function acceptPreview(array $data): void
     {
-        $this->writeResults($data['values'], $data['filledLabels'], $data['failedLabels']);
+        if (! array_key_exists('selectable', $data)) {
+            $this->writeResults($data['values'], $data['filledLabels'], $data['failedLabels']);
+
+            return;
+        }
+
+        $values = PreviewSelection::filter($data['values'], $data['selectable'], $data['selected'] ?? []);
+
+        if ($values === []) {
+            return;
+        }
+
+        // A deselected field is not a failure: filled labels come from what is
+        // actually written; failedLabels stays as the AI call left it.
+        $filledLabels = array_map(
+            fn (string $fieldName): string => $this->resolveFieldLabel($fieldName),
+            array_keys($values),
+        );
+
+        $this->writeResults($values, $filledLabels, $data['failedLabels']);
     }
 
     /**
@@ -675,6 +696,13 @@ trait HasPromptPipeline
             'failedLabels' => $result['failedLabels'],
             'actionName' => $this->getName(),
         ];
+
+        $selectableFields = $this->getSelectablePreviewFields();
+
+        if ($selectableFields !== null) {
+            $data['selectable'] = PreviewSelection::selectable(array_keys($displays), $selectableFields);
+            $data['selected'] = $data['selectable'];
+        }
 
         if ($this->isConversational()) {
             $data['isConversational'] = true;
@@ -808,6 +836,16 @@ trait HasPromptPipeline
         $previewData['displays'] = $this->buildDisplays($result['values'], $factories);
         $previewData['filledLabels'] = $result['filledLabels'];
         $previewData['failedLabels'] = $result['failedLabels'];
+
+        if (array_key_exists('selectable', $previewData)) {
+            $selectable = PreviewSelection::selectable(
+                array_keys($previewData['displays']),
+                $this->getSelectablePreviewFields() ?? [],
+            );
+
+            $previewData['selected'] = PreviewSelection::reseed($previewData['selected'] ?? [], $previewData['selectable'], $selectable);
+            $previewData['selectable'] = $selectable;
+        }
 
         // Append assistant message
         $previewData['messages'][] = [
