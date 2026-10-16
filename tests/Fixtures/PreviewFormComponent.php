@@ -92,6 +92,54 @@ class PreviewFormComponent extends FormsComponent
     }
 
     /**
+     * AI action with a selectable preview (every target field selectable).
+     */
+    public function generateSelectableAction(): AiFormAction
+    {
+        return AiFormAction::make('generateSelectable')
+            ->sourceFields(['title', 'body'])
+            ->targetFields(['summary', 'category', 'is_featured'])
+            ->prompt('Analyze the content and fill in the summary, category, and featured flag.')
+            ->withSelectablePreview();
+    }
+
+    /**
+     * AI action with a selectable preview limited to a field subset.
+     */
+    public function generateSubsetAction(): AiFormAction
+    {
+        return AiFormAction::make('generateSubset')
+            ->sourceFields(['title', 'body'])
+            ->targetFields(['summary', 'category', 'is_featured'])
+            ->prompt('Analyze the content and fill in the summary, category, and featured flag.')
+            ->withSelectablePreview(['summary', 'category']);
+    }
+
+    /**
+     * Misconfigured: the subset names a field that is not a target field.
+     */
+    public function generateUnknownSubsetAction(): AiFormAction
+    {
+        return AiFormAction::make('generateUnknownSubset')
+            ->sourceFields(['title', 'body'])
+            ->targetFields(['summary', 'category', 'is_featured'])
+            ->prompt('Analyze.')
+            ->withSelectablePreview(['summary', 'nope']);
+    }
+
+    /**
+     * Misconfigured: an empty subset.
+     */
+    public function generateEmptySubsetAction(): AiFormAction
+    {
+        return AiFormAction::make('generateEmptySubset')
+            ->sourceFields(['title', 'body'])
+            ->targetFields(['summary', 'category', 'is_featured'])
+            ->prompt('Analyze.')
+            ->withSelectablePreview([]);
+    }
+
+    /**
      * Render the component.
      */
     public function render(): string

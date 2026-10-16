@@ -14,6 +14,9 @@ class AiFormAction extends SolarisAction
     use HasPromptPipeline;
     use HasSourceFields;
 
+    /** @var bool|array<int, string> */
+    protected bool|array $selectablePreviewFields = false;
+
     /**
      * {@inheritDoc}
      */
@@ -103,6 +106,37 @@ class AiFormAction extends SolarisAction
     }
 
     /**
+     * Let the user tick which fields the preview writes. Implies the preview.
+     * `true` makes every target field selectable; an array limits selection to
+     * those fields (the rest are always written); `false` turns selection off
+     * and leaves the preview as configured.
+     *
+     * @param  bool|array<int, string>  $fields
+     */
+    public function withSelectablePreview(bool|array $fields = true): static
+    {
+        $this->selectablePreviewFields = $fields;
+
+        if ($fields !== false) {
+            $this->withPreview();
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return array<int, string>|null null when selection is off
+     */
+    public function getSelectablePreviewFields(): ?array
+    {
+        return match (true) {
+            $this->selectablePreviewFields === false => null,
+            $this->selectablePreviewFields === true => $this->getTargetFields(),
+            default => array_values($this->selectablePreviewFields),
+        };
+    }
+
+    /**
      * Validate the action configuration before execution.
      *
      * @throws \RuntimeException
@@ -115,6 +149,21 @@ class AiFormAction extends SolarisAction
 
         if (! $this->hasPromptBuilder()) {
             throw new \RuntimeException('AiFormAction requires a prompt, preset, or custom promptBuilder.');
+        }
+
+        $selectable = $this->getSelectablePreviewFields();
+
+        if ($selectable === []) {
+            throw new \RuntimeException('AiFormAction ->withSelectablePreview() needs at least one field: pass true for every target field, or false to turn selection off.');
+        }
+
+        $unknown = array_diff($selectable ?? [], $this->getTargetFields());
+
+        if ($unknown !== []) {
+            throw new \RuntimeException(sprintf(
+                'AiFormAction ->withSelectablePreview() lists fields that are not target fields: %s.',
+                implode(', ', $unknown),
+            ));
         }
     }
 

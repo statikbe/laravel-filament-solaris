@@ -641,6 +641,17 @@ trait HasPromptPipeline
     }
 
     /**
+     * The fields the user can tick in the preview, or null when selection is
+     * off. AiFormAction overrides this; other users of the pipeline have none.
+     *
+     * @return array<int, string>|null
+     */
+    protected function getSelectablePreviewFields(): ?array
+    {
+        return null;
+    }
+
+    /**
      * Store preview data on the Livewire component for display in the preview modal.
      *
      * @param  array{values: array<string, mixed>, filledLabels: array<string>, failedLabels: array<string>}  $result
