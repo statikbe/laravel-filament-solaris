@@ -193,6 +193,14 @@ class PreviewFormComponent extends FormsComponent
         return $this->metadataAction('previewWithMetadata')->withSelectablePreview();
     }
 
+    /**
+     * Metadata + a plain (non-selectable) preview.
+     */
+    public function generateWithMetadataPreviewAction(): AiFormAction
+    {
+        return $this->metadataAction('generateWithMetadataPreview')->withPreview();
+    }
+
     protected function metadataAction(string $name): AiFormAction
     {
         return AiFormAction::make($name)

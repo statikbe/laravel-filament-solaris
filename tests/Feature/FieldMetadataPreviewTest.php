@@ -123,3 +123,16 @@ it('passes metadata into the mounted preview modal', function () {
     expect($component->instance()->getMountedAction()->getModalContent()->getData()['metadata'])
         ->toBe($component->get('solarisPreviewData.metadata'));
 });
+
+it('ignores accepted values for fields that are not target fields', function () {
+    AiFormAction::fake(metadataEnvelopes());
+
+    Livewire::test(PreviewFormComponent::class)
+        ->fillForm(['title' => 'T', 'body' => 'B'])
+        ->callAction('generateWithMetadataPreview')
+        ->set('solarisPreviewData.values.title', 'Hacked')
+        ->call('solarisAcceptPreview')
+        ->assertFormSet(['title' => 'T', 'summary' => 'S']);
+
+    expect(PreviewFormComponent::$written[0]['values'])->toBe(['summary' => 'S', 'category' => 'tech']);
+});

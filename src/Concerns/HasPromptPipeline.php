@@ -688,6 +688,9 @@ trait HasPromptPipeline
 
         $metadata = $data['metadata'] ?? [];
 
+        // Same reason: only target fields may be written, whatever the client sent.
+        $data['values'] = array_intersect_key($data['values'] ?? [], array_flip($this->getTargetFields()));
+
         if ($selectable === null) {
             $this->writeResults($data['values'], $data['filledLabels'], $data['failedLabels'], array_intersect_key($metadata, $data['values']));
 
