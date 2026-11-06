@@ -372,6 +372,94 @@ the model refines; a field the refinement fills for the first time starts ticked
 `withSelectablePreview(false)` turns selection off and leaves the preview as configured. A
 field name that is not a target field throws a `RuntimeException` before the AI call.
 
+## Per-field Metadata
+
+Ask the model for extra information beside each target field's value — where the value
+came from, how sure it is, why it chose it. Solaris carries that metadata to the preview
+modal and to your own code; it never stores it.
+
+```php
+use Illuminate\JsonSchema\JsonSchemaTypeFactory;
+
+AiFormAction::make('analyze')
+    ->sourceFields(['title', 'body'])
+    ->targetFields(['summary', 'category'])
+    ->prompt('Analyze the article.')
+    ->withPreview()
+    ->fieldMetadata(fn (JsonSchemaTypeFactory $s) => [
+        'evidence'  => $s->string()->enum(['verbatim', 'derived'])->required(),
+        'reasoning' => $s->string()->required(),
+    ])
+    ->fieldMetadataInstructions(
+        'evidence: "verbatim" when the value is traceable to an explicit statement in the '
+        .'source, otherwise "derived". reasoning: one sentence on why.'
+    );
+```
+
+The model now answers each field with an object — `{"value": "…", "evidence": "derived",
+"reasoning": "…"}` — and Solaris unwraps it: the value goes into the form (through your
+sanitizers, as usual), the rest becomes that field's metadata. A field whose answer is not a
+well-formed object counts as a failed field. A key named `value` is not allowed.
+
+The instructions explain your keys to the model. Without them it only has the key names and
+any `->description()` you put on the schema.
+
+In the preview, a field with metadata gets an info icon beside its label; hovering it shows
+the metadata.
+
+### Reusable metadata presets
+
+Define a metadata vocabulary once and use it on any action by extending `FieldMetadata`:
+
+```php
+use Illuminate\JsonSchema\JsonSchemaTypeFactory;
+use Statikbe\FilamentSolaris\Support\Metadata\FieldMetadata;
+
+class AuditTrailMetadata extends FieldMetadata
+{
+    public function keys(JsonSchemaTypeFactory $schema): array
+    {
+        return [
+            'evidence'  => $schema->string()->enum(['verbatim', 'derived'])->required(),
+            'reasoning' => $schema->string()->required(),
+        ];
+    }
+
+    public function instructions(): ?string
+    {
+        return 'evidence: "verbatim" when …';
+    }
+}
+
+AiFormAction::make('analyze')
+    // ...
+    ->fieldMetadata(AuditTrailMetadata::make());
+```
+
+Keep presets stateless — methods, no changing properties — so one instance is safe to reuse.
+`->fieldMetadataInstructions()` overrides a preset's `instructions()` for one action while
+keeping its keys.
+
+### Reacting to written fields
+
+`afterFieldsWritten()` runs after the fields are written to the form — straight after the AI
+call without a preview, or on Accept with a preview:
+
+```php
+->afterFieldsWritten(function (array $values, array $metadata, Model $record) {
+    // $values   = ['summary' => '…']                  only what was written
+    // $metadata = ['summary' => ['evidence' => '…']]  [] when metadata is off
+})
+```
+
+With a selectable preview it receives only the ticked fields. It is not called when nothing
+was written. The usual Filament injections (`$record`, `$livewire`, …) are available.
+
+> **Trust:** with a preview, the values and metadata come back from the browser on Accept,
+> and a user can edit them before accepting — just as they can edit the form. Only target
+> fields are ever written. Treat metadata as the model's claim, not as fact, and validate
+> what you persist from this callback like any other user input.
+
 ## Conversational Refinement
 
 Enable a chat interface inside the preview modal so the user can iteratively refine the AI's response with follow-up messages:

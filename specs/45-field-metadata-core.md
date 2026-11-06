@@ -1,7 +1,11 @@
 # 45 — Per-field metadata: the core mechanism
 
-> **Status:** Design — agreed in discussion 2026-11-06, awaiting Sten's review before an
-> implementation plan.
+> **Status:** Implemented (2026-11-06) on branch `feature/field-metadata-core`. Small
+> deviations: `ClosureFieldMetadata` takes the keys only (action-level instructions reach
+> the prompt through `promptFragment()`'s override); `value` is also marked required inside
+> the envelope (strict mode); the tooltip is escaped `key: value` lines joined with `<br>`
+> and rendered with `allowHTML`, so line breaks survive; `acceptPreview()` now writes only
+> target fields (hardening found during implementation).
 > **Date:** 2026-11-06.
 > **Context:** Step 2 of [42](42-field-metadata-and-selection.md) §8 (Feature B core, §4).
 > Refines 42 §4 and §7 — the collaborator is split in two, and the step-2 rendering is a

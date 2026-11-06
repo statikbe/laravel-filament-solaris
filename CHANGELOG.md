@@ -27,10 +27,13 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
 ### Added
 
 - `AiFormAction::withSelectablePreview()`: let the user tick which generated fields the preview writes, optionally limited to a field subset. Implies the preview. See [AiFormAction › Selectable fields](documentation/ai-form-action.md#selectable-fields).
+- `AiFormAction::fieldMetadata()`: ask the model for metadata (evidence, reasoning, …) beside each target field's value. Shown in the preview modal; reusable as `FieldMetadata` subclasses; `fieldMetadataInstructions()` explains the keys to the model. See [AiFormAction › Per-field Metadata](documentation/ai-form-action.md#per-field-metadata).
+- `AiFormAction::afterFieldsWritten()`: a callback with the written `$values` and their `$metadata`, on the direct path and on preview Accept.
 - Reusable `AiGenerator` subclasses: override the new `setUp()` hook to configure a generator once and use it from any call site. See [AiGenerator](documentation/ai-generator.md).
 
 ### Fixed
 
+- Preview Accept writes only the action's target fields. The preview data round-trips through the browser, so before this a tampered request could set any form field.
 - `AiGenerator` falls back to the configured `ai.default_provider`, `ai.default_model` and `ai.default_timeout` when none is set, like the actions do. Headless callers (jobs, listeners) no longer hit the laravel/ai default provider.
 
 ### Added

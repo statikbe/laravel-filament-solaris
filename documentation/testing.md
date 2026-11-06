@@ -16,6 +16,19 @@ it('fills the summary field', function () {
 });
 ```
 
+### Per-field metadata
+
+When an action uses `->fieldMetadata()`, the model answers every target field with an
+envelope, so the fake response must have the same shape. A plain value counts as a failed
+field.
+
+```php
+AiFormAction::fake([
+    'summary'  => ['value' => 'A concise summary.', 'evidence' => 'derived'],
+    'category' => ['value' => 'tech', 'evidence' => 'verbatim'],
+]);
+```
+
 ## Simulating Errors
 
 ```php
