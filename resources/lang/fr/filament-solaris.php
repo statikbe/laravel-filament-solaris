@@ -37,6 +37,10 @@ return [
         'discard' => 'Rejeter',
     ],
 
+    'metadata' => [
+        'prompt' => 'Chaque champ cible est un objet : placez le contenu du champ dans "value" et remplissez les autres clés comme décrit ci-dessous.',
+    ],
+
     'conversation' => [
         'heading' => 'Conversation',
         'refine_placeholder' => 'Affiner les résultats...',

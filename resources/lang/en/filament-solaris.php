@@ -41,6 +41,10 @@ return [
         'discard' => 'Discard',
     ],
 
+    'metadata' => [
+        'prompt' => 'Each target field is an object: put the field\'s content in "value" and fill the other keys as described below.',
+    ],
+
     'conversation' => [
         'heading' => 'Conversation',
         'refine_placeholder' => 'Refine the results...',
