@@ -8,6 +8,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\FormsComponent;
 use Filament\Schemas\Schema;
+use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Statikbe\FilamentSolaris\Actions\AiFormAction;
 use Statikbe\FilamentSolaris\Concerns\InteractsWithSolarisPreview;
 
@@ -17,6 +18,9 @@ class PreviewFormComponent extends FormsComponent
 
     /** @var array<string, mixed> */
     public array $data = [];
+
+    /** @var array<int, array{values: array<string, mixed>, metadata: array<string, mixed>}> */
+    public static array $written = [];
 
     /**
      * Mount the component with initial form data.
@@ -137,6 +141,61 @@ class PreviewFormComponent extends FormsComponent
             ->targetFields(['summary', 'category', 'is_featured'])
             ->prompt('Analyze.')
             ->withSelectablePreview([]);
+    }
+
+    /**
+     * AI action with per-field metadata, no preview.
+     */
+    public function generateWithMetadataAction(): AiFormAction
+    {
+        return $this->metadataAction('generateWithMetadata');
+    }
+
+    /**
+     * Metadata + a preset whose instructions are overridden at action level.
+     */
+    public function generateWithPresetOverrideAction(): AiFormAction
+    {
+        return AiFormAction::make('generateWithPresetOverride')
+            ->sourceFields(['title', 'body'])
+            ->targetFields(['summary', 'category'])
+            ->prompt('Classify.')
+            ->fieldMetadata(EvidenceMetadata::make())
+            ->fieldMetadataInstructions('Override');
+    }
+
+    /**
+     * Metadata + a field sanitizer: only the value may be sanitized.
+     */
+    public function generateWithMetadataSanitizedAction(): AiFormAction
+    {
+        return $this->metadataAction('generateWithMetadataSanitized')
+            ->sanitizeField('summary', fn (mixed $value) => is_string($value) ? mb_strtoupper($value) : $value);
+    }
+
+    /**
+     * afterFieldsWritten without metadata.
+     */
+    public function generatePlainCallbackAction(): AiFormAction
+    {
+        return AiFormAction::make('generatePlainCallback')
+            ->sourceFields(['title', 'body'])
+            ->targetFields(['summary', 'category'])
+            ->prompt('Classify.')
+            ->afterFieldsWritten(fn (array $values, array $metadata) => static::$written[] = compact('values', 'metadata'));
+    }
+
+    protected function metadataAction(string $name): AiFormAction
+    {
+        return AiFormAction::make($name)
+            ->sourceFields(['title', 'body'])
+            ->targetFields(['summary', 'category'])
+            ->prompt('Classify.')
+            ->fieldMetadata(fn (JsonSchemaTypeFactory $s) => [
+                'evidence' => $s->string()->enum(['verbatim', 'derived'])->required(),
+            ])
+            ->fieldMetadataInstructions('Explain evidence.')
+            ->afterFieldsWritten(fn (array $values, array $metadata) => static::$written[] = compact('values', 'metadata'));
     }
 
     /**

@@ -2,10 +2,13 @@
 
 namespace Statikbe\FilamentSolaris\Actions;
 
+use Closure;
 use Statikbe\FilamentSolaris\Concerns\HasFormPipeline;
 use Statikbe\FilamentSolaris\Concerns\HasPromptPipeline;
 use Statikbe\FilamentSolaris\Concerns\HasSourceFields;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
+use Statikbe\FilamentSolaris\Support\Metadata\ClosureFieldMetadata;
+use Statikbe\FilamentSolaris\Support\Metadata\FieldMetadata;
 use Statikbe\FilamentSolaris\Testing\AiFormActionFake;
 
 class AiFormAction extends SolarisAction
@@ -16,6 +19,12 @@ class AiFormAction extends SolarisAction
 
     /** @var bool|array<int, string> */
     protected bool|array $selectablePreviewFields = false;
+
+    protected ?FieldMetadata $fieldMetadata = null;
+
+    protected ?string $fieldMetadataInstructions = null;
+
+    protected ?Closure $afterFieldsWritten = null;
 
     /**
      * {@inheritDoc}
@@ -137,6 +146,66 @@ class AiFormAction extends SolarisAction
     }
 
     /**
+     * Ask the model for metadata beside every target field's value: a closure
+     * returning the keys (`fn (JsonSchemaTypeFactory $s) => [...]`) or a
+     * reusable FieldMetadata preset (`MyMetadata::make()`). null turns it off.
+     */
+    public function fieldMetadata(Closure|FieldMetadata|null $metadata): static
+    {
+        $this->fieldMetadata = $metadata instanceof Closure
+            ? new ClosureFieldMetadata($metadata)
+            : $metadata;
+
+        return $this;
+    }
+
+    /**
+     * Prompt language explaining the metadata keys. Overrides a preset's own
+     * instructions().
+     */
+    public function fieldMetadataInstructions(?string $instructions): static
+    {
+        $this->fieldMetadataInstructions = $instructions;
+
+        return $this;
+    }
+
+    /**
+     * Called after fields are written to the form — on the direct path and on
+     * preview Accept — with `$values` (what was written) and `$metadata`
+     * (keyed by field; [] when metadata is off). Not called when nothing is written.
+     */
+    public function afterFieldsWritten(?Closure $callback): static
+    {
+        $this->afterFieldsWritten = $callback;
+
+        return $this;
+    }
+
+    public function getFieldMetadata(): ?FieldMetadata
+    {
+        return $this->fieldMetadata;
+    }
+
+    public function getFieldMetadataInstructions(): ?string
+    {
+        return $this->fieldMetadataInstructions;
+    }
+
+    /**
+     * @param  array<string, mixed>  $values
+     * @param  array<string, array<string, mixed>>  $metadata
+     */
+    protected function callAfterFieldsWritten(array $values, array $metadata): void
+    {
+        if ($this->afterFieldsWritten === null) {
+            return;
+        }
+
+        $this->evaluate($this->afterFieldsWritten, ['values' => $values, 'metadata' => $metadata]);
+    }
+
+    /**
      * Validate the action configuration before execution.
      *
      * @throws \RuntimeException
@@ -218,7 +287,7 @@ class AiFormAction extends SolarisAction
     /**
      * Assert with a callback on the call data.
      */
-    public static function assertCalledWith(\Closure $callback): void
+    public static function assertCalledWith(Closure $callback): void
     {
         AiFormActionFake::getInstance()->assertCalledWith($callback);
     }

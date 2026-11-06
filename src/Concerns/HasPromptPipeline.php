@@ -21,7 +21,9 @@ use Statikbe\FilamentSolaris\Prompts\Presets\Preset;
 use Statikbe\FilamentSolaris\Prompts\ViewPromptBuilder;
 use Statikbe\FilamentSolaris\Sanitizers\Sanitizer;
 use Statikbe\FilamentSolaris\Sanitizers\SanitizerExecutor;
+use Statikbe\FilamentSolaris\Support\FactorySchema;
 use Statikbe\FilamentSolaris\Support\GenerationOptions;
+use Statikbe\FilamentSolaris\Support\Metadata\FieldMetadata;
 use Statikbe\FilamentSolaris\Support\PreviewSelection;
 use Statikbe\FilamentSolaris\Support\SolarisNotification;
 use Statikbe\FilamentSolaris\Support\SolarisPromptLogger;
@@ -377,6 +379,12 @@ trait HasPromptPipeline
             $userInput,
         );
 
+        $metadata = $this->getFieldMetadata();
+
+        if ($metadata !== null) {
+            $prompt .= "\n\n".$metadata->promptFragment($this->getFieldMetadataInstructions());
+        }
+
         return [$prompt, $factories];
     }
 
@@ -393,7 +401,7 @@ trait HasPromptPipeline
         SolarisPromptLogger::log($prompt, $factories);
 
         $agent = $this->createAgent();
-        $agent->configure($prompt, $factories);
+        $this->configureAgent($agent, $prompt, $factories);
 
         if ($this->pipelineTools !== null) {
             $agent->withTools($this->evaluate($this->pipelineTools));
@@ -524,7 +532,7 @@ trait HasPromptPipeline
         array $factories,
         array $conversationalContext = [],
     ): void {
-        $result = $this->transformResults($aiResponse, $factories);
+        $result = $this->transformResponse($aiResponse, $factories);
 
         if ($this->shouldPreview() && ! empty($result['values'])) {
             $this->storePreviewData($result, $factories, $aiResponse, $conversationalContext);
@@ -533,7 +541,48 @@ trait HasPromptPipeline
             return; // halt() throws, but return for clarity
         }
 
-        $this->writeResults($result['values'], $result['filledLabels'], $result['failedLabels']);
+        $this->writeResults($result['values'], $result['filledLabels'], $result['failedLabels'], $result['metadata']);
+    }
+
+    /**
+     * Configure the agent's prompt and schema. With field metadata on, every
+     * target field's schema is wrapped in a {value, ...metadata} envelope.
+     *
+     * @param  array<string, ComponentFactory>  $factories
+     */
+    protected function configureAgent(SolarisAgent $agent, string $prompt, array $factories): void
+    {
+        $metadata = $this->getFieldMetadata();
+
+        if ($metadata === null) {
+            $agent->configure($prompt, $factories);
+
+            return;
+        }
+
+        $agent->configure($prompt, [], $metadata->wrap(FactorySchema::resolver($factories)));
+    }
+
+    /**
+     * Unwrap metadata envelopes (when on), then transform values as usual.
+     * Metadata survives only for fields that ended up filled.
+     *
+     * @param  array<string, mixed>  $aiResponse
+     * @param  array<string, ComponentFactory>  $factories
+     * @return array{values: array<string, mixed>, filledLabels: array<string>, failedLabels: array<string>, metadata: array<string, array<string, mixed>>}
+     */
+    protected function transformResponse(array $aiResponse, array $factories): array
+    {
+        $metadata = $this->getFieldMetadata();
+
+        if ($metadata === null) {
+            return [...$this->transformResults($aiResponse, $factories), 'metadata' => []];
+        }
+
+        $unwrapped = $metadata->unwrap($aiResponse, array_keys($factories));
+        $result = $this->transformResults($unwrapped->values, $factories);
+
+        return [...$result, 'metadata' => array_intersect_key($unwrapped->metadata, $result['values'])];
     }
 
     /**
@@ -598,8 +647,9 @@ trait HasPromptPipeline
      * @param  array<string, mixed>  $values
      * @param  array<string>  $filledLabels
      * @param  array<string>  $failedLabels
+     * @param  array<string, array<string, mixed>>  $metadata
      */
-    protected function writeResults(array $values, array $filledLabels, array $failedLabels): void
+    protected function writeResults(array $values, array $filledLabels, array $failedLabels, array $metadata = []): void
     {
         $schemaComponent = $this->resolveFormSchemaComponent();
 
@@ -613,6 +663,10 @@ trait HasPromptPipeline
 
         foreach ($values as $fieldName => $formValue) {
             $set($fieldName, $formValue);
+        }
+
+        if ($values !== []) {
+            $this->callAfterFieldsWritten($values, $metadata);
         }
 
         $this->sendResultNotifications($filledLabels, $failedLabels);
@@ -678,6 +732,31 @@ trait HasPromptPipeline
     {
         return null;
     }
+
+    /**
+     * The per-field metadata to request, or null when off. AiFormAction
+     * overrides this; other users of the pipeline have none.
+     */
+    protected function getFieldMetadata(): ?FieldMetadata
+    {
+        return null;
+    }
+
+    /**
+     * Action-level metadata instructions that override the preset's own.
+     */
+    protected function getFieldMetadataInstructions(): ?string
+    {
+        return null;
+    }
+
+    /**
+     * Hook after fields were written. AiFormAction overrides this.
+     *
+     * @param  array<string, mixed>  $values
+     * @param  array<string, array<string, mixed>>  $metadata
+     */
+    protected function callAfterFieldsWritten(array $values, array $metadata): void {}
 
     /**
      * Store preview data on the Livewire component for display in the preview modal.
@@ -773,7 +852,7 @@ trait HasPromptPipeline
         [$prompt, $factories] = $this->buildPrompt($sourceData, $userInput);
 
         $agent = new ConversationalSolarisAgent;
-        $agent->configure($prompt, $factories);
+        $this->configureAgent($agent, $prompt, $factories);
 
         $this->applyGenerationOptions($agent);
 
