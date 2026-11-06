@@ -185,6 +185,14 @@ class PreviewFormComponent extends FormsComponent
             ->afterFieldsWritten(fn (array $values, array $metadata) => static::$written[] = compact('values', 'metadata'));
     }
 
+    /**
+     * Metadata + a selectable preview.
+     */
+    public function previewWithMetadataAction(): AiFormAction
+    {
+        return $this->metadataAction('previewWithMetadata')->withSelectablePreview();
+    }
+
     protected function metadataAction(string $name): AiFormAction
     {
         return AiFormAction::make($name)

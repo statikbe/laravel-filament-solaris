@@ -7,6 +7,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\FormsComponent;
 use Filament\Schemas\Schema;
+use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Statikbe\FilamentSolaris\Actions\AiFormAction;
 use Statikbe\FilamentSolaris\Concerns\InteractsWithSolarisPreview;
 
@@ -88,6 +89,21 @@ class ConversationalFormComponent extends FormsComponent
             ->prompt('Analyze and classify.')
             ->conversational()
             ->withSelectablePreview();
+    }
+
+    /**
+     * Conversational refinement with per-field metadata.
+     */
+    public function generateWithMetadataAction(): AiFormAction
+    {
+        return AiFormAction::make('generateWithMetadata')
+            ->sourceFields(['title', 'body'])
+            ->targetFields(['summary', 'category'])
+            ->prompt('Analyze and classify.')
+            ->conversational()
+            ->fieldMetadata(fn (JsonSchemaTypeFactory $s) => [
+                'evidence' => $s->string()->enum(['verbatim', 'derived'])->required(),
+            ]);
     }
 
     /**

@@ -686,8 +686,10 @@ trait HasPromptPipeline
         // $data: the client can rewrite solarisPreviewData before accepting.
         $selectable = $this->getSelectablePreviewFields();
 
+        $metadata = $data['metadata'] ?? [];
+
         if ($selectable === null) {
-            $this->writeResults($data['values'], $data['filledLabels'], $data['failedLabels']);
+            $this->writeResults($data['values'], $data['filledLabels'], $data['failedLabels'], array_intersect_key($metadata, $data['values']));
 
             return;
         }
@@ -708,7 +710,7 @@ trait HasPromptPipeline
             array_keys($values),
         );
 
-        $this->writeResults($values, $filledLabels, $data['failedLabels']);
+        $this->writeResults($values, $filledLabels, $data['failedLabels'], array_intersect_key($metadata, $values));
     }
 
     /**
@@ -761,7 +763,7 @@ trait HasPromptPipeline
     /**
      * Store preview data on the Livewire component for display in the preview modal.
      *
-     * @param  array{values: array<string, mixed>, filledLabels: array<string>, failedLabels: array<string>}  $result
+     * @param  array{values: array<string, mixed>, filledLabels: array<string>, failedLabels: array<string>, metadata?: array<string, array<string, mixed>>}  $result
      * @param  array<string, ComponentFactory>  $factories
      * @param  array<string, mixed>  $aiResponse
      * @param  array{sourceData?: array<string, mixed>, userInput?: array<string, mixed>, conversationId?: ?string}  $conversationalContext
@@ -788,6 +790,10 @@ trait HasPromptPipeline
         if ($selectableFields !== null) {
             $data['selectable'] = PreviewSelection::selectable(array_keys($displays), $selectableFields);
             $data['selected'] = $data['selectable'];
+        }
+
+        if ($this->getFieldMetadata() !== null) {
+            $data['metadata'] = $result['metadata'] ?? [];
         }
 
         if ($this->isConversational()) {
@@ -883,7 +889,7 @@ trait HasPromptPipeline
 
         SolarisPromptLogger::logResponse($aiResponse, $previewData['conversationId']);
 
-        $result = $this->transformResults($aiResponse, $factories);
+        $result = $this->transformResponse($aiResponse, $factories);
         $this->updatePreviewData($result, $factories, $aiResponse);
     }
 
@@ -902,14 +908,14 @@ trait HasPromptPipeline
         $aiResponse = $fake->resolveRefinement($this->getName()) ?? [];
 
         $factories = $this->resolveTargetFactories();
-        $result = $this->transformResults($aiResponse, $factories);
+        $result = $this->transformResponse($aiResponse, $factories);
         $this->updatePreviewData($result, $factories, $aiResponse);
     }
 
     /**
      * Update the existing preview data with refined results.
      *
-     * @param  array{values: array<string, mixed>, filledLabels: array<string>, failedLabels: array<string>}  $result
+     * @param  array{values: array<string, mixed>, filledLabels: array<string>, failedLabels: array<string>, metadata?: array<string, array<string, mixed>>}  $result
      * @param  array<string, ComponentFactory>  $factories
      * @param  array<string, mixed>  $aiResponse
      */
@@ -931,6 +937,10 @@ trait HasPromptPipeline
 
             $previewData['selected'] = PreviewSelection::reseed($previewData['selected'] ?? [], $previewData['selectable'], $selectable);
             $previewData['selectable'] = $selectable;
+        }
+
+        if ($this->getFieldMetadata() !== null) {
+            $previewData['metadata'] = $result['metadata'] ?? [];
         }
 
         // Append assistant message

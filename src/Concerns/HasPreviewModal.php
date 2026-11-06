@@ -94,6 +94,7 @@ trait HasPreviewModal
                     'displays' => $previewData['displays'],
                     'messages' => $previewData['messages'] ?? [],
                     'selectable' => $previewData['selectable'] ?? null,
+                    'metadata' => $previewData['metadata'] ?? null,
                     'requiresSelection' => $this->previewRequiresSelection($previewData),
                 ]);
             }
@@ -101,6 +102,7 @@ trait HasPreviewModal
             return $this->previewView('preview-modal', [
                 'displays' => $previewData['displays'],
                 'selectable' => $previewData['selectable'] ?? null,
+                'metadata' => $previewData['metadata'] ?? null,
             ]);
         }
 
