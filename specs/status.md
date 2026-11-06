@@ -5,16 +5,16 @@
 > numbered specs in this directory. Architecture diagrams live in
 > [`../documentation/architecture.md`](../documentation/architecture.md).
 >
-> **Last reviewed:** 2026-10-14.
+> **Last reviewed:** 2026-11-06.
 
 ## Repo state
 
 | | |
 |---|---|
-| Suite | 711 Pest tests, PHPStan level 5 |
+| Suite | 743 Pest tests, PHPStan level 5 |
 | Numbered specs | 44 in `specs/` |
 | Release | everything sits under CHANGELOG *Unreleased* |
-| Unpushed | nothing (all pushed as of 2026-10-14) |
+| Unpushed | nothing (all pushed as of 2026-11-06) |
 
 ---
 
@@ -30,13 +30,13 @@ generation is callable from a controller, a listener, a command or a queue worke
 |---|---|---|
 | `AiGenerator` owns single + batch, inline + queued (specs 36–38) | ✅ merged | The action is a thin translator; `ProcessChunkJob` shares `RecordWriter` / `RecordsSchemaBuilder` with the inline path |
 | Sanitizers — parity port 1 ([spec 40](40-sanitizers.md)) | ✅ merged | Closed the stored-XSS gap on record write-back; `AiFormAction` moved onto the same `Sanitizer` abstraction |
-| Route `AiFormAction`'s AI call through the service | ⏭️ **next** (with spec 42 steps 1–4) | `HasPromptPipeline` still builds its own `SolarisAgent` — the last split-brain in the engine. Non-conversational routing first. The `AgentDefinition` split it was waiting on was reversed (spec 41 §3.2), so no new shape to target. No numbered spec yet |
+| Route `AiFormAction`'s AI call through the service | ⏭️ after spec 42 steps 2–4 (step 2 — envelope collaborator — is **next**) | `HasPromptPipeline` still builds its own `SolarisAgent` — the last split-brain in the engine. Non-conversational routing first. The `AgentDefinition` split it was waiting on was reversed (spec 41 §3.2), so no new shape to target. No numbered spec yet |
 | Presets on the generate side — parity port 2 | queued | Spec 35 Part A, postponed out of spec 40. `tools()` already exists on the service |
 | Conversational + preview as shared capabilities ([spec 39](39-conversational-preview-exploration.md)) | 🎨 designing | Approach A + staged-write-on-approve settled; run reuse, guidance distillation and the attachment round-trip still open |
 | Handler terminal, agent reuse, per-row attachments ([spec 41](41-handler-terminal-and-agent-reuse.md)) | ✅ decided | Decisions taken 2026-09-24 (§6); decision 3 (definition/run split) reversed 2026-10-14. Step 1 of its §7 sequencing is now spec 43 |
-| Per-field selection in the preview — spec 42 step 1 ([spec 44](44-per-field-selection.md)) | ✅ implemented (branch, not merged) | Plumbing generic (keyed by preview item), enabled on `AiFormAction` only |
-| Reusable generators — `setUp()` hook + reuse docs ([spec 43](43-reusable-generators.md)) | ✅ merged (not pushed) | Replaces the reversed split. No breaking change |
-| Headless docs for the batch + queued surface | deferred | Deferred twice (pieces 2 and 3). `documentation/` has no `ai-generator.md` |
+| Per-field selection in the preview — spec 42 step 1 ([spec 44](44-per-field-selection.md)) | ✅ merged | Plumbing generic (keyed by preview item), enabled on `AiFormAction` only. Selectable fields are read from the action's config on accept, never from client state |
+| Reusable generators — `setUp()` hook + reuse docs ([spec 43](43-reusable-generators.md)) | ✅ merged | Replaces the reversed split. No breaking change |
+| Headless docs for the batch + queued surface | deferred | Deferred twice (pieces 2 and 3). `documentation/ai-generator.md` exists (spec 43) but still defers the batch + queued reference |
 | Service-native `AiGenerator::fake()` | deferred | Option 2 from spec 37. Today the fake plugs in through the `responseGenerator()` seam |
 
 ### Known gaps in the routing step (no spec covers these yet)
