@@ -13,6 +13,7 @@ use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Promptable;
 use Laravel\Ai\Providers\Tools\ProviderTool;
 use Statikbe\FilamentSolaris\Contracts\ComponentFactory;
+use Statikbe\FilamentSolaris\Support\FactorySchema;
 
 class SolarisAgent implements Agent, HasStructuredOutput, HasTools
 {
@@ -157,8 +158,6 @@ class SolarisAgent implements Agent, HasStructuredOutput, HasTools
             return ($this->schemaResolver)($schema);
         }
 
-        return collect($this->factories)
-            ->map(fn (ComponentFactory $factory) => $factory->responseSchema($schema))
-            ->all();
+        return FactorySchema::resolver($this->factories)($schema);
     }
 }
