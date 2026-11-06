@@ -45,7 +45,7 @@ it('binds Accept to the selection when every item is selectable', function () {
 it('keeps Accept enabled when some items are always written', function () {
     $html = view('filament-solaris::preview-modal-footer', ['requiresSelection' => false])->render();
 
-    expect($html)->toContain('x-bind:disabled="false"');
+    expect($html)->not->toContain('x-bind:disabled');
 });
 
 it('passes the selection into the mounted preview modal', function () {
