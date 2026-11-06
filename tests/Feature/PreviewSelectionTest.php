@@ -145,3 +145,27 @@ it('still reports the failure when a refinement fills nothing', function () {
         ->call('solarisAcceptPreview')
         ->assertNotified(filament_solaris_trans('notifications.error'));
 });
+
+it('ignores a client that drops the selectable key', function () {
+    AiFormAction::fake(['summary' => 'S', 'category' => 'tech', 'is_featured' => true]);
+
+    $component = selectablePreview('generateSelectable');
+
+    $data = $component->get('solarisPreviewData');
+    unset($data['selectable']);
+
+    $component
+        ->set('solarisPreviewData', [...$data, 'selected' => ['summary']])
+        ->call('solarisAcceptPreview')
+        ->assertFormSet(['summary' => 'S', 'category' => null, 'is_featured' => false]);
+});
+
+it('ignores a client that shrinks the selectable list', function () {
+    AiFormAction::fake(['summary' => 'S', 'category' => 'tech', 'is_featured' => true]);
+
+    selectablePreview('generateSelectable')
+        ->set('solarisPreviewData.selectable', [])
+        ->set('solarisPreviewData.selected', ['summary'])
+        ->call('solarisAcceptPreview')
+        ->assertFormSet(['summary' => 'S', 'category' => null, 'is_featured' => false]);
+});

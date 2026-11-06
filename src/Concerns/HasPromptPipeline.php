@@ -628,13 +628,17 @@ trait HasPromptPipeline
      */
     public function acceptPreview(array $data): void
     {
-        if (! array_key_exists('selectable', $data)) {
+        // Selectable fields come from the action's own config, never from
+        // $data: the client can rewrite solarisPreviewData before accepting.
+        $selectable = $this->getSelectablePreviewFields();
+
+        if ($selectable === null) {
             $this->writeResults($data['values'], $data['filledLabels'], $data['failedLabels']);
 
             return;
         }
 
-        $values = PreviewSelection::filter($data['values'], $data['selectable'], $data['selected'] ?? []);
+        $values = PreviewSelection::filter($data['values'], $selectable, $data['selected'] ?? []);
 
         // The user deselected everything: write nothing, say nothing. An empty
         // result (a refinement that filled no field) still falls through so the
