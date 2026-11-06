@@ -686,23 +686,22 @@ trait HasPromptPipeline
         // $data: the client can rewrite solarisPreviewData before accepting.
         $selectable = $this->getSelectablePreviewFields();
 
+        // Same reason: only target fields may be written, whatever the client sent.
+        $targetValues = array_intersect_key($data['values'] ?? [], array_flip($this->getTargetFields()));
         $metadata = $data['metadata'] ?? [];
 
-        // Same reason: only target fields may be written, whatever the client sent.
-        $data['values'] = array_intersect_key($data['values'] ?? [], array_flip($this->getTargetFields()));
-
         if ($selectable === null) {
-            $this->writeResults($data['values'], $data['filledLabels'], $data['failedLabels'], array_intersect_key($metadata, $data['values']));
+            $this->writeResults($targetValues, $data['filledLabels'], $data['failedLabels'], array_intersect_key($metadata, $targetValues));
 
             return;
         }
 
-        $values = PreviewSelection::filter($data['values'], $selectable, $data['selected'] ?? []);
+        $values = PreviewSelection::filter($targetValues, $selectable, $data['selected'] ?? []);
 
         // The user deselected everything: write nothing, say nothing. An empty
         // result (a refinement that filled no field) still falls through so the
         // failure notification is sent, as without selection.
-        if ($values === [] && $data['values'] !== []) {
+        if ($values === [] && $targetValues !== []) {
             return;
         }
 

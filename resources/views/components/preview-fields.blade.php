@@ -15,7 +15,7 @@
                     {{ $field['label'] }}
                 @endif
 
-                @if (! empty($metadata[$fieldName] ?? null))
+                @if (! empty($metadata[$fieldName]))
                     @php($tooltip = (string) \Statikbe\FilamentSolaris\Support\Metadata\MetadataTooltip::html($metadata[$fieldName]))
                     <x-filament::icon
                         icon="heroicon-m-information-circle"
