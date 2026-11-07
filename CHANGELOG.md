@@ -34,6 +34,7 @@ All notable changes to `laravel-filament-solaris` will be documented in this fil
 ### Fixed
 
 - Preview Accept writes only the action's target fields. The preview data round-trips through the browser, so before this a tampered request could set any form field.
+- The preview state (`solarisPreviewData`) is now `#[Locked]`: the browser can no longer change the values, labels, metadata or image paths that Accept writes. The field selection moved to its own client-editable property, `solarisPreviewSelected`.
 - `AiGenerator` falls back to the configured `ai.default_provider`, `ai.default_model` and `ai.default_timeout` when none is set, like the actions do. Headless callers (jobs, listeners) no longer hit the laravel/ai default provider.
 
 ### Added

@@ -313,7 +313,7 @@ AiFormAction::make('summarize')
 
 **Required: `InteractsWithSolarisPreview` trait on the owning Livewire component.**
 
-The trait provides the `solarisPreviewData` public property the modal binds to, plus the `acceptSolarisPreview()` and `refineSolaris()` Livewire methods the modal's Accept / chat-refine buttons dispatch to. Add it to whatever Livewire component hosts the form — typically a Filament Resource Page, a custom Page, or a Livewire component:
+The trait provides the `solarisPreviewData` public property the modal reads (locked: only the server writes it, so the browser cannot alter what Accept writes) and `solarisPreviewSelected` for the field checkboxes, plus the `acceptSolarisPreview()` and `refineSolaris()` Livewire methods the modal's Accept / chat-refine buttons dispatch to. Add it to whatever Livewire component hosts the form — typically a Filament Resource Page, a custom Page, or a Livewire component:
 
 ```php
 use Filament\Resources\Pages\EditRecord;

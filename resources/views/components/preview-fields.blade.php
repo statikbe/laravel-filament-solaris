@@ -6,7 +6,7 @@
             <dt class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                 @if (is_array($selectable) && in_array($fieldName, $selectable, true))
                     <x-filament::input.checkbox
-                        wire:model="solarisPreviewData.selected"
+                        wire:model="solarisPreviewSelected"
                         value="{{ $fieldName }}"
                         id="solaris-preview-select-{{ $fieldName }}"
                     />

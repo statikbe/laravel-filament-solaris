@@ -25,7 +25,7 @@ it('renders a checkbox only for selectable items', function () use ($displays) {
         ['displays' => $displays, 'selectable' => ['summary']],
     );
 
-    expect($html)->toContain('wire:model="solarisPreviewData.selected"')
+    expect($html)->toContain('wire:model="solarisPreviewSelected"')
         ->and($html)->toContain('value="summary"')
         ->and($html)->not->toContain('value="is_featured"');
 });
@@ -33,13 +33,13 @@ it('renders a checkbox only for selectable items', function () use ($displays) {
 it('renders no checkboxes when selection is off', function () use ($displays) {
     $html = Blade::render('<x-filament-solaris::preview-fields :displays="$displays" />', ['displays' => $displays]);
 
-    expect($html)->not->toContain('solarisPreviewData.selected');
+    expect($html)->not->toContain('solarisPreviewSelected');
 });
 
 it('binds Accept to the selection when every item is selectable', function () {
     $html = view('filament-solaris::preview-modal-footer', ['requiresSelection' => true])->render();
 
-    expect($html)->toContain('x-bind:disabled="! ($wire.solarisPreviewData?.selected ?? []).length"');
+    expect($html)->toContain('x-bind:disabled="! ($wire.solarisPreviewSelected ?? []).length"');
 });
 
 it('keeps Accept enabled when some items are always written', function () {

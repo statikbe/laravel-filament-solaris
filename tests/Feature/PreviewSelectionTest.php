@@ -38,14 +38,14 @@ it('starts with every selectable field ticked', function () {
     $component = selectablePreview('generateSelectable');
 
     expect($component->get('solarisPreviewData.selectable'))->toBe(['summary', 'category', 'is_featured'])
-        ->and($component->get('solarisPreviewData.selected'))->toBe(['summary', 'category', 'is_featured']);
+        ->and($component->get('solarisPreviewSelected'))->toBe(['summary', 'category', 'is_featured']);
 });
 
 it('writes only the ticked fields and reports them as filled', function () {
     AiFormAction::fake(['summary' => 'S', 'category' => 'tech', 'is_featured' => true]);
 
     selectablePreview('generateSelectable')
-        ->set('solarisPreviewData.selected', ['summary'])
+        ->set('solarisPreviewSelected', ['summary'])
         ->call('solarisAcceptPreview')
         ->assertFormSet(['summary' => 'S', 'category' => null, 'is_featured' => false])
         ->assertNotified(filament_solaris_trans('notifications.success', [
@@ -58,7 +58,7 @@ it('writes nothing and sends no notification when nothing is ticked', function (
     AiFormAction::fake(['summary' => 'S', 'category' => 'tech', 'is_featured' => true]);
 
     selectablePreview('generateSelectable')
-        ->set('solarisPreviewData.selected', [])
+        ->set('solarisPreviewSelected', [])
         ->call('solarisAcceptPreview')
         ->assertFormSet(['summary' => '', 'category' => null, 'is_featured' => false])
         ->assertNotNotified()
@@ -73,7 +73,7 @@ it('always writes fields outside the selectable subset', function () {
     expect($component->get('solarisPreviewData.selectable'))->toBe(['summary', 'category']);
 
     $component
-        ->set('solarisPreviewData.selected', [])
+        ->set('solarisPreviewSelected', [])
         ->call('solarisAcceptPreview')
         ->assertFormSet(['summary' => '', 'category' => null, 'is_featured' => true])
         ->assertNotified();
@@ -93,14 +93,14 @@ it('keeps an unticked field unticked after a refinement', function () {
         ->fillForm(['title' => 'T', 'body' => 'B'])
         ->callAction('generateSelectable');
 
-    expect($component->get('solarisPreviewData.selected'))->toBe(['summary', 'category']);
+    expect($component->get('solarisPreviewSelected'))->toBe(['summary', 'category']);
 
     $component
-        ->set('solarisPreviewData.selected', ['category'])
+        ->set('solarisPreviewSelected', ['category'])
         ->call('solarisRefinePreview', 'Make it shorter');
 
     expect($component->get('solarisPreviewData.values.summary'))->toBe('S2')
-        ->and($component->get('solarisPreviewData.selected'))->toBe(['category']);
+        ->and($component->get('solarisPreviewSelected'))->toBe(['category']);
 });
 
 it('ticks a field the refinement fills for the first time', function () {
@@ -114,11 +114,11 @@ it('ticks a field the refinement fills for the first time', function () {
     expect($component->get('solarisPreviewData.selectable'))->toBe(['summary']);
 
     $component
-        ->set('solarisPreviewData.selected', [])
+        ->set('solarisPreviewSelected', [])
         ->call('solarisRefinePreview', 'Also classify it');
 
     expect($component->get('solarisPreviewData.selectable'))->toBe(['summary', 'category'])
-        ->and($component->get('solarisPreviewData.selected'))->toBe(['category']);
+        ->and($component->get('solarisPreviewSelected'))->toBe(['category']);
 });
 
 it('drops a field the refinement fails to fill', function () {
@@ -131,7 +131,7 @@ it('drops a field the refinement fails to fill', function () {
         ->call('solarisRefinePreview', 'Drop the category');
 
     expect($component->get('solarisPreviewData.selectable'))->toBe(['summary'])
-        ->and($component->get('solarisPreviewData.selected'))->toBe(['summary']);
+        ->and($component->get('solarisPreviewSelected'))->toBe(['summary']);
 });
 
 it('still reports the failure when a refinement fills nothing', function () {
@@ -146,7 +146,9 @@ it('still reports the failure when a refinement fills nothing', function () {
         ->assertNotified(filament_solaris_trans('notifications.error'));
 });
 
-it('ignores a client that drops the selectable key', function () {
+// The locked preview state keeps the client out; these pin the server-side
+// guard in acceptPreview() for data that did not come from the snapshot.
+it('takes selectable fields from the config when the data drops the key', function () {
     AiFormAction::fake(['summary' => 'S', 'category' => 'tech', 'is_featured' => true]);
 
     $component = selectablePreview('generateSelectable');
@@ -154,18 +156,21 @@ it('ignores a client that drops the selectable key', function () {
     $data = $component->get('solarisPreviewData');
     unset($data['selectable']);
 
-    $component
-        ->set('solarisPreviewData', [...$data, 'selected' => ['summary']])
-        ->call('solarisAcceptPreview')
-        ->assertFormSet(['summary' => 'S', 'category' => null, 'is_featured' => false]);
+    $component->instance()->getMountedAction()->acceptPreview([...$data, 'selected' => ['summary']]);
+
+    $component->assertFormSet(['summary' => 'S', 'category' => null, 'is_featured' => false]);
 });
 
-it('ignores a client that shrinks the selectable list', function () {
+it('takes selectable fields from the config when the data shrinks the list', function () {
     AiFormAction::fake(['summary' => 'S', 'category' => 'tech', 'is_featured' => true]);
 
-    selectablePreview('generateSelectable')
-        ->set('solarisPreviewData.selectable', [])
-        ->set('solarisPreviewData.selected', ['summary'])
-        ->call('solarisAcceptPreview')
-        ->assertFormSet(['summary' => 'S', 'category' => null, 'is_featured' => false]);
+    $component = selectablePreview('generateSelectable');
+
+    $component->instance()->getMountedAction()->acceptPreview([
+        ...$component->get('solarisPreviewData'),
+        'selectable' => [],
+        'selected' => ['summary'],
+    ]);
+
+    $component->assertFormSet(['summary' => 'S', 'category' => null, 'is_featured' => false]);
 });

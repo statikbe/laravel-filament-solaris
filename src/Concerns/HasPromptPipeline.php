@@ -791,7 +791,6 @@ trait HasPromptPipeline
 
         if ($selectableFields !== null) {
             $data['selectable'] = PreviewSelection::selectable(array_keys($displays), $selectableFields);
-            $data['selected'] = $data['selectable'];
         }
 
         if ($this->getFieldMetadata() !== null) {
@@ -812,6 +811,7 @@ trait HasPromptPipeline
         }
 
         $livewire->solarisPreviewData = $data;
+        $livewire->solarisPreviewSelected = $data['selectable'] ?? null;
     }
 
     /**
@@ -937,7 +937,7 @@ trait HasPromptPipeline
                 $this->getSelectablePreviewFields() ?? [],
             );
 
-            $previewData['selected'] = PreviewSelection::reseed($previewData['selected'] ?? [], $previewData['selectable'], $selectable);
+            $livewire->solarisPreviewSelected = PreviewSelection::reseed($livewire->solarisPreviewSelected, $previewData['selectable'], $selectable);
             $previewData['selectable'] = $selectable;
         }
 

@@ -54,7 +54,7 @@ it('calls afterFieldsWritten on Accept with the ticked fields only', function ()
     Livewire::test(PreviewFormComponent::class)
         ->fillForm(['title' => 'T', 'body' => 'B'])
         ->callAction('previewWithMetadata')
-        ->set('solarisPreviewData.selected', ['summary'])
+        ->set('solarisPreviewSelected', ['summary'])
         ->call('solarisAcceptPreview')
         ->assertFormSet(['summary' => 'S', 'category' => null]);
 
@@ -70,7 +70,7 @@ it('does not call afterFieldsWritten when nothing is ticked', function () {
     Livewire::test(PreviewFormComponent::class)
         ->fillForm(['title' => 'T', 'body' => 'B'])
         ->callAction('previewWithMetadata')
-        ->set('solarisPreviewData.selected', [])
+        ->set('solarisPreviewSelected', [])
         ->call('solarisAcceptPreview');
 
     expect(PreviewFormComponent::$written)->toBe([]);
@@ -127,12 +127,16 @@ it('passes metadata into the mounted preview modal', function () {
 it('ignores accepted values for fields that are not target fields', function () {
     AiFormAction::fake(metadataEnvelopes());
 
-    Livewire::test(PreviewFormComponent::class)
+    $component = Livewire::test(PreviewFormComponent::class)
         ->fillForm(['title' => 'T', 'body' => 'B'])
-        ->callAction('generateWithMetadataPreview')
-        ->set('solarisPreviewData.values.title', 'Hacked')
-        ->call('solarisAcceptPreview')
-        ->assertFormSet(['title' => 'T', 'summary' => 'S']);
+        ->callAction('generateWithMetadataPreview');
+
+    $data = $component->get('solarisPreviewData');
+    $data['values']['title'] = 'Hacked';
+
+    $component->instance()->getMountedAction()->acceptPreview($data);
+
+    $component->assertFormSet(['title' => 'T', 'summary' => 'S']);
 
     expect(PreviewFormComponent::$written[0]['values'])->toBe(['summary' => 'S', 'category' => 'tech']);
 });

@@ -2,6 +2,7 @@
 
 namespace Statikbe\FilamentSolaris\Concerns;
 
+use Livewire\Attributes\Locked;
 use Statikbe\FilamentSolaris\Actions\SolarisAction;
 
 /**
@@ -25,9 +26,24 @@ trait InteractsWithSolarisPreview
      *
      * @internal Livewire-entangled state for the preview modal Blade view.
      *
+     * Locked: only the server writes it, so values, labels, metadata and
+     * image paths reach Accept exactly as the AI call produced them.
+     *
      * @var array{values: array<string, mixed>, displays: array<string, array<string, string>>, filledLabels: array<string>, failedLabels: array<string>, actionName: string}|null
      */
+    #[Locked]
     public ?array $solarisPreviewData = null;
+
+    /**
+     * The fields the user ticked in a selectable preview; null when the
+     * preview has no selection. The one piece of preview state the client
+     * may change, so every read treats it as untrusted.
+     *
+     * @internal Livewire-entangled state for the preview checkboxes.
+     *
+     * @var array<int, string>|null
+     */
+    public ?array $solarisPreviewSelected = null;
 
     /**
      * Files attached to the next conversational refinement turn.
@@ -57,7 +73,13 @@ trait InteractsWithSolarisPreview
         }
 
         $data = $this->solarisPreviewData;
+
+        if ($this->solarisPreviewSelected !== null) {
+            $data['selected'] = $this->solarisPreviewSelected;
+        }
+
         $this->solarisPreviewData = null;
+        $this->solarisPreviewSelected = null;
 
         $action = $this->getMountedAction();
 
@@ -105,6 +127,7 @@ trait InteractsWithSolarisPreview
     public function solarisDiscardPreview(): void
     {
         $this->solarisPreviewData = null;
+        $this->solarisPreviewSelected = null;
         $this->unmountAction();
     }
 
@@ -116,6 +139,7 @@ trait InteractsWithSolarisPreview
     public function unmountAction(bool $canCancelParentActions = true): void
     {
         $this->solarisPreviewData = null;
+        $this->solarisPreviewSelected = null;
         $this->solarisRefinementAttachments = [];
 
         parent::unmountAction($canCancelParentActions);
