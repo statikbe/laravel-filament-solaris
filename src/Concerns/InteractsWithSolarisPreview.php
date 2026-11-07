@@ -24,10 +24,10 @@ trait InteractsWithSolarisPreview
     /**
      * Preview data stored between halt() and accept/discard.
      *
-     * @internal Livewire-entangled state for the preview modal Blade view.
-     *
      * Locked: only the server writes it, so values, labels, metadata and
      * image paths reach Accept exactly as the AI call produced them.
+     *
+     * @internal Livewire-entangled state for the preview modal Blade view.
      *
      * @var array{values: array<string, mixed>, displays: array<string, array<string, string>>, filledLabels: array<string>, failedLabels: array<string>, actionName: string}|null
      */
