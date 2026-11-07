@@ -38,6 +38,7 @@ return [
     ],
 
     'metadata' => [
+        'heading' => 'Veldmetadata',
         'prompt' => 'Elk doelveld is een object: zet de inhoud van het veld in "value" en vul de andere sleutels in zoals hieronder beschreven.',
     ],
 

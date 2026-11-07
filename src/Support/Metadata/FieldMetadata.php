@@ -37,6 +37,24 @@ abstract class FieldMetadata
     }
 
     /**
+     * The keys, checked: `value` is reserved for the field's own value.
+     *
+     * @return array<string, Type>
+     *
+     * @throws InvalidArgumentException
+     */
+    final public function resolveKeys(JsonSchemaTypeFactory $schema): array
+    {
+        $keys = $this->keys($schema);
+
+        if (array_key_exists('value', $keys)) {
+            throw new InvalidArgumentException('Field metadata cannot define a key named "value": the envelope uses it for the field\'s own value.');
+        }
+
+        return $keys;
+    }
+
+    /**
      * Wrap every field of a schema in an envelope: {value, ...keys}.
      *
      * @param  Closure(JsonSchemaTypeFactory): array<string, Type>  $resolver
@@ -45,11 +63,7 @@ abstract class FieldMetadata
     final public function wrap(Closure $resolver): Closure
     {
         return function (JsonSchemaTypeFactory $schema) use ($resolver): array {
-            $keys = $this->keys($schema);
-
-            if (array_key_exists('value', $keys)) {
-                throw new InvalidArgumentException('Field metadata cannot define a key named "value": the envelope uses it for the field\'s own value.');
-            }
+            $keys = $this->resolveKeys($schema);
 
             return array_map(
                 // Strict mode needs every property required and the envelope
@@ -107,7 +121,7 @@ abstract class FieldMetadata
     final public function promptFragment(?string $instructions = null): string
     {
         $instructions ??= $this->instructions();
-        $fragment = filament_solaris_trans('metadata.prompt');
+        $fragment = '## '.filament_solaris_trans('metadata.heading')."\n\n".filament_solaris_trans('metadata.prompt');
 
         return filled($instructions) ? $fragment."\n\n".$instructions : $fragment;
     }

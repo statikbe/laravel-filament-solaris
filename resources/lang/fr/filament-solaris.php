@@ -38,6 +38,7 @@ return [
     ],
 
     'metadata' => [
+        'heading' => 'Métadonnées des champs',
         'prompt' => 'Chaque champ cible est un objet : placez le contenu du champ dans "value" et remplissez les autres clés comme décrit ci-dessous.',
     ],
 

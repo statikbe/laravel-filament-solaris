@@ -42,6 +42,7 @@ return [
     ],
 
     'metadata' => [
+        'heading' => 'Field Metadata',
         'prompt' => 'Each target field is an object: put the field\'s content in "value" and fill the other keys as described below.',
     ],
 

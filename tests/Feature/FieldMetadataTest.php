@@ -88,6 +88,25 @@ it('appends the metadata prompt fragment and instructions', function () {
     });
 });
 
+it('puts the metadata fragment under its own heading', function () {
+    AiFormAction::fake(envelopes());
+
+    callMetadataAction('generateWithMetadata');
+
+    AiFormActionFake::getInstance()->assertCalledWith(function ($sourceData, string $prompt) {
+        expect($prompt)->toContain('## '.filament_solaris_trans('metadata.heading')."\n\n".filament_solaris_trans('metadata.prompt'));
+    });
+});
+
+it('rejects a value metadata key before any AI call, also when faked', function () {
+    AiFormAction::fake(envelopes());
+
+    expect(fn () => callMetadataAction('generateWithValueKey'))
+        ->toThrow(InvalidArgumentException::class, 'key named "value"');
+
+    AiFormActionFake::getInstance()->assertNotCalled();
+});
+
 it('lets fieldMetadataInstructions override a preset', function () {
     AiFormAction::fake(envelopes());
 

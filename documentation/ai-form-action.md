@@ -399,7 +399,13 @@ AiFormAction::make('analyze')
 The model now answers each field with an object — `{"value": "…", "evidence": "derived",
 "reasoning": "…"}` — and Solaris unwraps it: the value goes into the form (through your
 sanitizers, as usual), the rest becomes that field's metadata. A field whose answer is not a
-well-formed object counts as a failed field. A key named `value` is not allowed.
+well-formed object counts as a failed field. A key named `value` is not allowed: the action
+throws before any AI call.
+
+> **Mark every metadata key `->required()`.** Strict structured-output providers (OpenAI)
+> reject a schema whose object properties are not all required. Solaris already makes the
+> envelope and its `value` required; your own keys are up to you. For an optional piece of
+> information, keep the key required and make it `->nullable()`.
 
 The instructions explain your keys to the model. Without them it only has the key names and
 any `->description()` you put on the schema.

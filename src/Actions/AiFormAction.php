@@ -3,6 +3,7 @@
 namespace Statikbe\FilamentSolaris\Actions;
 
 use Closure;
+use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Statikbe\FilamentSolaris\Concerns\HasFormPipeline;
 use Statikbe\FilamentSolaris\Concerns\HasPromptPipeline;
 use Statikbe\FilamentSolaris\Concerns\HasSourceFields;
@@ -219,6 +220,9 @@ class AiFormAction extends SolarisAction
         if (! $this->hasPromptBuilder()) {
             throw new \RuntimeException('AiFormAction requires a prompt, preset, or custom promptBuilder.');
         }
+
+        // Fail before any AI call (and on the fake path) on a reserved key.
+        $this->getFieldMetadata()?->resolveKeys(new JsonSchemaTypeFactory);
 
         $selectable = $this->getSelectablePreviewFields();
 

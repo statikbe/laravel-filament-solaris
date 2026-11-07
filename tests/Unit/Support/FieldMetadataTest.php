@@ -91,7 +91,7 @@ it('returns metadata raw', function () {
 });
 
 it('builds the prompt fragment from instructions, with override', function () {
-    $fixed = filament_solaris_trans('metadata.prompt');
+    $fixed = '## '.filament_solaris_trans('metadata.heading')."\n\n".filament_solaris_trans('metadata.prompt');
 
     expect(evidencePreset()->promptFragment())->toBe($fixed."\n\nPreset instructions.")
         ->and(evidencePreset()->promptFragment('Override'))->toBe($fixed."\n\nOverride")

@@ -152,6 +152,15 @@ class PreviewFormComponent extends FormsComponent
     }
 
     /**
+     * Metadata that defines the reserved `value` key: invalid configuration.
+     */
+    public function generateWithValueKeyAction(): AiFormAction
+    {
+        return $this->metadataAction('generateWithValueKey')
+            ->fieldMetadata(fn (JsonSchemaTypeFactory $s) => ['value' => $s->string()->required()]);
+    }
+
+    /**
      * Metadata + a preset whose instructions are overridden at action level.
      */
     public function generateWithPresetOverrideAction(): AiFormAction
