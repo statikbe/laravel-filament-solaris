@@ -52,7 +52,7 @@ it('turns metadata off when the closure returns null', function () {
         ->assertFormSet(['summary' => 'S', 'category' => 'tech']);
 
     AiFormActionFake::getInstance()->assertCalledWith(
-        fn ($sourceData, string $prompt) => ! str_contains($prompt, 'metadata.heading'),
+        fn ($sourceData, string $prompt) => ! str_contains($prompt, '## '.filament_solaris_trans('metadata.heading')),
     );
 });
 
