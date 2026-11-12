@@ -11,6 +11,8 @@ use Filament\Schemas\Schema;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Statikbe\FilamentSolaris\Actions\AiFormAction;
 use Statikbe\FilamentSolaris\Concerns\InteractsWithSolarisPreview;
+use Statikbe\FilamentSolaris\Support\Metadata\Presets\ConfidenceMetadata;
+use Statikbe\FilamentSolaris\Support\Metadata\Presets\EvidenceMetadata;
 
 class PreviewFormComponent extends FormsComponent
 {
@@ -18,6 +20,8 @@ class PreviewFormComponent extends FormsComponent
 
     /** @var array<string, mixed> */
     public array $data = [];
+
+    public bool $useConfidence = false;
 
     /** @var array<int, array{values: array<string, mixed>, metadata: array<string, mixed>}> */
     public static array $written = [];
@@ -208,6 +212,35 @@ class PreviewFormComponent extends FormsComponent
     public function generateWithMetadataPreviewAction(): AiFormAction
     {
         return $this->metadataAction('generateWithMetadataPreview')->withPreview();
+    }
+
+    public function generateRuntimeMetadataAction(): AiFormAction
+    {
+        return $this->metadataAction('generateRuntimeMetadata')
+            ->fieldMetadata(fn ($livewire) => $livewire->useConfidence ? ConfidenceMetadata::make() : EvidenceMetadata::make())
+            ->fieldMetadataInstructions(null);
+    }
+
+    public function generateNullMetadataAction(): AiFormAction
+    {
+        return $this->metadataAction('generateNullMetadata')->fieldMetadata(fn () => null);
+    }
+
+    public function generateInvalidMetadataAction(): AiFormAction
+    {
+        return $this->metadataAction('generateInvalidMetadata')->fieldMetadata(fn () => 'nope');
+    }
+
+    public function generateKeysOtherNameAction(): AiFormAction
+    {
+        return $this->metadataAction('generateKeysOtherName')
+            ->fieldMetadata(fn (JsonSchemaTypeFactory $schema) => ['evidence' => $schema->string()->required()]);
+    }
+
+    public function generateInstructionsClosureAction(): AiFormAction
+    {
+        return $this->metadataAction('generateInstructionsClosure')
+            ->fieldMetadataInstructions(fn (string $locale, array $sourceData) => "Locale $locale for {$sourceData['title']}");
     }
 
     protected function metadataAction(string $name): AiFormAction

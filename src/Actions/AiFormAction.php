@@ -21,9 +21,9 @@ class AiFormAction extends SolarisAction
     /** @var bool|array<int, string> */
     protected bool|array $selectablePreviewFields = false;
 
-    protected ?FieldMetadata $fieldMetadata = null;
+    protected Closure|FieldMetadata|null $fieldMetadata = null;
 
-    protected ?string $fieldMetadataInstructions = null;
+    protected Closure|string|null $fieldMetadataInstructions = null;
 
     protected ?Closure $afterFieldsWritten = null;
 
@@ -150,21 +150,23 @@ class AiFormAction extends SolarisAction
      * Ask the model for metadata beside every target field's value: a closure
      * returning the keys (`fn (JsonSchemaTypeFactory $s) => [...]`) or a
      * reusable FieldMetadata preset (`MyMetadata::make()`). null turns it off.
+     *
+     * A closure is evaluated on every use with Filament injection (`$livewire`,
+     * `$record`, ...) and may also return a FieldMetadata preset or null, so a
+     * preset can be picked at runtime.
      */
     public function fieldMetadata(Closure|FieldMetadata|null $metadata): static
     {
-        $this->fieldMetadata = $metadata instanceof Closure
-            ? new ClosureFieldMetadata($metadata)
-            : $metadata;
+        $this->fieldMetadata = $metadata;
 
         return $this;
     }
 
     /**
      * Prompt language explaining the metadata keys. Overrides a preset's own
-     * instructions().
+     * instructions(). A closure receives `$sourceData`, `$userInput` and `$locale`.
      */
-    public function fieldMetadataInstructions(?string $instructions): static
+    public function fieldMetadataInstructions(Closure|string|null $instructions): static
     {
         $this->fieldMetadataInstructions = $instructions;
 
@@ -185,12 +187,29 @@ class AiFormAction extends SolarisAction
 
     public function getFieldMetadata(): ?FieldMetadata
     {
-        return $this->fieldMetadata;
+        if (! $this->fieldMetadata instanceof Closure) {
+            return $this->fieldMetadata;
+        }
+
+        $resolved = $this->evaluate($this->fieldMetadata, [], [JsonSchemaTypeFactory::class => new JsonSchemaTypeFactory]);
+
+        return match (true) {
+            is_array($resolved) => new ClosureFieldMetadata(fn () => $resolved),
+            $resolved instanceof FieldMetadata, $resolved === null => $resolved,
+            default => throw new \InvalidArgumentException('fieldMetadata() closure must return an array of keys, a FieldMetadata or null; got '.get_debug_type($resolved).'.'),
+        };
     }
 
-    public function getFieldMetadataInstructions(): ?string
+    /**
+     * @param  array<string, mixed>  $injections
+     */
+    public function getFieldMetadataInstructions(array $injections = []): ?string
     {
-        return $this->fieldMetadataInstructions;
+        $instructions = $this->fieldMetadataInstructions instanceof Closure
+            ? $this->evaluate($this->fieldMetadataInstructions, $injections)
+            : $this->fieldMetadataInstructions;
+
+        return $instructions === null ? null : (string) $instructions;
     }
 
     /**

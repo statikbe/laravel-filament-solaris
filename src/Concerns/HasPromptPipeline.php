@@ -382,7 +382,11 @@ trait HasPromptPipeline
         $metadata = $this->getFieldMetadata();
 
         if ($metadata !== null) {
-            $prompt .= "\n\n".$metadata->promptFragment($this->getFieldMetadataInstructions());
+            $prompt .= "\n\n".$metadata->promptFragment($this->getFieldMetadataInstructions([
+                'sourceData' => $sourceData,
+                'userInput' => $userInput,
+                'locale' => $locale,
+            ]));
         }
 
         return [$prompt, $factories];
@@ -748,8 +752,10 @@ trait HasPromptPipeline
 
     /**
      * Action-level metadata instructions that override the preset's own.
+     *
+     * @param  array<string, mixed>  $injections
      */
-    protected function getFieldMetadataInstructions(): ?string
+    protected function getFieldMetadataInstructions(array $injections = []): ?string
     {
         return null;
     }
