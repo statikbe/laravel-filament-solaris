@@ -20,3 +20,16 @@ it('formats arrays, booleans and null', function () {
 
     expect((string) $html)->toBe('tags: [&quot;a&quot;,&quot;b&quot;]<br>flag: true<br>none: null');
 });
+
+it('cuts long JSON values', function () {
+    $html = (string) MetadataTooltip::html(['tags' => [str_repeat('a', 200)]]);
+    $value = html_entity_decode(Str::after($html, 'tags: '));
+
+    expect(mb_strlen($value))->toBeLessThanOrEqual(153)
+        ->and($value)->toEndWith('...');
+});
+
+it('builds a plain-text label', function () {
+    expect(MetadataTooltip::text(['evidence' => 'derived', 'reasoning' => 'x']))
+        ->toBe('evidence: derived; reasoning: x');
+});

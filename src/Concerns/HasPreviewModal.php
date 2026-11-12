@@ -69,6 +69,18 @@ trait HasPreviewModal
     }
 
     /**
+     * Badge HTML per field, shown beside the field label in the preview.
+     * Computed at render time; never stored in the preview data.
+     *
+     * @param  array<string, mixed>  $previewData
+     * @return array<string, Htmlable>
+     */
+    protected function getPreviewBadges(array $previewData): array
+    {
+        return [];
+    }
+
+    /**
      * Render a Solaris preview view by short name.
      *
      * @param  array<string, mixed>  $data
@@ -95,6 +107,7 @@ trait HasPreviewModal
                     'messages' => $previewData['messages'] ?? [],
                     'selectable' => $previewData['selectable'] ?? null,
                     'metadata' => $previewData['metadata'] ?? null,
+                    'badges' => $this->getPreviewBadges($previewData),
                     'requiresSelection' => $this->previewRequiresSelection($previewData),
                 ]);
             }
@@ -103,6 +116,7 @@ trait HasPreviewModal
                 'displays' => $previewData['displays'],
                 'selectable' => $previewData['selectable'] ?? null,
                 'metadata' => $previewData['metadata'] ?? null,
+                'badges' => $this->getPreviewBadges($previewData),
             ]);
         }
 

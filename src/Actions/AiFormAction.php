@@ -3,13 +3,16 @@
 namespace Statikbe\FilamentSolaris\Actions;
 
 use Closure;
+use Filament\Schemas\Components\Component;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
+use InvalidArgumentException;
 use Statikbe\FilamentSolaris\Concerns\HasFormPipeline;
 use Statikbe\FilamentSolaris\Concerns\HasPromptPipeline;
 use Statikbe\FilamentSolaris\Concerns\HasSourceFields;
 use Statikbe\FilamentSolaris\Facades\FilamentSolaris;
 use Statikbe\FilamentSolaris\Support\Metadata\ClosureFieldMetadata;
 use Statikbe\FilamentSolaris\Support\Metadata\FieldMetadata;
+use Statikbe\FilamentSolaris\Support\Metadata\MetadataBadgeRenderer;
 use Statikbe\FilamentSolaris\Testing\AiFormActionFake;
 
 class AiFormAction extends SolarisAction
@@ -24,6 +27,8 @@ class AiFormAction extends SolarisAction
     protected Closure|FieldMetadata|null $fieldMetadata = null;
 
     protected Closure|string|null $fieldMetadataInstructions = null;
+
+    protected ?Closure $fieldMetadataBadge = null;
 
     protected ?Closure $afterFieldsWritten = null;
 
@@ -174,6 +179,19 @@ class AiFormAction extends SolarisAction
     }
 
     /**
+     * The badge shown beside each field in the preview. Overrides the
+     * metadata's own badge(). Receives `$metadata` (that field's metadata),
+     * `$fieldName` and `$value` (the previewed value); returns a schema
+     * Component, or null for no badge.
+     */
+    public function fieldMetadataBadge(?Closure $badge): static
+    {
+        $this->fieldMetadataBadge = $badge;
+
+        return $this;
+    }
+
+    /**
      * Called after fields are written to the form — on the direct path and on
      * preview Accept — with `$values` (what was written) and `$metadata`
      * (keyed by field; [] when metadata is off). Not called when nothing is written.
@@ -196,7 +214,7 @@ class AiFormAction extends SolarisAction
         return match (true) {
             is_array($resolved) => new ClosureFieldMetadata(fn () => $resolved),
             $resolved instanceof FieldMetadata, $resolved === null => $resolved,
-            default => throw new \InvalidArgumentException('fieldMetadata() closure must return an array of keys, a FieldMetadata or null; got '.get_debug_type($resolved).'.'),
+            default => throw new InvalidArgumentException('fieldMetadata() closure must return an array of keys, a FieldMetadata or null; got '.get_debug_type($resolved).'.'),
         };
     }
 
@@ -210,6 +228,53 @@ class AiFormAction extends SolarisAction
             : $this->fieldMetadataInstructions;
 
         return $instructions === null ? null : (string) $instructions;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * Resolves the metadata once per render: if a fieldMetadata() closure now
+     * returns something else (or null), fields whose stored metadata matches
+     * no case simply get no badge.
+     *
+     * @throws InvalidArgumentException when a badge closure returns a non-Component
+     */
+    public function getPreviewBadges(array $previewData): array
+    {
+        $fieldMetadata = $this->fieldMetadataBadge === null ? $this->getFieldMetadata() : null;
+        $livewire = $this->getLivewire();
+        $badges = [];
+
+        foreach ($previewData['metadata'] ?? [] as $fieldName => $metadata) {
+            if (empty($metadata)) {
+                continue;
+            }
+
+            $badge = $this->fieldMetadataBadge !== null
+                ? $this->evaluate($this->fieldMetadataBadge, [
+                    'metadata' => $metadata,
+                    'fieldName' => $fieldName,
+                    'value' => $previewData['values'][$fieldName] ?? null,
+                ])
+                : $fieldMetadata?->badge($metadata);
+
+            if ($badge === null) {
+                continue;
+            }
+
+            if (! $badge instanceof Component) {
+                throw new InvalidArgumentException(sprintf(
+                    'fieldMetadataBadge() must return a %s or null for field "%s"; got %s.',
+                    Component::class,
+                    $fieldName,
+                    get_debug_type($badge),
+                ));
+            }
+
+            $badges[$fieldName] = MetadataBadgeRenderer::render($badge, $livewire);
+        }
+
+        return $badges;
     }
 
     /**

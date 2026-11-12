@@ -1,4 +1,4 @@
-@props(['displays', 'selectable' => null, 'metadata' => null])
+@props(['displays', 'selectable' => null, 'metadata' => null, 'badges' => []])
 
 <div class="space-y-4">
     @foreach ($displays as $fieldName => $field)
@@ -15,17 +15,28 @@
                     {{ $field['label'] }}
                 @endif
 
+                @if (isset($badges[$fieldName]))
+                    {!! $badges[$fieldName] !!}
+                @endif
+
                 @if (! empty($metadata[$fieldName]))
                     @php($tooltip = (string) \Statikbe\FilamentSolaris\Support\Metadata\MetadataTooltip::html($metadata[$fieldName]))
-                    <x-filament::icon
-                        icon="heroicon-m-information-circle"
-                        class="h-4 w-4 text-gray-400 dark:text-gray-500"
+                    <span
+                        tabindex="0"
+                        role="img"
+                        aria-label="{{ \Statikbe\FilamentSolaris\Support\Metadata\MetadataTooltip::text($metadata[$fieldName]) }}"
+                        class="inline-flex rounded-full"
                         x-tooltip="{
                             content: {{ \Illuminate\Support\Js::from($tooltip) }},
                             allowHTML: true,
                             theme: $store.theme,
                         }"
-                    />
+                    >
+                        <x-filament::icon
+                            icon="heroicon-m-information-circle"
+                            class="h-4 w-4 text-gray-400 dark:text-gray-500"
+                        />
+                    </span>
                 @endif
             </dt>
             <dd class="mt-2 rounded-lg border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-white/5">

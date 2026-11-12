@@ -7,7 +7,9 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\FormsComponent;
+use Filament\Schemas\Components\Icon;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Statikbe\FilamentSolaris\Actions\AiFormAction;
 use Statikbe\FilamentSolaris\Concerns\InteractsWithSolarisPreview;
@@ -22,6 +24,11 @@ class PreviewFormComponent extends FormsComponent
     public array $data = [];
 
     public bool $useConfidence = false;
+
+    public bool $metadataOff = false;
+
+    /** @var array<int, array<string, mixed>> */
+    public static array $badgeCalls = [];
 
     /** @var array<int, array{values: array<string, mixed>, metadata: array<string, mixed>}> */
     public static array $written = [];
@@ -241,6 +248,54 @@ class PreviewFormComponent extends FormsComponent
     {
         return $this->metadataAction('generateInstructionsClosure')
             ->fieldMetadataInstructions(fn (string $locale, array $sourceData) => "Locale $locale for {$sourceData['title']}");
+    }
+
+    /**
+     * Selectable preview with the shipped evidence preset on every target.
+     */
+    public function previewEvidenceAction(): AiFormAction
+    {
+        return AiFormAction::make('previewEvidence')
+            ->sourceFields(['title', 'body'])
+            ->targetFields(['summary', 'category', 'is_featured'])
+            ->prompt('Analyze.')
+            ->fieldMetadata(EvidenceMetadata::make())
+            ->withSelectablePreview();
+    }
+
+    public function previewBadgeOverrideAction(): AiFormAction
+    {
+        return $this->previewEvidenceAction()
+            ->name('previewBadgeOverride')
+            ->fieldMetadataBadge(function (array $metadata, string $fieldName, mixed $value) {
+                static::$badgeCalls[] = compact('metadata', 'fieldName', 'value');
+
+                return Icon::make(Heroicon::ShieldCheck)->color('success');
+            });
+    }
+
+    public function previewBadgeNullAction(): AiFormAction
+    {
+        return $this->previewEvidenceAction()
+            ->name('previewBadgeNull')
+            ->fieldMetadataBadge(fn () => null);
+    }
+
+    public function previewBadgeInvalidAction(): AiFormAction
+    {
+        return $this->previewEvidenceAction()
+            ->name('previewBadgeInvalid')
+            ->fieldMetadataBadge(fn () => 'nope');
+    }
+
+    /**
+     * Evidence metadata that switches off once `$metadataOff` flips.
+     */
+    public function previewRuntimeEvidenceAction(): AiFormAction
+    {
+        return $this->previewEvidenceAction()
+            ->name('previewRuntimeEvidence')
+            ->fieldMetadata(fn ($livewire) => $livewire->metadataOff ? null : EvidenceMetadata::make());
     }
 
     protected function metadataAction(string $name): AiFormAction

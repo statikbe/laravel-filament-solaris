@@ -20,7 +20,7 @@
     class="space-y-6"
 >
     {{-- Preview field displays --}}
-    <x-filament-solaris::preview-fields :displays="$displays" :selectable="$selectable ?? null" :metadata="$metadata ?? null" />
+    <x-filament-solaris::preview-fields :displays="$displays" :selectable="$selectable ?? null" :metadata="$metadata ?? null" :badges="$badges ?? []" />
 
     {{-- Conversation --}}
     @if (count($messages) > 0)

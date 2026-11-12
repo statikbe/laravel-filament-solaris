@@ -10,6 +10,7 @@ use Filament\Schemas\Schema;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Statikbe\FilamentSolaris\Actions\AiFormAction;
 use Statikbe\FilamentSolaris\Concerns\InteractsWithSolarisPreview;
+use Statikbe\FilamentSolaris\Support\Metadata\Presets\EvidenceMetadata;
 
 class ConversationalFormComponent extends FormsComponent
 {
@@ -104,6 +105,20 @@ class ConversationalFormComponent extends FormsComponent
             ->fieldMetadata(fn (JsonSchemaTypeFactory $s) => [
                 'evidence' => $s->string()->enum(['verbatim', 'derived'])->required(),
             ]);
+    }
+
+    /**
+     * Conversational refinement with a selectable preview and the evidence preset.
+     */
+    public function generateEvidenceSelectableAction(): AiFormAction
+    {
+        return AiFormAction::make('generateEvidenceSelectable')
+            ->sourceFields(['title', 'body'])
+            ->targetFields(['summary', 'category'])
+            ->prompt('Analyze and classify.')
+            ->conversational()
+            ->fieldMetadata(EvidenceMetadata::make())
+            ->withSelectablePreview();
     }
 
     /**
