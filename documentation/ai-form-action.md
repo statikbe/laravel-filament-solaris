@@ -446,6 +446,109 @@ Keep presets stateless — methods, no changing properties — so one instance i
 `->fieldMetadataInstructions()` overrides a preset's `instructions()` for one action while
 keeping its keys.
 
+### Evidence and confidence presets
+
+Two presets ship with Solaris, so the common cases need no schema of your own:
+
+```php
+use Statikbe\FilamentSolaris\Support\Metadata\Presets\ConfidenceMetadata;
+use Statikbe\FilamentSolaris\Support\Metadata\Presets\EvidenceMetadata;
+
+->fieldMetadata(EvidenceMetadata::make())                    // ships the Evidence enum
+->fieldMetadata(EvidenceMetadata::make(SourceQuality::class)) // your enum is the vocabulary
+->fieldMetadata(ConfidenceMetadata::make())                  // ships the ConfidenceLevel enum
+->fieldMetadata(ConfidenceMetadata::make(MyLevel::class))    // your enum, your cutoffs
+->fieldMetadata(ConfidenceMetadata::make(reasoning: true))   // adds a `reasoning` key
+```
+
+- **Evidence** asks for a key `evidence` restricted to the enum's values. `Evidence` has
+  `Verbatim` (traceable to an explicit statement in the source) and `Derived` (inferred,
+  summarised or reformatted).
+- **Confidence** asks for a `confidence` score from 0 to 1 and buckets it into the cases of a
+  `ConfidenceBand` enum. `ConfidenceLevel` has `High` (0.8 and up), `Medium` (0.5) and
+  `Low` (0.0). A score outside 0..1 is clamped, and the schema carries no `minimum`/`maximum`,
+  as strict providers reject them.
+- `reasoning: true` adds a required `reasoning` key (one sentence) next to the value.
+- The preset writes the prompt instructions from each case's `promptDescription()`. These are
+  prompt language and stay English. `->fieldMetadataInstructions()` still overrides them.
+
+A custom vocabulary is a backed enum implementing `MetadataVocabulary`
+(`promptDescription()` and `startsSelected()`); for confidence, implement `ConfidenceBand`,
+which adds `threshold()` (the lowest score in the band, 0..1). Implement Filament's `HasLabel`
+and `HasColor` as well and the badge uses them; otherwise it shows the case name in gray.
+
+```php
+enum SourceQuality: string implements HasColor, HasLabel, MetadataVocabulary
+{
+    case Official = 'official';
+    case Rumour = 'rumour';
+
+    public function promptDescription(): string { /* … */ }
+
+    public function startsSelected(): bool
+    {
+        return $this === self::Official;
+    }
+    // getLabel(), getColor() …
+}
+```
+
+There are no `withEvidence()` / `withConfidence()` shortcuts: `->fieldMetadata(...)` is the one
+way in.
+
+### Badges
+
+With a preset, each field in the preview shows a colored badge beside its label (for example
+"Derived" or "High"), with the metadata in its tooltip. A custom `FieldMetadata` can return its
+own badge from `badge(array $metadata): ?Component` (any Filament schema component, such as
+`Text::make(...)->badge()` or an `Icon`; `null` for none).
+
+To change the badge for one action, whatever the metadata:
+
+```php
+->fieldMetadataBadge(fn (array $metadata, string $fieldName, mixed $value) =>
+    Icon::make(Heroicon::ShieldCheck)->color('success')->tooltip('From source'))
+```
+
+`->fieldMetadataBadge(null)` removes badges. Notes:
+
+- `$value` is the form value as stored in the preview (after transformation), not the raw
+  model output. `$metadata` is the field's raw metadata: strings and numbers, no enum instances.
+- Return a fresh component on every call. The renderer attaches its own schema container to
+  what you return, so do not reuse one instance.
+- The badge component renders in a minimal schema without a record, so `$record` injected into
+  the badge component itself is null. Use the injections of the closure instead (`$metadata`,
+  `$fieldName`, `$value`, plus the action's usual ones such as `$record`).
+
+### Which fields start ticked
+
+With `->withSelectablePreview()`, the preview ticks fields from their metadata: a field starts
+ticked when its metadata case says so (`startsSelected()` on the enum case). With the shipped
+enums, `Verbatim` and `High` start ticked; `Derived`, `Medium` and `Low` do not. A field with no
+metadata, or metadata matching no case, starts ticked. A custom `FieldMetadata` decides through
+`startsSelected(array $metadata): bool`. Ticks are only a starting point: the user can change
+them, and after a refinement round the starting ticks are recomputed only for fields whose
+value changed.
+
+### Choosing metadata at runtime
+
+`fieldMetadata()` and `fieldMetadataInstructions()` accept closures, like `prompt()`:
+
+```php
+->fieldMetadata(fn (Article $record) => $record->is_imported
+    ? EvidenceMetadata::make()
+    : ConfidenceMetadata::make(reasoning: auth()->user()->isEditor()))
+->fieldMetadataInstructions(fn (string $locale) => __('ai.evidence_rules', locale: $locale))
+```
+
+The `fieldMetadata()` closure may return keys (taking `$s`, the schema factory), a
+`FieldMetadata`, or `null` for no metadata. Anything else throws.
+
+> **Return the same answer throughout one run.** The closure is evaluated several times per
+> run: for the prompt and schema, when rendering the preview, on refinement and on Accept. It is
+> not cached, so a closure whose result changes mid-run (time, randomness) would unwrap or badge
+> against a different vocabulary than the one the model was asked for.
+
 ### Reacting to written fields
 
 `afterFieldsWritten()` runs after the fields are written to the form — straight after the AI

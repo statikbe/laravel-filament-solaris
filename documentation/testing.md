@@ -29,6 +29,16 @@ AiFormAction::fake([
 ]);
 ```
 
+The presets use the same envelope: `EvidenceMetadata` expects an `evidence` key (a case value
+such as `verbatim`), and `ConfidenceMetadata` a numeric `confidence` between 0 and 1 (plus
+`reasoning` when enabled):
+
+```php
+AiFormAction::fake([
+    'summary' => ['value' => 'A concise summary.', 'confidence' => 0.9],
+]);
+```
+
 ## Simulating Errors
 
 ```php

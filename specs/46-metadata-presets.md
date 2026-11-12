@@ -1,6 +1,7 @@
 # 46 — Per-field metadata: evidence & confidence presets, badges, seeded selection
 
-> **Status:** Approved for implementation (2026-11-12).
+> **Status:** Implemented (2026-11-12). Deviation: the confidence schema carries no
+> `minimum`/`maximum` (strict providers reject them); scores are clamped to 0..1 instead.
 > **Date:** 2026-11-11.
 > **Context:** Step 3 of [42](42-field-metadata-and-selection.md) §8. Builds on
 > [45](45-field-metadata-core.md) (the `FieldMetadata` mechanism) and
