@@ -50,7 +50,7 @@ abstract class VocabularyMetadata extends FieldMetadata
             return null;
         }
 
-        return Text::make($case instanceof HasLabel ? $case->getLabel() : $case->name)
+        return Text::make(($case instanceof HasLabel ? $case->getLabel() : null) ?? $case->name)
             ->badge()
             ->color($case instanceof HasColor ? $case->getColor() : 'gray');
     }

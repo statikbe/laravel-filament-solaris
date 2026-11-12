@@ -1,6 +1,7 @@
 <?php
 
 use Filament\Schemas\Components\Text;
+use Filament\Support\Contracts\HasLabel;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Statikbe\FilamentSolaris\Contracts\MetadataVocabulary;
 use Statikbe\FilamentSolaris\Enums\Evidence;
@@ -20,6 +21,26 @@ enum EvidenceTestIntQuality: int implements MetadataVocabulary
     public function startsSelected(): bool
     {
         return $this === self::A;
+    }
+}
+
+enum EvidenceTestNullLabel: string implements HasLabel, MetadataVocabulary
+{
+    case Odd = 'odd';
+
+    public function getLabel(): ?string
+    {
+        return null;
+    }
+
+    public function promptDescription(): string
+    {
+        return '';
+    }
+
+    public function startsSelected(): bool
+    {
+        return true;
     }
 }
 
@@ -117,4 +138,10 @@ it('keeps closure metadata without badge and fully ticked', function () {
 
     expect($metadata->badge(['x' => 'y']))->toBeNull()
         ->and($metadata->startsSelected(['x' => 'y']))->toBeTrue();
+});
+
+it('falls back to the case name when the enum label is null', function () {
+    $badge = (new EvidenceMetadata(EvidenceTestNullLabel::class))->badge(['evidence' => 'odd']);
+
+    expect($badge->getContent())->toBe('Odd');
 });

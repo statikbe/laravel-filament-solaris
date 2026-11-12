@@ -35,7 +35,7 @@ enum ConfidenceTestNotBand: string
     case X = 'x';
 }
 
-enum ConfidenceTestNoCases implements ConfidenceBand
+enum ConfidenceTestNoCases: string implements ConfidenceBand
 {
     public function threshold(): float
     {

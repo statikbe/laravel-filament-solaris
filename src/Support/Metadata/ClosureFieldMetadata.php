@@ -7,7 +7,7 @@ use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
 
 /**
- * Backs the inline `->fieldMetadata(fn ($schema) => [...])` form. Action-level
+ * Backs the inline `->fieldMetadata(fn (JsonSchemaTypeFactory $schema) => [...])` form. Action-level
  * instructions reach the prompt through promptFragment()'s override.
  */
 final class ClosureFieldMetadata extends FieldMetadata

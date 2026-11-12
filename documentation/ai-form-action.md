@@ -468,6 +468,7 @@ use Statikbe\FilamentSolaris\Support\Metadata\Presets\EvidenceMetadata;
   `ConfidenceBand` enum. `ConfidenceLevel` has `High` (0.8 and up), `Medium` (0.5) and
   `Low` (0.0). A score outside 0..1 is clamped, and the schema carries no `minimum`/`maximum`,
   as strict providers reject them.
+- The evidence prompt tells the model to return null for a value it cannot support from the source. Such a field counts as failed (failure notification) rather than being filled with a guess.
 - `reasoning: true` adds a required `reasoning` key (one sentence) next to the value.
 - The preset writes the prompt instructions from each case's `promptDescription()`. These are
   prompt language and stay English. `->fieldMetadataInstructions()` still overrides them.
@@ -499,7 +500,7 @@ way in.
 ### Badges
 
 With a preset, each field in the preview shows a colored badge beside its label (for example
-"Derived" or "High"), with the metadata in its tooltip. A custom `FieldMetadata` can return its
+"Derived" or "High"), with an info icon whose tooltip shows the metadata. A custom `FieldMetadata` can return its
 own badge from `badge(array $metadata): ?Component` (any Filament schema component, such as
 `Text::make(...)->badge()` or an `Icon`; `null` for none).
 
@@ -510,7 +511,8 @@ To change the badge for one action, whatever the metadata:
     Icon::make(Heroicon::ShieldCheck)->color('success')->tooltip('From source'))
 ```
 
-`->fieldMetadataBadge(null)` removes badges. Notes:
+`->fieldMetadataBadge(fn () => null)` hides badges. Passing `null` itself restores the
+metadata's own `badge()`. Notes:
 
 - `$value` is the form value as stored in the preview (after transformation), not the raw
   model output. `$metadata` is the field's raw metadata: strings and numbers, no enum instances.
@@ -541,11 +543,12 @@ value changed.
 ->fieldMetadataInstructions(fn (string $locale) => __('ai.evidence_rules', locale: $locale))
 ```
 
-The `fieldMetadata()` closure may return keys (taking `$s`, the schema factory), a
+The `fieldMetadata()` closure may return keys (the closure's parameter must be type-hinted
+`JsonSchemaTypeFactory`; the name does not matter, injection is by type), a
 `FieldMetadata`, or `null` for no metadata. Anything else throws.
 
 > **Return the same answer throughout one run.** The closure is evaluated several times per
-> run: for the prompt and schema, when rendering the preview, on refinement and on Accept. It is
+> run: for the prompt and schema, when rendering the preview and on refinement (Accept uses the metadata stored in the preview). It is
 > not cached, so a closure whose result changes mid-run (time, randomness) would unwrap or badge
 > against a different vocabulary than the one the model was asked for.
 
