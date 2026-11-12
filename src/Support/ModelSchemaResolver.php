@@ -7,8 +7,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
 use Illuminate\Support\Facades\Schema;
-use ReflectionEnum;
 use Statikbe\FilamentSolaris\Contracts\ComponentFactory;
+use Statikbe\FilamentSolaris\Support\Schema\BackedEnumType;
 
 /**
  * Introspects an Eloquent model's writable columns into a JSON-schema property
@@ -93,18 +93,10 @@ class ModelSchemaResolver
      */
     protected function buildBaseType(JsonSchemaTypeFactory $schema, array $column, ?string $cast): Type
     {
-        if ($cast !== null && enum_exists($cast)) {
-            $reflection = new ReflectionEnum($cast);
-
-            if ($reflection->isBacked()) {
-                $backing = $reflection->getBackingType()?->getName();
-                $type = $backing === 'int' ? $schema->integer() : $schema->string();
-
-                /** @var class-string<\BackedEnum> $cast */
-                return $type->enum($cast);
-            }
-            // Unit (non-backed) enums fall through to the generic mapping.
+        if ($cast !== null && ($enumType = BackedEnumType::for($schema, $cast)) !== null) {
+            return $enumType;
         }
+        // Unit (non-backed) enums fall through to the generic mapping.
 
         return $this->mapType($schema, $column['type_name'] ?? ($column['type'] ?? 'string'), $cast);
     }
