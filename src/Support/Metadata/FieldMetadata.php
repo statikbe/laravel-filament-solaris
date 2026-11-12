@@ -3,6 +3,7 @@
 namespace Statikbe\FilamentSolaris\Support\Metadata;
 
 use Closure;
+use Filament\Schemas\Components\Component;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
 use InvalidArgumentException;
@@ -16,9 +17,9 @@ use InvalidArgumentException;
  */
 abstract class FieldMetadata
 {
-    public static function make(): static
+    public static function make(mixed ...$args): static
     {
-        return new static;
+        return new static(...$args);
     }
 
     /**
@@ -34,6 +35,27 @@ abstract class FieldMetadata
     public function instructions(): ?string
     {
         return null;
+    }
+
+    /**
+     * The badge shown beside a field in the preview, built from that field's
+     * metadata; null for none.
+     *
+     * @param  array<string, mixed>  $metadata
+     */
+    public function badge(array $metadata): ?Component
+    {
+        return null;
+    }
+
+    /**
+     * Whether the field starts ticked in the preview selection.
+     *
+     * @param  array<string, mixed>  $metadata
+     */
+    public function startsSelected(array $metadata): bool
+    {
+        return true;
     }
 
     /**
