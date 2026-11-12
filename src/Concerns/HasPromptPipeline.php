@@ -799,7 +799,9 @@ trait HasPromptPipeline
             $data['selectable'] = PreviewSelection::selectable(array_keys($displays), $selectableFields);
         }
 
-        if ($this->getFieldMetadata() !== null) {
+        $metadata = $this->getFieldMetadata();
+
+        if ($metadata !== null) {
             $data['metadata'] = $result['metadata'] ?? [];
         }
 
@@ -817,7 +819,9 @@ trait HasPromptPipeline
         }
 
         $livewire->solarisPreviewData = $data;
-        $livewire->solarisPreviewSelected = $data['selectable'] ?? null;
+        $livewire->solarisPreviewSelected = isset($data['selectable']) && $metadata !== null
+            ? PreviewSelection::seed($data['selectable'], fn (string $f): bool => $metadata->startsSelected($result['metadata'][$f] ?? []))
+            : ($data['selectable'] ?? null);
     }
 
     /**
@@ -931,6 +935,8 @@ trait HasPromptPipeline
     {
         $livewire = $this->getLivewire();
         $previewData = $livewire->solarisPreviewData;
+        $previousValues = $previewData['values'] ?? [];
+        $metadata = $this->getFieldMetadata();
 
         $previewData['values'] = $result['values'];
         $previewData['displays'] = $this->buildDisplays($result['values'], $factories);
@@ -943,11 +949,20 @@ trait HasPromptPipeline
                 $this->getSelectablePreviewFields() ?? [],
             );
 
-            $livewire->solarisPreviewSelected = PreviewSelection::reseed($livewire->solarisPreviewSelected, $previewData['selectable'], $selectable);
+            $livewire->solarisPreviewSelected = $metadata !== null
+                ? PreviewSelection::reseedByValue(
+                    $livewire->solarisPreviewSelected,
+                    $previewData['selectable'],
+                    $selectable,
+                    $previousValues,
+                    $result['values'],
+                    fn (string $f): bool => $metadata->startsSelected($result['metadata'][$f] ?? []),
+                )
+                : PreviewSelection::reseed($livewire->solarisPreviewSelected, $previewData['selectable'], $selectable);
             $previewData['selectable'] = $selectable;
         }
 
-        if ($this->getFieldMetadata() !== null) {
+        if ($metadata !== null) {
             $previewData['metadata'] = $result['metadata'] ?? [];
         }
 

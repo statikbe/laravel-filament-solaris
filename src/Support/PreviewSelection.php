@@ -2,6 +2,8 @@
 
 namespace Statikbe\FilamentSolaris\Support;
 
+use Closure;
+
 /**
  * Selection rules for a preview modal whose items can be ticked (spec 44).
  *
@@ -38,6 +40,49 @@ final class PreviewSelection
         return array_values(array_filter(
             $selectable,
             fn (string $key): bool => in_array($key, $selected, true) || ! in_array($key, $previousSelectable, true),
+        ));
+    }
+
+    /**
+     * The initial selection: the keys the predicate ticks, in order.
+     *
+     * @param  array<int, string>  $selectable
+     * @param  Closure(string): bool  $startsSelected
+     * @return array<int, string>
+     */
+    public static function seed(array $selectable, Closure $startsSelected): array
+    {
+        return array_values(array_filter($selectable, fn (string $key): bool => $startsSelected($key)));
+    }
+
+    /**
+     * Carry the user's choices over a refinement, re-seeding by the predicate
+     * every key that is newly selectable or whose value changed; an unchanged
+     * key keeps the user's tick, a vanished key drops out.
+     *
+     * @param  array<int, string>  $previousSelectable
+     * @param  array<int, string>  $selectable
+     * @param  array<string, mixed>  $previousValues
+     * @param  array<string, mixed>  $values
+     * @param  Closure(string): bool  $startsSelected
+     * @return array<int, string>
+     */
+    public static function reseedByValue(
+        mixed $selected,
+        array $previousSelectable,
+        array $selectable,
+        array $previousValues,
+        array $values,
+        Closure $startsSelected,
+    ): array {
+        $selected = is_array($selected) ? $selected : [];
+
+        return array_values(array_filter(
+            $selectable,
+            fn (string $key): bool => ! in_array($key, $previousSelectable, true)
+                || ($values[$key] ?? null) !== ($previousValues[$key] ?? null)
+                    ? $startsSelected($key)
+                    : in_array($key, $selected, true),
         ));
     }
 
